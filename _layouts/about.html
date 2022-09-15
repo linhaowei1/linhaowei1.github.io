@@ -33,22 +33,7 @@ layout: default
               {{ page.profile.address }}
             </div>
             {%- endif %}
-          </div>
-          {%- endif %}
-
-          <div class="clearfix">
-            {{ content }}
-          </div>
-
-          {% if page.news -%}
-          <!-- News -->
-          {%- include news.html %}
-          {%- endif %}
-          {% if page.selected_papers -%}
-            <!-- Selected papers -->
-            {%- include selected_papers.html %}
-          {%- endif %}
-          {%- if page.social %}
+            {%- if page.social %}
           <!-- Social -->
           <div class="social">
             <div class="contact-icons">
@@ -61,6 +46,26 @@ layout: default
             
           </div>
           {%- endif %}
+          </div>
+          {%- endif %}
+
+          <div class="clearfix">
+            {{ content }}
+          </div>
+
+          {% if page.awards -%}
+          {%- include awards.html %}
+          {%- endif %}
+
+
+          {% if page.news -%}
+          {%- include news.html %}
+          {%- endif %}
+          {% if page.selected_papers -%}
+            <!-- Selected papers -->
+            {%- include selected_papers.html %}
+          {%- endif %}
+          
         </article>
 
 </div>
