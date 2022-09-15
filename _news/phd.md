@@ -4,4 +4,4 @@ date: 2022-09-16 07:59:00-0400
 inline: true
 ---
 
-I will join ***the School of Artificial Intelligence in Peking University*** as a PhD student! :sparkles: :smile:
+I will join ***School of Artificial Intelligence, Peking University*** as a PhD student! :sparkles: :smile:
