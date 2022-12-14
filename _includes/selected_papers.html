@@ -29,6 +29,9 @@
       {% if pub.code != '' %}
       <a href={{ pub.code }} class="badge badge-info mr-3 pl-2 pr-2">code</a>
       {% endif %}
+      {% if pub.poster != '' %}
+      <a href={{ pub.code }} class="badge badge-success mr-3 pl-2 pr-2">code</a>
+      {% endif %}
     </div>
   </div>
   {% endfor %}
