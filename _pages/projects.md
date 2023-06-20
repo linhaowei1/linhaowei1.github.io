@@ -2,10 +2,10 @@
 layout: page
 title: Collections
 permalink: /_projects/
-description: A growing collection about me. 与我有关的采访和新闻。
+description: A growing collection about me. 与我有关的采访和新闻、或生活剪影。
 nav: true
 nav_order: 2
-display_categories: ['Wechat Posts']
+display_categories: ['Wechat Posts', 'life']
 horizontal: false
 ---
 
