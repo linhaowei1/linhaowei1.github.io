@@ -1,9 +1,9 @@
 ---
 layout: page
-title: 未闽扬帆｜成为一束光——专访2019级元培学院本科生林昊苇
-description: 福建招生组官方公众号-采访
+title: 成为一束光——专访2019级元培学院本科生林昊苇
+description: 福建招生组官方公众号-采访（2022.06.19）
 img: assets/img/1.jpg
-importance: 1
+importance: 2
 category: Wechat Posts
 ---
 

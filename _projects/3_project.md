@@ -1,7 +1,7 @@
 ---
 layout: page
 title: 未名学子说 | 林昊苇：选择
-description: 北京大学招生办官方公众号-采访
+description: 北京大学招生办官方公众号-采访（2022.01.26）
 img: assets/img/3.jpg
 importance: 3
 category: Wechat Posts
