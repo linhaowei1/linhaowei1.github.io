@@ -6,7 +6,7 @@ description: A growing collection about me. 与我有关的采访和新闻。
 nav: true
 nav_order: 2
 display_categories: ['Wechat Posts']
-horizontal: false
+horizontal: true
 ---
 
 <!-- pages/projects.md -->
