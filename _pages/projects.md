@@ -5,7 +5,7 @@ permalink: /_projects/
 description: A growing collection about me. 与我有关的采访和新闻、或生活剪影。
 nav: true
 nav_order: 2
-display_categories: ['Wechat Posts', 'life']
+display_categories: ['Wechat Posts', 'Life']
 horizontal: false
 ---
 
