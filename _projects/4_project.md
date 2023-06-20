@@ -9,7 +9,7 @@ category: Life
 
 <div class="row">
     <div class="col-sm mt-3 mt-md-0">
-        {% include figure.html path="assets/img/post_images/1.jpeg" title="" class="img-fluid rounded z-depth-1" %}
+        {% include figure.html path="assets/img/painting/1.jpeg" title="" class="img-fluid rounded z-depth-1" %}
     </div>
 </div>
 <div class="caption">
@@ -18,7 +18,7 @@ category: Life
 
 <div class="row">
     <div class="col-sm mt-3 mt-md-0">
-        {% include figure.html path="assets/img/post_images/2.jpeg" title="" class="img-fluid rounded z-depth-1" %}
+        {% include figure.html path="assets/img/painting/2.jpeg" title="" class="img-fluid rounded z-depth-1" %}
     </div>
 </div>
 <div class="caption">
@@ -27,7 +27,7 @@ category: Life
 
 <div class="row">
     <div class="col-sm mt-3 mt-md-0">
-        {% include figure.html path="assets/img/post_images/3.jpeg" title="" class="img-fluid rounded z-depth-1" %}
+        {% include figure.html path="assets/img/painting/3.jpeg" title="" class="img-fluid rounded z-depth-1" %}
     </div>
 </div>
 <div class="caption">
@@ -36,7 +36,7 @@ category: Life
 
 <div class="row">
     <div class="col-sm mt-3 mt-md-0">
-        {% include figure.html path="assets/img/post_images/4.jpeg" title="" class="img-fluid rounded z-depth-1" %}
+        {% include figure.html path="assets/img/painting/4.jpeg" title="" class="img-fluid rounded z-depth-1" %}
     </div>
 </div>
 <div class="caption">
@@ -45,7 +45,7 @@ category: Life
 
 <div class="row">
     <div class="col-sm mt-3 mt-md-0">
-        {% include figure.html path="assets/img/post_images/5.jpeg" title="" class="img-fluid rounded z-depth-1" %}
+        {% include figure.html path="assets/img/painting/5.jpeg" title="" class="img-fluid rounded z-depth-1" %}
     </div>
 </div>
 <div class="caption">
@@ -54,7 +54,7 @@ category: Life
 
 <div class="row">
     <div class="col-sm mt-3 mt-md-0">
-        {% include figure.html path="assets/img/post_images/6.jpeg" title="" class="img-fluid rounded z-depth-1" %}
+        {% include figure.html path="assets/img/painting/6.jpeg" title="" class="img-fluid rounded z-depth-1" %}
     </div>
 </div>
 <div class="caption">
