@@ -1,7 +1,7 @@
 ---
 layout: page
-title: 画画
-description: 初中以前画的画
+title: 画画 (Paintings)
+description: Painted when I was in junior high school. 初中以前画的画.
 img: assets/img/painting/1.jpeg
 importance: 2
 category: Life
