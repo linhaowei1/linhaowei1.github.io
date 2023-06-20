@@ -1,11 +1,11 @@
 ---
 layout: page
-title: projects
+title: collections
 permalink: /_projects/
-description: A growing collection of your cool projects.
+description: A growing collection about me. 与我有关的采访和新闻。
 nav: true
 nav_order: 2
-display_categories: [work, fun]
+display_categories: ['Wechat Posts']
 horizontal: false
 ---
 
