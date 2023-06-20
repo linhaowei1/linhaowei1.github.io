@@ -140,7 +140,7 @@ collections:
     permalink: /news/:path/
   projects:
     output: true
-    permalink: /projects/:path/
+    permalink: /_projects/:path/
   publications:
     output: true
     permalink: /:collection/:name
@@ -166,7 +166,7 @@ kramdown:
       start_line: 1
 
 # Includes & excludes
-include: ['_pages']
+include: ['_pages', '_projects']
 exclude:
   - bin
   - Gemfile
