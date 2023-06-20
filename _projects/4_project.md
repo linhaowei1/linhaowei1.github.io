@@ -9,54 +9,30 @@ category: Life
 
 <div class="row">
     <div class="col-sm mt-3 mt-md-0">
-        {% include figure.html path="assets/img/painting/1.jpeg" title="" class="img-fluid rounded z-depth-1" %}
+        {% include figure.html path="assets/img/painting/1.jpeg" title="人像素描 —— 马赛" class="img-fluid rounded z-depth-1" %}
     </div>
-</div>
-<div class="caption">
-    人像素描 —— 马赛
-</div> 
-
-<div class="row">
     <div class="col-sm mt-3 mt-md-0">
-        {% include figure.html path="assets/img/painting/2.jpeg" title="" class="img-fluid rounded z-depth-1" %}
+        {% include figure.html path="assets/img/painting/2.jpeg" title="水彩 —— 一些书签" class="img-fluid rounded z-depth-1" %}
     </div>
 </div>
-<div class="caption">
-    水彩 —— 一些书签
-</div> 
 
 <div class="row">
     <div class="col-sm mt-3 mt-md-0">
         {% include figure.html path="assets/img/painting/3.jpeg" title="" class="img-fluid rounded z-depth-1" %}
     </div>
+    <div class="col-sm mt-3 mt-md-0">
+        {% include figure.html path="assets/img/painting/4.jpeg" title="静物素描 —— 一组静物" class="img-fluid rounded z-depth-1" %}
+    </div>
 </div>
-<div class="caption">
-    风景色彩 —— 乡村夕阳
-</div> 
+
+
+
 
 <div class="row">
     <div class="col-sm mt-3 mt-md-0">
-        {% include figure.html path="assets/img/painting/4.jpeg" title="" class="img-fluid rounded z-depth-1" %}
+        {% include figure.html path="assets/img/painting/5.jpeg" title="静物色彩 —— 一组静物." class="img-fluid rounded z-depth-1" %}
     </div>
-</div>
-<div class="caption">
-    静物素描 —— 一组静物
-</div> 
-
-<div class="row">
     <div class="col-sm mt-3 mt-md-0">
-        {% include figure.html path="assets/img/painting/5.jpeg" title="" class="img-fluid rounded z-depth-1" %}
+        {% include figure.html path="assets/img/painting/6.jpeg" title="人像素描 —— 大卫." class="img-fluid rounded z-depth-1" %}
     </div>
 </div>
-<div class="caption">
-    静物色彩 —— 一组静物.
-</div> 
-
-<div class="row">
-    <div class="col-sm mt-3 mt-md-0">
-        {% include figure.html path="assets/img/painting/6.jpeg" title="" class="img-fluid rounded z-depth-1" %}
-    </div>
-</div>
-<div class="caption">
-    人像素描 —— 大卫.
-</div> 
