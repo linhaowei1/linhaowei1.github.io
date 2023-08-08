@@ -7,6 +7,6 @@ importance: 1
 category: Wechat Posts
 ---
 
-The original posts can be found <a href="https://mp.weixin.qq.com/s/sU73tmfHVLw7NzTsJLpGbA">here.</a>
+The original post can be found <a href="https://mp.weixin.qq.com/s/sU73tmfHVLw7NzTsJLpGbA">here.</a>
 
 Publish Date: 2023.03.23
