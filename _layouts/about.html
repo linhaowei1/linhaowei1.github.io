@@ -57,21 +57,18 @@ layout: default
             {{ content }}
           </div>
 
-          {% if page.awards -%}
-          {%- include awards.html %}
-          {%- endif %}
-
-
           {% if page.news -%}
           {%- include news.html %}
           {%- endif %}
-
           
           {% if page.selected_papers -%}
             <!-- Selected papers -->
             {%- include selected_papers.html %}
           {%- endif %}
           
+          {% if page.awards -%}
+          {%- include awards.html %}
+          {%- endif %}
         </article>
 
 </div>
