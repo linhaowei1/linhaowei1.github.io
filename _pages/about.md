@@ -15,6 +15,7 @@ awards: true  # includes a list of selected awards
 selected_papers: true # includes a list of papers marked as "selected={true}"
 social: true  # includes social icons at the bottom of the page
 ---
+E-mail: linhaowei (at) pku (dot) edu (dot) cn
 
 I am currently embarking on my first year as a Ph.D. student at the Institute for Artificial Intelligence, Peking University, co-advised by [Prof. Jianzhu Ma](https://majianzhu.com/) and [Prof. Yitao Liang](http://web.cs.ucla.edu/~yliang/). 
 
