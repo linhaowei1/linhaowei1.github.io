@@ -22,6 +22,7 @@ I serve as reviewer in the following conferences:
 
 I serve as Teaching Assistant in the following cources in Peking University:
 
+- Introduction to Artificial Intelligence, Spring 2024
 - Natural Language Processing with Deep Learning, Fall 2022, Fall 2023
 - Mathematical Foundation for Artificial Intelligence, Spring 2023
 - Introduction to Theoretical Computer Science, Fall 2022
