@@ -7,4 +7,5 @@ year: 2023.12
 pdf: https://arxiv.org/abs/2310.05083
 code: https://github.com/linhaowei1/FLatS
 poster: ''
+page: ''
 ---
