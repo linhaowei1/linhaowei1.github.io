@@ -32,6 +32,9 @@
       {% if pub.poster != '' %}
       <a href={{ pub.poster }} class="badge badge-default mr-2 pl-2 pr-2">poster</a>
       {% endif %}
+      {% if pub.page != '' %}
+      <a href={{ pub.page }} class="badge badge-success mr-2 pl-2 pr-2">page</a>
+      {% endif %}
     </div>
   </div>
   {% endfor %}

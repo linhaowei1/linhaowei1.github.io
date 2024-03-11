@@ -7,4 +7,5 @@ year: 2023.12
 pdf: https://linhaowei1.github.io/assets/pdf/jarvis1.pdf
 code: https://github.com/CraftJarvis/JARVIS-1
 poster: ''
+page: https://craftjarvis.org/JARVIS-1
 ---
