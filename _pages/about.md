@@ -21,9 +21,10 @@ I am currently embarking on my first year as a Ph.D. student at the Institute fo
 
 I received my Bachelor's degree in Artificial Intelligence from [Yuanpei College](https://yuanpei.pku.edu.cn/en/aboutyuanpei/collegeprofile/index.htm), Peking University, where I was fortunate to work with [Prof. Bing Liu](https://www.cs.uic.edu/~liub/) on OOD detection, continual learning, and NLP. 
 
-My primary research focus is in the field of machine learning, with a passionate commitment to (but is not limited to!) 
+My primary research focus is in the field of machine learning, with a passionate commitment that includes (but is not limited to!):
 
-- Understanding the scaling, adaptation, and exploitation of foundation models (e.g., LLMs, diffusion models);
+- Understanding foundation models (e.g., LLMs, diffusion models) from the perspectives of pre-training, adaptation, and exploitation.
 - Developing advanced AI systems (e.g., drug design systems, open-world agents) aimed at augmenting human capabilities in real-world scenarios. 
 
 If you'd like to chat with me about research or anything, please feel free to reach out via email!
+
