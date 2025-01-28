@@ -17,14 +17,11 @@ social: true  # includes social icons at the bottom of the page
 ---
 E-mail: linhaowei (at) pku (dot) edu (dot) cn
 
-I am currently a second year Ph.D. student at the Institute for Artificial Intelligence, Peking University, co-advised by [Prof. Jianzhu Ma](https://majianzhu.com/) and [Prof. Yitao Liang](http://web.cs.ucla.edu/~yliang/). 
+I am a second year Ph.D. student at the Institute for Artificial Intelligence, Peking University, co-advised by [Prof. Yitao Liang](http://web.cs.ucla.edu/~yliang/) and  [Prof. Jianzhu Ma](https://majianzhu.com/). 
 
 I received my Bachelor's degree in Artificial Intelligence from [Yuanpei College](https://yuanpei.pku.edu.cn/en/aboutyuanpei/collegeprofile/index.htm), Peking University, where I was fortunate to work with [Prof. Bing Liu](https://www.cs.uic.edu/~liub/) on OOD detection, continual learning, and NLP. 
 
-I am passionate about designing next-generation AI systems that deeply integrate into daily lives. My primary research focus is in the field of machine learning, with specific interests in:
-
-- Exploring generative foundation models across different domains (vision, language, sequential decision making, molecules).
-- Developing advanced AI systems (e.g., drug design systems, open-world agents) aimed at augmenting human capabilities in real-world scenarios.  
+I am passionate about designing next-generation AI systems that deeply integrate into daily lives. My primary research focus is in the field of machine learning, with specific interests in **Generative Foundation Models** across different modalities (vision, language, biology, sequential control, audio).
 
 I am a member of [Team CraftJarvis](https://craftjarvis.github.io/), which is dedicated to creating generalist agents for open-world environments. Outside of my professional interests, I enjoy engaging in music-related activities, including singing, playing the guitar, and participating in choirs. Additionally, I share videos related to singing and research on [Bilibili](https://space.bilibili.com/230197134). If you'd like to chat with me about research or anything, please feel free to reach out via email!
 
