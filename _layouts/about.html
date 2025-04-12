@@ -14,76 +14,75 @@
 </head>
 <body>
 <p class="p1"><span class="s1">---</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space"> </span>layout: default</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space"> </span>---</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space"> </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space"> </span>&lt;!-- about.html --&gt;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">       </span>&lt;div class="post"&gt;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">         </span>&lt;header class="post-header"&gt;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">           </span>&lt;h1 class="post-title"&gt;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>{% if site.title == "blank" -%}&lt;span class="font-weight-bold"&gt;{{ site.first_name }}&lt;/span&gt; {{ site.middle_name }} {{ site.last_name }}{%- else -%}{{ site.title }}{%- endif %}</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">           </span>&lt;/h1&gt;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">           </span>&lt;p class="desc"&gt;{{ page.subtitle }}&lt;/p&gt;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">         </span>&lt;/header&gt;</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space"> </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">         </span>&lt;article&gt;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">           </span>{% if page.profile -%}</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">           </span>&lt;div class="profile float-{%- if page.profile.align == 'left' -%}left{%- else -%}right{%- endif -%}"&gt;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">             </span>{%- if page.profile.image %}</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">               </span>{%- assign profile_image_path = page.profile.image | prepend: 'assets/img/' -%}</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space"> </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">               </span>{% if page.profile.image_circular %}</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                 </span>{%- assign profile_image_class = "img-fluid z-depth-1 rounded-circle" -%}</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">               </span>{% else %}</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                 </span>{%- assign profile_image_class = "img-fluid z-depth-1 rounded" -%}</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">               </span>{% endif %}</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space"> </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">               </span>{% include figure.html<span class="Apple-converted-space"> </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">               </span>path=profile_image_path<span class="Apple-converted-space"> </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">               </span>class=profile_image_class</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">               </span>alt=page.profile.image -%}</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">             </span>{% endif -%}</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">             </span>{%- if page.profile.address %}</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">             </span>&lt;div class="address"&gt;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">               </span>{{ page.profile.address }}</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">             </span>&lt;/div&gt;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">             </span>{%- endif %}</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">             </span>{%- if page.social %}</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">           </span>&lt;!-- Social --&gt;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">           </span>&lt;div class="social"&gt;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">             </span>&lt;div class="contact-icons"&gt;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">             </span>{% include social.html %}</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">             </span>&lt;/div&gt;</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space"> </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">             </span>&lt;div class="contact-note"&gt;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">               </span>{{ site.contact_note }}</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">             </span>&lt;/div&gt;</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space">             </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">           </span>&lt;/div&gt;</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space">    </span></span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space"> </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">           </span>{%- endif %}</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">           </span>&lt;/div&gt;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">           </span>{%- endif %}</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space"> </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">           </span>&lt;div class="clearfix"&gt;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">             </span>{{ content }}</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">           </span>&lt;/div&gt;</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space"> </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">           </span>{% if page.news -%}</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">           </span>{%- include news.html %}</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">           </span>{%- endif %}</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space">           </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">           </span>{% if page.selected_papers -%}</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">             </span>&lt;!-- Selected papers --&gt;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">             </span>{%- include selected_papers.html %}</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">           </span>{%- endif %}</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space">           </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">           </span>{% if page.awards -%}</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">           </span>{%- include awards.html %}</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">           </span>{%- endif %}</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">         </span>&lt;/article&gt;</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space"> </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space"> </span>&lt;/div&gt;</span></p>
+<p class="p1"><span class="s1">layout: default</span></p>
+<p class="p1"><span class="s1">---</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1">&lt;!-- about.html --&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>&lt;div class="post"&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>&lt;header class="post-header"&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>&lt;h1 class="post-title"&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">           </span>{% if site.title == "blank" -%}&lt;span class="font-weight-bold"&gt;{{ site.first_name }}&lt;/span&gt; {{ site.middle_name }} {{ site.last_name }}{%- else -%}{{ site.title }}{%- endif %}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>&lt;/h1&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>&lt;p class="desc"&gt;{{ page.subtitle }}&lt;/p&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>&lt;/header&gt;</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>&lt;article&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>{% if page.profile -%}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>&lt;div class="profile float-{%- if page.profile.align == 'left' -%}left{%- else -%}right{%- endif -%}"&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>{%- if page.profile.image %}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">              </span>{%- assign profile_image_path = page.profile.image | prepend: 'assets/img/' -%}</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">              </span>{% if page.profile.image_circular %}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>{%- assign profile_image_class = "img-fluid z-depth-1 rounded-circle" -%}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">              </span>{% else %}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>{%- assign profile_image_class = "img-fluid z-depth-1 rounded" -%}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">              </span>{% endif %}</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">              </span>{% include figure.html<span class="Apple-converted-space"> </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">              </span>path=profile_image_path<span class="Apple-converted-space"> </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">              </span>class=profile_image_class</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">              </span>alt=page.profile.image -%}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>{% endif -%}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>{%- if page.profile.address %}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>&lt;div class="address"&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">              </span>{{ page.profile.address }}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>&lt;/div&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>{%- endif %}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>{%- if page.social %}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>&lt;!-- Social --&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>&lt;div class="social"&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>&lt;div class="contact-icons"&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>{% include social.html %}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>&lt;/div&gt;</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>&lt;div class="contact-note"&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">              </span>{{ site.contact_note }}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>&lt;/div&gt;</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>&lt;/div&gt;</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>{%- endif %}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>&lt;/div&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>{%- endif %}</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>&lt;div class="clearfix"&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>{{ content }}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>&lt;/div&gt;</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>{% if page.news -%}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>{%- include news.html %}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>{%- endif %}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">          </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>{% if page.selected_papers -%}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>&lt;!-- Selected papers --&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>{%- include selected_papers.html %}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>{%- endif %}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">          </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>{% if page.awards -%}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>{%- include awards.html %}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>{%- endif %}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>&lt;/article&gt;</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1">&lt;/div&gt;</span></p>
 </body>
 </html>
