@@ -23,5 +23,5 @@ I received my Bachelor's degree in Artificial Intelligence from [Yuanpei College
 
 I am passionate about designing next-generation AI that deeply integrates into real world. My primary research focus is in the field of machine learning, with specific interests in **Generative Foundation Models** across different modalities (vision, language, biology, sequential control, audio). Currently, I am working on **AI4Science**.
 
-I am a member of [Team CraftJarvis](https://craftjarvis.github.io/), which is dedicated to creating generalist agents for open-world environments. Outside of my professional interests, I enjoy engaging in music-related activities, including singing, playing the guitar, and participating in choirs. Additionally, I share videos related to singing and research on [Bilibili](https://space.bilibili.com/230197134). If you'd like to chat with me about research or anything, please feel free to reach out via email!
+I am a member of [Team CraftJarvis](https://craftjarvis.github.io/), which is dedicated to creating generalist agents for open-world environments. Outside of my professional interests, I enjoy engaging in music-related activities, including singing, playing the guitar, and participating in choirs. 
 
