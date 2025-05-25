@@ -21,7 +21,7 @@ I am a second year Ph.D. student at the Institute for Artificial Intelligence, P
 
 I received my Bachelor's degree in Artificial Intelligence from [Yuanpei College](https://yuanpei.pku.edu.cn/en/aboutyuanpei/collegeprofile/index.htm), Peking University, where I was fortunate to work with [Prof. Bing Liu](https://www.cs.uic.edu/~liub/) on OOD detection, continual learning, and NLP. 
 
-I am passionate about designing next-generation AI that deeply integrates into real world. My primary research focus is in the field of machine learning, with specific interests in **Generative Foundation Models** across different modalities (vision, language, biology, sequential control, audio). Currently, I am working on **AI4Science**.
+I am passionate about designing next-generation AI that deeply integrates into real world. My primary research focus is in the field of machine learning, with specific interests in **Generative Foundation Models** ([LLMs](https://arxiv.org/pdf/2402.02314), [3D](https://arxiv.org/abs/2503.16278), [Diffusion](https://arxiv.org/abs/2409.15761)). Currently, I am working on LLM for scientific discovery ([SR](https://arxiv.org/abs/2503.07994), [molecule design](https://arxiv.org/abs/2501.14216), [retrosynthetic planning](https://www.nature.com/articles/s41467-024-55374-9)) and evaluation ([open-world agent](https://arxiv.org/pdf/2310.08367), [multi-turn reasoning](https://arxiv.org/pdf/2504.02810)).
 
 I am a member of [Team CraftJarvis](https://craftjarvis.github.io/), which is dedicated to creating generalist agents for open-world environments. Outside of my professional interests, I enjoy engaging in music-related activities, including singing, playing the guitar, and participating in choirs. 
 
