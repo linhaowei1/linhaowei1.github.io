@@ -2,15 +2,16 @@
 layout: page
 title: Experiences
 permalink: /_experiences/
-description: 
+description:
 nav: true
 nav_order: 1
-display_categories: 
+display_categories:
 horizontal: false
 ---
+
 ## Services
 
-I serve as reviewer in the following conferences: 
+I serve as reviewer in the following conferences:
 
 - ICML 2022 (outstanding reviewer award), 2023, 2024, 2025
 - NeurIPS 2022, 2023, 2024, 2025
@@ -25,7 +26,7 @@ I serve as reviewer in the following conferences:
 and the following workshops:
 
 - ICLR FPI
-- NeurIPS OWA 
+- NeurIPS OWA
 - ICML AI4Science, MEM-EAI, SPIGM
 
 ## Teaching
@@ -36,4 +37,4 @@ I serve as Teaching Assistant in the following cources in Peking University:
 - Natural Language Processing with Deep Learning, Fall 2022, Fall 2023, Fall 2024
 - Mathematical Foundation for Artificial Intelligence, Spring 2023
 - Introduction to Theoretical Computer Science, Fall 2022
-- A Preliminary Seminar on Artificial Intelligence, Fall 2021 
+- A Preliminary Seminar on Artificial Intelligence, Fall 2021
