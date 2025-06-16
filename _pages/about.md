@@ -1,34 +1,26 @@
 ---
 layout: about
-title: about
+title: About
 permalink: /
-subtitle: <a href='#'>Affiliations</a>. Address. Contacts. Motto. Etc.
+subtitle: 
 
 profile:
   align: right
-  image: prof_pic.jpg
+  image: haowei.jpg
   image_circular: false # crops the image to make it circular
-  more_info: >
-    <p>555 your office number</p>
-    <p>123 your address street</p>
-    <p>Your City, State 12345</p>
+  address: >
 
+news: true  # includes a list of news items
+awards: true  # includes a list of selected awards
 selected_papers: true # includes a list of papers marked as "selected={true}"
-social: true # includes social icons at the bottom of the page
-
-announcements:
-  enabled: true # includes a list of news items
-  scrollable: true # adds a vertical scroll bar if there are more than 3 news items
-  limit: 5 # leave blank to include all the news in the `_news` folder
-
-latest_posts:
-  enabled: true
-  scrollable: true # adds a vertical scroll bar if there are more than 3 new posts items
-  limit: 3 # leave blank to include all the blog posts
+social: true  # includes social icons at the bottom of the page
 ---
+E-mail: linhaowei (at) pku (dot) edu (dot) cn
 
-Write your biography here. Tell the world about yourself. Link to your favorite [subreddit](http://reddit.com). You can put a picture in, too. The code is already in, just name your picture `prof_pic.jpg` and put it in the `img/` folder.
+I am a second year Ph.D. student at the Institute for Artificial Intelligence, Peking University, co-advised by [Prof. Yitao Liang](http://web.cs.ucla.edu/~yliang/) and  [Prof. Jianzhu Ma](https://majianzhu.com/). 
 
-Put your address / P.O. box / other info right below your picture. You can also disable any of these elements by editing `profile` property of the YAML header of your `_pages/about.md`. Edit `_bibliography/papers.bib` and Jekyll will render your [publications page](/al-folio/publications/) automatically.
+I received my Bachelor's degree in Artificial Intelligence from [Yuanpei College](https://yuanpei.pku.edu.cn/en/aboutyuanpei/collegeprofile/index.htm), Peking University, where I was fortunate to work with [Prof. Bing Liu](https://www.cs.uic.edu/~liub/) on OOD detection, continual learning and NLP. We are the first to propose the task of continual pre-training ([EMNLP22](https://arxiv.org/abs/2210.05549), [ICLR23](https://openreview.net/pdf?id=m_GDIItaI3o)), and study the theoretical equivalence between OOD detection and continual learning ([EMNLP23](https://arxiv.org/abs/2310.05083), [ICLR24](https://arxiv.org/abs/2309.15048)).
 
-Link to your social media connections, too. This theme is set up to use [Font Awesome icons](https://fontawesome.com/) and [Academicons](https://jpswalsh.github.io/academicons/), like the ones below. Add your Facebook, Twitter, LinkedIn, Google Scholar, or just disable all of them.
+I am passionate about designing next-generation AI that deeply integrates into real world. My primary research focus is in the field of machine learning, with specific interests in **Generative Foundation Models** ([LLM scaling law](https://arxiv.org/pdf/2402.02314), [3D autoregressive model](https://arxiv.org/abs/2503.16278), [training-free diffusion guidance](https://arxiv.org/abs/2409.15761), [discrete flow matching](https://arxiv.org/abs/2501.14216)). Currently, I am working on LLM for scientific discovery (e.g., [physical law discovery](https://arxiv.org/abs/2503.07994)) and complex reasoning ([open-world game agent](https://arxiv.org/pdf/2310.08367), [multi-turn reasoning](https://arxiv.org/pdf/2504.02810)).
+
+I am a member of [Team CraftJarvis](https://craftjarvis.github.io/), which is dedicated to creating generalist agents for open-world environments. Outside of my professional interests, I enjoy engaging in music-related activities, including singing, playing the guitar, and participating in choirs. 
