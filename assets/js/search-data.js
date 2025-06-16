@@ -440,16 +440,20 @@ ninja.data = [{
           description: "",
           section: "Books",handler: () => {
               window.location.href = "/books/the_godfather/";
-            },},{id: "news-a-simple-inline-announcement",
-          title: 'A simple inline announcement.',
+            },},{id: "news-our-paper-on-continual-learning-has-been-accepted-at-iclr-2024-we-propose-a-theoretically-principled-and-empirically-effective-method-for-cl-feel-free-to-explore-our-code-and-paper-this-research-was-conducted-during-my-undergraduate-studies-under-the-guidance-of-prof-bing-liu",
+          title: 'Our paper on continual learning has been accepted at ICLR 2024! We propose...',
           description: "",
-          section: "News",},{id: "news-a-long-announcement-with-details",
-          title: 'A long announcement with details',
+          section: "News",},{id: "news-i-will-present-our-new-paper-selecting-large-language-model-to-fine-tune-via-rectified-scaling-law-at-iclr-2024-in-me-fomo-workshop-this-paper-is-selected-as-an-oral-presentation-and-is-recently-accepted-by-icml-2024-see-you-in-vienna",
+          title: 'I will present our new paper Selecting Large Language Model to Fine-tune via...',
           description: "",
-          section: "News",handler: () => {
-              window.location.href = "/news/announcement_2/";
-            },},{id: "news-a-simple-inline-announcement-with-markdown-emoji-sparkles-smile",
-          title: 'A simple inline announcement with Markdown emoji! :sparkles: :smile:',
+          section: "News",},{id: "news-tfg-and-omnijarvis-have-been-accepted-at-neurips-2024-in-tfg-we-present-a-unified-training-free-guidance-method-for-diffusion-models-evaluated-across-16-tasks-spanning-image-audio-and-geometry-domains-omnijarvis-developed-in-collaboration-with-team-craftjarvis-is-an-end-to-end-vla-vision-language-action-agent-for-open-world-minecraft",
+          title: 'TFG and OmniJARVIS have been accepted at NeurIPS 2024! In TFG, we present...',
+          description: "",
+          section: "News",},{id: "news-talk-on-unified-training-free-guidance-for-diffusion-models-at-neurips-2024-paper-sharing-session-机器之心-video",
+          title: 'Talk on “Unified Training-Free Guidance for Diffusion Models” at NeurIPS 2024 paper sharing...',
+          description: "",
+          section: "News",},{id: "news-i-m-contributing-to-the-open-source-project-openevolve-a-community-implementation-of-alphaevolve-a-scientific-discovery-agent-from-deepmind-designed-to-develop-better-algorithms-for-open-problems-check-out-its-performance-on-symbolic-regression-benchmarks",
+          title: 'I’m contributing to the open-source project OpenEvolve, a community implementation of AlphaEvolve—a scientific...',
           description: "",
           section: "News",},{id: "projects-project-1",
           title: 'project 1',
