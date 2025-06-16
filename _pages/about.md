@@ -21,7 +21,7 @@ social: true # includes social icons at the bottom of the page
 
 E-mail: linhaowei (at) pku (dot) edu (dot) cn
 
-I am a second year Ph.D. student at the Institute for Artificial Intelligence, Peking University, co-advised by [Prof. Yitao Liang](http://web.cs.ucla.edu/~yliang/) and [Prof. Jianzhu Ma](https://majianzhu.com/).
+I am Haowei Lin(林昊苇), a second year Ph.D. student at the Institute for Artificial Intelligence, Peking University, co-advised by [Prof. Yitao Liang](http://web.cs.ucla.edu/~yliang/) and [Prof. Jianzhu Ma](https://majianzhu.com/).
 
 I received my Bachelor's degree in Artificial Intelligence from [Yuanpei College](https://yuanpei.pku.edu.cn/en/aboutyuanpei/collegeprofile/index.htm), Peking University, where I was fortunate to work with [Prof. Bing Liu](https://www.cs.uic.edu/~liub/) on OOD detection, continual learning and NLP. We are the first to propose the task of continual pre-training ([EMNLP22](https://arxiv.org/abs/2210.05549), [ICLR23](https://openreview.net/pdf?id=m_GDIItaI3o)), and study the theoretical equivalence between OOD detection and continual learning ([EMNLP23](https://arxiv.org/abs/2310.05083), [ICLR24](https://arxiv.org/abs/2309.15048)).
 
