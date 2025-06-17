@@ -45,12 +45,7 @@ ninja.data = [{
             window.open("https://medium.com/@al-folio/displaying-external-posts-on-your-al-folio-blog-b60a1d241a0a?source=rss-17feae71c3c4------2", "_blank");
           
         },
-      },{id: "books-the-godfather",
-          title: 'The Godfather',
-          description: "",
-          section: "Books",handler: () => {
-              window.location.href = "/books/the_godfather/";
-            },},{id: "news-our-paper-on-continual-learning-has-been-accepted-at-iclr-2024-we-propose-a-theoretically-principled-and-empirically-effective-method-for-cl-feel-free-to-explore-our-code-and-paper-this-research-was-conducted-during-my-undergraduate-studies-under-the-guidance-of-prof-bing-liu",
+      },{id: "news-our-paper-on-continual-learning-has-been-accepted-at-iclr-2024-we-propose-a-theoretically-principled-and-empirically-effective-method-for-cl-feel-free-to-explore-our-code-and-paper-this-research-was-conducted-during-my-undergraduate-studies-under-the-guidance-of-prof-bing-liu",
           title: 'Our paper on continual learning has been accepted at ICLR 2024! We propose...',
           description: "",
           section: "News",},{id: "news-i-will-present-our-new-paper-selecting-large-language-model-to-fine-tune-via-rectified-scaling-law-at-iclr-2024-in-me-fomo-workshop-this-paper-is-selected-as-an-oral-presentation-and-is-recently-accepted-by-icml-2024-see-you-in-vienna",
@@ -66,6 +61,34 @@ ninja.data = [{
           title: 'I’m contributing to the open-source project OpenEvolve, a community implementation of AlphaEvolve—a scientific...',
           description: "",
           section: "News",},{
+        id: 'social-email',
+        title: 'email',
+        section: 'Socials',
+        handler: () => {
+          window.open("mailto:%6C%69%6E%68%61%6F%77%65%69@%70%6B%75.%65%64%75.%63%6E", "_blank");
+        },
+      },{
+        id: 'social-github',
+        title: 'GitHub',
+        section: 'Socials',
+        handler: () => {
+          window.open("https://github.com/linhaowei1", "_blank");
+        },
+      },{
+        id: 'social-scholar',
+        title: 'Google Scholar',
+        section: 'Socials',
+        handler: () => {
+          window.open("https://scholar.google.com/citations?user=Ng-DmJgAAAAJ", "_blank");
+        },
+      },{
+        id: 'social-x',
+        title: 'X',
+        section: 'Socials',
+        handler: () => {
+          window.open("https://twitter.com/AndyLin2001", "_blank");
+        },
+      },{
       id: 'light-theme',
       title: 'Change theme to light',
       description: 'Change the theme of the site to Light',
