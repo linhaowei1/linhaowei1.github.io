@@ -45,11 +45,11 @@ ninja.data = [{
             window.open("https://medium.com/@al-folio/displaying-external-posts-on-your-al-folio-blog-b60a1d241a0a?source=rss-17feae71c3c4------2", "_blank");
           
         },
-      },{id: "news-our-paper-on-ai-for-scientific-discoverying-is-published-in-nature-machine-intelligence-as-a-cover-paper",
-          title: 'Our paper on AI for scientific discoverying is published in Nature Machine Intelligence...',
+      },{id: "news-our-paper-on-ai-for-scientific-discovery-was-published-in-nature-machine-intelligence-as-a-cover-paper",
+          title: 'Our paper on AI for scientific discovery was published in Nature Machine Intelligence...',
           description: "",
-          section: "News",},{id: "news-excited-to-be-a-contributor-of-terminal-bench-i-am-a-core-contributor-of-the-adapters-for-t-bench-which-converts-all-agentic-benchmarks-e-g-swe-related-in-a-unified-format-to-t-bench",
-          title: 'Excited to be a contributor of Terminal-Bench! I am a core contributor of...',
+          section: "News",},{id: "news-excited-to-be-a-core-contributor-of-adapters-in-terminal-bench-which-converts-all-agentic-benchmarks-e-g-swe-related-in-a-unified-format-to-t-bench",
+          title: 'Excited to be a core contributor of adapters in Terminal-Bench, which converts all...',
           description: "",
           section: "News",},{
         id: 'social-email',
