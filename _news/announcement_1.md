@@ -5,4 +5,4 @@ inline: true
 related_posts: false
 ---
 
-Our paper on *AI for scientific discovery* was published in [Nature Machine Intelligence](https://www.nature.com/articles/s42256-025-01126-3) as a cover paper!
+Our paper on _AI for scientific discovery_ was published in [Nature Machine Intelligence](https://www.nature.com/articles/s42256-025-01126-3) as a cover paper!
