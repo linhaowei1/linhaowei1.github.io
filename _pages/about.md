@@ -21,15 +21,16 @@ social: true # includes social icons at the bottom of the page
 
 E-mail: linhaowei (at) pku (dot) edu (dot) cn
 
-I am Haowei Lin(林昊苇), a third year Ph.D. student at the Institute for Artificial Intelligence, Peking University, co-advised by [Prof. Yitao Liang](http://web.cs.ucla.edu/~yliang/) and [Prof. Jianzhu Ma](https://majianzhu.com/).
+I am Haowei Lin, a third year Ph.D. student at the Institute for Artificial Intelligence, Peking University, co-advised by [Prof. Yitao Liang](http://web.cs.ucla.edu/~yliang/), [Prof. Di He](https://dihe-pku.github.io/), and [Prof. Jianzhu Ma](https://majianzhu.com/).
 
-I received my Bachelor's degree in Artificial Intelligence from [Yuanpei College](https://yuanpei.pku.edu.cn/en/aboutyuanpei/collegeprofile/index.htm), Peking University, where I was fortunate to work with [Prof. Bing Liu](https://www.cs.uic.edu/~liub/) on OOD detection, continual learning and NLP. We are the first to propose the task of continual pre-training for LLMs ([EMNLP22](https://arxiv.org/abs/2210.05549), [ICLR23](https://openreview.net/pdf?id=m_GDIItaI3o)), and the first to apply OOD detection methods to continual learning ([EMNLP23](https://arxiv.org/abs/2310.05083), [ICLR24](https://arxiv.org/abs/2309.15048)).
+I received my Bachelor's degree in Artificial Intelligence from [Yuanpei College](https://yuanpei.pku.edu.cn/en/aboutyuanpei/collegeprofile/index.htm), Peking University, where I was fortunate to work with [Prof. Bing Liu](https://www.cs.uic.edu/~liub/) and [Dr. Zixuan Ke](https://vincent950129.github.io/) on OOD detection, continual learning, and language models. We are the first to propose the task of continual pre-training for LLMs ([EMNLP22](https://arxiv.org/abs/2210.05549), [ICLR23](https://openreview.net/pdf?id=m_GDIItaI3o)), and the first to apply OOD detection methods to continual learning ([EMNLP23](https://arxiv.org/abs/2310.05083), [ICLR24](https://arxiv.org/abs/2309.15048)).
 
-I am passionate about designing next-generation digital AI that deeply integrates into the real world. Currently, I focus on the foundations and applications of **Generative Foundation Models (GFMs)**:
+I work on unified cross-modal generative foundation models (GFMs) for scientific discovery. My current research focuses on:
 
-- **Unification for Multimodality**. I aim to create useful experiences that apply to both diffusion ([flow-matching](https://arxiv.org/abs/2501.14216) included) and autoregressive architectures, and across modalities including langauge, video, MDP, [3D and molecules](https://arxiv.org/abs/2503.16278). For foundation models, I also focus on their [scaling law](https://arxiv.org/pdf/2402.02314) and [training-free guidance](https://arxiv.org/abs/2409.15761).
-- **AI for Scientific Discovery**. I am interested in applying and post-training GFMs to create superhuman intelligence for [complex reasoning](https://arxiv.org/pdf/2504.02810), [open-world gaming](https://arxiv.org/pdf/2310.08367), and [discover new laws in space physics](https://arxiv.org/abs/2503.07994) or [neural network scaling](https://linhaowei1.github.io/assets/pdf/EvoSLD.pdf).
+- **Foundations and unification of GFMs.** Creating useful experiences that apply to both diffusion models (including [flow-matching](https://arxiv.org/abs/2501.14216)) and [autoregressive architectures](https://arxiv.org/abs/2503.16278), and studying their [scaling laws](https://arxiv.org/pdf/2402.02314) and [training-free guidance](https://arxiv.org/abs/2409.15761) (TFG).
+- **Cross-modal generative modeling.** Building models that operate across language, video, MDPs, and 3D/molecular data.
+- **AI for scientific discovery.** Applying and post-training GFMs for [complex reasoning](https://arxiv.org/pdf/2504.02810), [open-world gaming](https://arxiv.org/pdf/2310.08367), and discovering new laws in [space physics](https://arxiv.org/abs/2503.07994) and [neural network scaling](https://arxiv.org/abs/2507.21184).
 
-I am a member of [Team CraftJarvis](https://craftjarvis.github.io/), which is dedicated to creating generalist agents for open-world environments. Outside of my professional interests, I enjoy engaging in music-related activities, including singing, playing the guitar, and participating in choirs.
+Outside of my professional interests, I enjoy engaging in music-related activities, including singing and playing the guitar.
 
 If you're interested in working with me on GFMs / AI Scientist, please contact me through e-mail.
