@@ -16,6 +16,13 @@ ninja.data = [{
           handler: () => {
             window.location.href = "/publications/";
           },
+        },{id: "nav-cv",
+          title: "CV",
+          description: "Curriculum Vitae",
+          section: "Navigation",
+          handler: () => {
+            window.location.href = "/cv/";
+          },
         },{id: "nav-experiences",
           title: "Experiences",
           description: "",
@@ -48,8 +55,11 @@ ninja.data = [{
       },{id: "news-our-paper-on-ai-for-scientific-discovery-was-published-in-nature-machine-intelligence-as-a-cover-paper",
           title: 'Our paper on AI for scientific discovery was published in Nature Machine Intelligence...',
           description: "",
-          section: "News",},{id: "news-excited-to-be-a-core-contributor-of-adapters-in-terminal-bench-which-converts-all-agentic-benchmarks-e-g-swe-related-in-a-unified-format-to-t-bench",
+          section: "News",},{id: "news-excited-to-be-a-core-contributor-of-adapters-in-terminal-bench-which-converts-all-agentic-benchmarks-e-g-swe-related-in-a-unified-format-to-t-bench-happy-to-see-oai-gdm-anthropic-deepseek-etc-using-t-bench-for-model-evaluation-in-their-model-release",
           title: 'Excited to be a core contributor of adapters in Terminal-Bench, which converts all...',
+          description: "",
+          section: "News",},{id: "news-glad-to-launch-a-new-blog-on-scaling-law-discovery-sld-with-openevolve-in-collaboration-with-algorithmic-superintelligence-labs-we-hope-our-work-on-sld-helps-advance-foundation-model-development-and-push-the-boundaries-of-ai-scientist-code-dataset-benchmarks-are-all-publicly-available",
+          title: 'Glad to launch a new blog on Scaling Law Discovery (SLD) with OpenEvolve,...',
           description: "",
           section: "News",},{
         id: 'social-email',
