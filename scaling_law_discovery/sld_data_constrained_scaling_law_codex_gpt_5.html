@@ -1,341 +1,341 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SLD - Data-Constrained Scaling Law - codex + GPT-5</title>
-    <link rel="icon" type="image/png" href="assets/sld_logo.png">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/png" href="assets/sld_logo.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Sora:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
     <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" rel="stylesheet" />
     <style>
-        :root {
-            --bg-primary: #ffffff;
-            --bg-secondary: #f8f9fa;
-            --accent-primary: #2563eb;
-            --accent-secondary: #3b82f6;
-            --accent-gradient: linear-gradient(135deg, #2563eb 0%, #3b82f6 50%, #60a5fa 100%);
-            --text-primary: #1f2937;
-            --text-secondary: #4b5563;
-            --border-subtle: rgba(0, 0, 0, 0.1);
-            --glass-bg: rgba(0, 0, 0, 0.02);
-            --success: #10b981;
-        }
-        
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-        
-        body {
-            font-family: 'Sora', -apple-system, BlinkMacSystemFont, sans-serif;
-            background: var(--bg-primary);
-            min-height: 100vh;
-            color: var(--text-primary);
-        }
-        
-        .bg-pattern {
-            display: none;
-        }
-        
+      :root {
+        --bg-primary: #ffffff;
+        --bg-secondary: #f8f9fa;
+        --accent-primary: #2563eb;
+        --accent-secondary: #3b82f6;
+        --accent-gradient: linear-gradient(135deg, #2563eb 0%, #3b82f6 50%, #60a5fa 100%);
+        --text-primary: #1f2937;
+        --text-secondary: #4b5563;
+        --border-subtle: rgba(0, 0, 0, 0.1);
+        --glass-bg: rgba(0, 0, 0, 0.02);
+        --success: #10b981;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family:
+          "Sora",
+          -apple-system,
+          BlinkMacSystemFont,
+          sans-serif;
+        background: var(--bg-primary);
+        min-height: 100vh;
+        color: var(--text-primary);
+      }
+
+      .bg-pattern {
+        display: none;
+      }
+
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 2rem;
+        position: relative;
+        z-index: 1;
+      }
+
+      .back-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: var(--accent-primary);
+        text-decoration: none;
+        font-size: 0.9rem;
+        margin-bottom: 1.5rem;
+        transition: color 0.2s;
+      }
+
+      .back-link:hover {
+        color: var(--accent-secondary);
+      }
+
+      .header {
+        background: var(--glass-bg);
+        border: 1px solid var(--border-subtle);
+        border-radius: 16px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        backdrop-filter: blur(10px);
+      }
+
+      .header h1 {
+        font-size: 1.75rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+        background: var(--accent-gradient);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+
+      .meta-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1.5rem;
+        margin-top: 1rem;
+      }
+
+      .meta-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .meta-label {
+        color: var(--text-secondary);
+        font-size: 0.85rem;
+      }
+
+      .meta-value {
+        font-weight: 600;
+        color: var(--text-primary);
+      }
+
+      .r2-badge {
+        display: inline-block;
+        padding: 0.3rem 0.6rem;
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 0.85rem;
+        font-family: "JetBrains Mono", monospace;
+      }
+
+      .section-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        color: var(--text-primary);
+      }
+
+      .runs-container {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+      }
+
+      .run-card {
+        background: var(--glass-bg);
+        border: 1px solid var(--border-subtle);
+        border-radius: 12px;
+        overflow: hidden;
+        transition: border-color 0.2s;
+      }
+
+      .run-card:hover {
+        border-color: rgba(99, 102, 241, 0.3);
+      }
+
+      .run-card.best-run {
+        border-color: var(--success);
+        box-shadow: 0 0 20px rgba(16, 185, 129, 0.1);
+      }
+
+      .run-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 1.25rem;
+        background: rgba(255, 255, 255, 0.02);
+        cursor: pointer;
+        transition: background 0.2s;
+      }
+
+      .run-header:hover {
+        background: rgba(255, 255, 255, 0.04);
+      }
+
+      .run-info {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+      }
+
+      .run-badge {
+        padding: 0.25rem 0.6rem;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        background: rgba(255, 255, 255, 0.1);
+        color: var(--text-secondary);
+      }
+
+      .run-badge.best-badge {
+        background: var(--success);
+        color: white;
+      }
+
+      .run-label {
+        font-weight: 500;
+        color: var(--text-primary);
+      }
+
+      .expand-icon {
+        color: var(--text-muted);
+        font-size: 0.8rem;
+        transition: transform 0.2s;
+      }
+
+      .run-header.expanded .expand-icon {
+        transform: rotate(180deg);
+      }
+
+      .run-content {
+        border-top: 1px solid var(--border-subtle);
+      }
+
+      .code-container {
+        overflow: hidden;
+      }
+
+      .code-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.75rem 1.25rem;
+        background: rgba(0, 0, 0, 0.2);
+        border-bottom: 1px solid var(--border-subtle);
+        font-size: 0.8rem;
+        color: var(--text-muted);
+      }
+
+      .copy-btn {
+        padding: 0.35rem 0.75rem;
+        background: rgba(99, 102, 241, 0.2);
+        border: 1px solid rgba(99, 102, 241, 0.3);
+        border-radius: 6px;
+        color: var(--accent-primary);
+        font-size: 0.75rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-family: inherit;
+      }
+
+      .copy-btn:hover {
+        background: rgba(99, 102, 241, 0.3);
+      }
+
+      .code-container pre {
+        margin: 0;
+        padding: 1.25rem;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 0.8rem;
+        line-height: 1.6;
+        overflow-x: auto;
+        background: transparent !important;
+      }
+
+      .footer {
+        text-align: center;
+        margin-top: 3rem;
+        padding-top: 2rem;
+        border-top: 1px solid var(--border-subtle);
+        color: var(--text-secondary);
+        font-size: 0.85rem;
+      }
+
+      .footer a {
+        color: var(--accent-primary);
+        text-decoration: none;
+      }
+
+      @media (max-width: 768px) {
         .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 2rem;
-            position: relative;
-            z-index: 1;
+          padding: 1rem;
         }
-        
-        .back-link {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            color: var(--accent-primary);
-            text-decoration: none;
-            font-size: 0.9rem;
-            margin-bottom: 1.5rem;
-            transition: color 0.2s;
-        }
-        
-        .back-link:hover {
-            color: var(--accent-secondary);
-        }
-        
-        .header {
-            background: var(--glass-bg);
-            border: 1px solid var(--border-subtle);
-            border-radius: 16px;
-            padding: 2rem;
-            margin-bottom: 2rem;
-            backdrop-filter: blur(10px);
-        }
-        
+
         .header h1 {
-            font-size: 1.75rem;
-            font-weight: 700;
-            margin-bottom: 0.5rem;
-            background: var(--accent-gradient);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+          font-size: 1.25rem;
         }
-        
+
         .meta-row {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 1.5rem;
-            margin-top: 1rem;
+          flex-direction: column;
+          gap: 0.75rem;
         }
-        
-        .meta-item {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-        
-        .meta-label {
-            color: var(--text-secondary);
-            font-size: 0.85rem;
-        }
-        
-        .meta-value {
-            font-weight: 600;
-            color: var(--text-primary);
-        }
-        
-        .r2-badge {
-            display: inline-block;
-            padding: 0.3rem 0.6rem;
-            border-radius: 6px;
-            font-weight: 600;
-            font-size: 0.85rem;
-            font-family: 'JetBrains Mono', monospace;
-        }
-        
-        .section-title {
-            font-size: 1.25rem;
-            font-weight: 600;
-            margin-bottom: 1rem;
-            color: var(--text-primary);
-        }
-        
-        .runs-container {
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
-        }
-        
-        .run-card {
-            background: var(--glass-bg);
-            border: 1px solid var(--border-subtle);
-            border-radius: 12px;
-            overflow: hidden;
-            transition: border-color 0.2s;
-        }
-        
-        .run-card:hover {
-            border-color: rgba(99, 102, 241, 0.3);
-        }
-        
-        .run-card.best-run {
-            border-color: var(--success);
-            box-shadow: 0 0 20px rgba(16, 185, 129, 0.1);
-        }
-        
-        .run-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 1rem 1.25rem;
-            background: rgba(255, 255, 255, 0.02);
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-        
-        .run-header:hover {
-            background: rgba(255, 255, 255, 0.04);
-        }
-        
+
         .run-info {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
+          flex-wrap: wrap;
+          gap: 0.5rem;
         }
-        
-        .run-badge {
-            padding: 0.25rem 0.6rem;
-            border-radius: 6px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            background: rgba(255, 255, 255, 0.1);
-            color: var(--text-secondary);
-        }
-        
-        .run-badge.best-badge {
-            background: var(--success);
-            color: white;
-        }
-        
-        .run-label {
-            font-weight: 500;
-            color: var(--text-primary);
-        }
-        
-        .expand-icon {
-            color: var(--text-muted);
-            font-size: 0.8rem;
-            transition: transform 0.2s;
-        }
-        
-        .run-header.expanded .expand-icon {
-            transform: rotate(180deg);
-        }
-        
-        .run-content {
-            border-top: 1px solid var(--border-subtle);
-        }
-        
-        .code-container {
-            overflow: hidden;
-        }
-        
-        .code-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 0.75rem 1.25rem;
-            background: rgba(0, 0, 0, 0.2);
-            border-bottom: 1px solid var(--border-subtle);
-            font-size: 0.8rem;
-            color: var(--text-muted);
-        }
-        
-        .copy-btn {
-            padding: 0.35rem 0.75rem;
-            background: rgba(99, 102, 241, 0.2);
-            border: 1px solid rgba(99, 102, 241, 0.3);
-            border-radius: 6px;
-            color: var(--accent-primary);
-            font-size: 0.75rem;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.2s;
-            font-family: inherit;
-        }
-        
-        .copy-btn:hover {
-            background: rgba(99, 102, 241, 0.3);
-        }
-        
-        .code-container pre {
-            margin: 0;
-            padding: 1.25rem;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.8rem;
-            line-height: 1.6;
-            overflow-x: auto;
-            background: transparent !important;
-        }
-        
-        .footer {
-            text-align: center;
-            margin-top: 3rem;
-            padding-top: 2rem;
-            border-top: 1px solid var(--border-subtle);
-            color: var(--text-secondary);
-            font-size: 0.85rem;
-        }
-        
-        .footer a {
-            color: var(--accent-primary);
-            text-decoration: none;
-        }
-        
-        @media (max-width: 768px) {
-            .container {
-                padding: 1rem;
-            }
-            
-            .header h1 {
-                font-size: 1.25rem;
-            }
-            
-            .meta-row {
-                flex-direction: column;
-                gap: 0.75rem;
-            }
-            
-            .run-info {
-                flex-wrap: wrap;
-                gap: 0.5rem;
-            }
-        }
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <div class="bg-pattern"></div>
-    
+
     <div class="container">
-        <a href="sld_index.html" class="back-link">
-            ← Back to Leaderboard
-        </a>
-        
-        <div class="header">
-            <h1>Data-Constrained Scaling Law</h1>
-            <div class="meta-row">
-                <div class="meta-item">
-                    <span class="meta-label">Agent:</span>
-                    <span class="meta-value">codex</span>
-                </div>
-                <div class="meta-item">
-                    <span class="meta-label">Model:</span>
-                    <span class="meta-value">GPT-5</span>
-                </div>
-                <div class="meta-item">
-                    <span class="meta-label">Best R²:</span>
-                    <span class="r2-badge" style="background-color: #228B22; color: white;">
-                        0.914608
-                    </span>
-                </div>
-                <div class="meta-item">
-                    <span class="meta-label">Mean R²:</span>
-                    <span class="meta-value">0.763460</span>
-                </div>
-                <div class="meta-item">
-                    <span class="meta-label">Min R²:</span>
-                    <span class="meta-value">0.267461</span>
-                </div>
-                <div class="meta-item">
-                    <span class="meta-label">Runs:</span>
-                    <span class="meta-value">5</span>
-                </div>
-            </div>
+      <a href="sld_index.html" class="back-link"> ← Back to Leaderboard </a>
+
+      <div class="header">
+        <h1>Data-Constrained Scaling Law</h1>
+        <div class="meta-row">
+          <div class="meta-item">
+            <span class="meta-label">Agent:</span>
+            <span class="meta-value">codex</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Model:</span>
+            <span class="meta-value">GPT-5</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Best R²:</span>
+            <span class="r2-badge" style="background-color: #228b22; color: white"> 0.914608 </span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Mean R²:</span>
+            <span class="meta-value">0.763460</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Min R²:</span>
+            <span class="meta-value">0.267461</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Runs:</span>
+            <span class="meta-value">5</span>
+          </div>
         </div>
-        
-        <h2 class="section-title">All Runs (sorted by R²)</h2>
-        
-        <div class="runs-container">
-            
+      </div>
+
+      <h2 class="section-title">All Runs (sorted by R²)</h2>
+
+      <div class="runs-container">
         <div class="run-card best-run">
-            <div class="run-header" onclick="toggleRun(this)">
-                <div class="run-info">
-                    <span class="run-badge best-badge">Best</span>
-                    <span class="run-label">Run 1</span>
-                    <span class="r2-badge" style="background-color: #228B22; color: white;">
-                        R² = 0.914608
-                    </span>
-                </div>
-                <span class="expand-icon">▼</span>
+          <div class="run-header" onclick="toggleRun(this)">
+            <div class="run-info">
+              <span class="run-badge best-badge">Best</span>
+              <span class="run-label">Run 1</span>
+              <span class="r2-badge" style="background-color: #228b22; color: white"> R² = 0.914608 </span>
             </div>
-            <div class="run-content" style="display: block;">
-                <div class="code-container">
-                    <div class="code-header">
-                        <span>Python</span>
-                        <button class="copy-btn" onclick="copyCode(event, 'code-0')">Copy</button>
-                    </div>
-                    <pre><code class="language-python" id="code-0">from __future__ import annotations
+            <span class="expand-icon">▼</span>
+          </div>
+          <div class="run-content" style="display: block">
+            <div class="code-container">
+              <div class="code-header">
+                <span>Python</span>
+                <button class="copy-btn" onclick="copyCode(event, 'code-0')">Copy</button>
+              </div>
+              <pre><code class="language-python" id="code-0">from __future__ import annotations
 
 from typing import Dict, List
 
@@ -400,28 +400,26 @@ def law(input_data: List[Dict[str, float]], group: str) -&gt; List[Dict[str, flo
         out.append({&quot;loss&quot;: float(yhat)})
 
     return out</code></pre>
-                </div>
             </div>
+          </div>
         </div>
-        
-        <div class="run-card ">
-            <div class="run-header" onclick="toggleRun(this)">
-                <div class="run-info">
-                    <span class="run-badge ">#2</span>
-                    <span class="run-label">Run 2</span>
-                    <span class="r2-badge" style="background-color: #228B22; color: white;">
-                        R² = 0.914142
-                    </span>
-                </div>
-                <span class="expand-icon">▼</span>
+
+        <div class="run-card">
+          <div class="run-header" onclick="toggleRun(this)">
+            <div class="run-info">
+              <span class="run-badge">#2</span>
+              <span class="run-label">Run 2</span>
+              <span class="r2-badge" style="background-color: #228b22; color: white"> R² = 0.914142 </span>
             </div>
-            <div class="run-content" style="display: none;">
-                <div class="code-container">
-                    <div class="code-header">
-                        <span>Python</span>
-                        <button class="copy-btn" onclick="copyCode(event, 'code-1')">Copy</button>
-                    </div>
-                    <pre><code class="language-python" id="code-1">from __future__ import annotations
+            <span class="expand-icon">▼</span>
+          </div>
+          <div class="run-content" style="display: none">
+            <div class="code-container">
+              <div class="code-header">
+                <span>Python</span>
+                <button class="copy-btn" onclick="copyCode(event, 'code-1')">Copy</button>
+              </div>
+              <pre><code class="language-python" id="code-1">from __future__ import annotations
 
 from typing import Dict, List
 
@@ -497,28 +495,26 @@ def law(input_data: List[Dict[str, float]], group: str) -&gt; List[Dict[str, flo
         outputs.append({&quot;loss&quot;: float(pred_loss)})
 
     return outputs</code></pre>
-                </div>
             </div>
+          </div>
         </div>
-        
-        <div class="run-card ">
-            <div class="run-header" onclick="toggleRun(this)">
-                <div class="run-info">
-                    <span class="run-badge ">#3</span>
-                    <span class="run-label">Run 3</span>
-                    <span class="r2-badge" style="background-color: #228B22; color: white;">
-                        R² = 0.914136
-                    </span>
-                </div>
-                <span class="expand-icon">▼</span>
+
+        <div class="run-card">
+          <div class="run-header" onclick="toggleRun(this)">
+            <div class="run-info">
+              <span class="run-badge">#3</span>
+              <span class="run-label">Run 3</span>
+              <span class="r2-badge" style="background-color: #228b22; color: white"> R² = 0.914136 </span>
             </div>
-            <div class="run-content" style="display: none;">
-                <div class="code-container">
-                    <div class="code-header">
-                        <span>Python</span>
-                        <button class="copy-btn" onclick="copyCode(event, 'code-2')">Copy</button>
-                    </div>
-                    <pre><code class="language-python" id="code-2">from __future__ import annotations
+            <span class="expand-icon">▼</span>
+          </div>
+          <div class="run-content" style="display: none">
+            <div class="code-container">
+              <div class="code-header">
+                <span>Python</span>
+                <button class="copy-btn" onclick="copyCode(event, 'code-2')">Copy</button>
+              </div>
+              <pre><code class="language-python" id="code-2">from __future__ import annotations
 
 from typing import Dict, List
 import math
@@ -604,28 +600,26 @@ def law(input_data: List[Dict[str, float]], group: str) -&gt; List[Dict[str, flo
         outputs.append({&quot;loss&quot;: float(pred_loss)})
 
     return outputs</code></pre>
-                </div>
             </div>
+          </div>
         </div>
-        
-        <div class="run-card ">
-            <div class="run-header" onclick="toggleRun(this)">
-                <div class="run-info">
-                    <span class="run-badge ">#4</span>
-                    <span class="run-label">Run 4</span>
-                    <span class="r2-badge" style="background-color: #228B22; color: white;">
-                        R² = 0.806950
-                    </span>
-                </div>
-                <span class="expand-icon">▼</span>
+
+        <div class="run-card">
+          <div class="run-header" onclick="toggleRun(this)">
+            <div class="run-info">
+              <span class="run-badge">#4</span>
+              <span class="run-label">Run 4</span>
+              <span class="r2-badge" style="background-color: #228b22; color: white"> R² = 0.806950 </span>
             </div>
-            <div class="run-content" style="display: none;">
-                <div class="code-container">
-                    <div class="code-header">
-                        <span>Python</span>
-                        <button class="copy-btn" onclick="copyCode(event, 'code-3')">Copy</button>
-                    </div>
-                    <pre><code class="language-python" id="code-3">from __future__ import annotations
+            <span class="expand-icon">▼</span>
+          </div>
+          <div class="run-content" style="display: none">
+            <div class="code-container">
+              <div class="code-header">
+                <span>Python</span>
+                <button class="copy-btn" onclick="copyCode(event, 'code-3')">Copy</button>
+              </div>
+              <pre><code class="language-python" id="code-3">from __future__ import annotations
 
 from typing import Dict, List
 
@@ -678,28 +672,26 @@ def law(input_data: List[Dict[str, float]], group: str) -&gt; List[Dict[str, flo
         out.append({&quot;loss&quot;: pred})
 
     return out</code></pre>
-                </div>
             </div>
+          </div>
         </div>
-        
-        <div class="run-card ">
-            <div class="run-header" onclick="toggleRun(this)">
-                <div class="run-info">
-                    <span class="run-badge ">#5</span>
-                    <span class="run-label">Run 5</span>
-                    <span class="r2-badge" style="background-color: #D2691E; color: white;">
-                        R² = 0.267461
-                    </span>
-                </div>
-                <span class="expand-icon">▼</span>
+
+        <div class="run-card">
+          <div class="run-header" onclick="toggleRun(this)">
+            <div class="run-info">
+              <span class="run-badge">#5</span>
+              <span class="run-label">Run 5</span>
+              <span class="r2-badge" style="background-color: #d2691e; color: white"> R² = 0.267461 </span>
             </div>
-            <div class="run-content" style="display: none;">
-                <div class="code-container">
-                    <div class="code-header">
-                        <span>Python</span>
-                        <button class="copy-btn" onclick="copyCode(event, 'code-4')">Copy</button>
-                    </div>
-                    <pre><code class="language-python" id="code-4">from __future__ import annotations
+            <span class="expand-icon">▼</span>
+          </div>
+          <div class="run-content" style="display: none">
+            <div class="code-container">
+              <div class="code-header">
+                <span>Python</span>
+                <button class="copy-btn" onclick="copyCode(event, 'code-4')">Copy</button>
+              </div>
+              <pre><code class="language-python" id="code-4">from __future__ import annotations
 
 from typing import Dict, List
 
@@ -776,38 +768,40 @@ def law(input_data: list[dict[str, float]], group: str) -&gt; list[dict[str, flo
         outputs.append({&quot;loss&quot;: float(loss)})
 
     return outputs</code></pre>
-                </div>
             </div>
+          </div>
         </div>
-        
-        </div>
-        
-        <footer class="footer">
-            <p>SLDBench | <a href="https://arxiv.org/abs/2507.21184" target="_blank">arXiv:2507.21184</a> | <a href="https://github.com/linhaowei1/SLD" target="_blank">GitHub</a></p>
-        </footer>
+      </div>
+
+      <footer class="footer">
+        <p>
+          SLDBench | <a href="https://arxiv.org/abs/2507.21184" target="_blank">arXiv:2507.21184</a> |
+          <a href="https://github.com/linhaowei1/SLD" target="_blank">GitHub</a>
+        </p>
+      </footer>
     </div>
-    
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
     <script>
-        function toggleRun(header) {
-            const content = header.nextElementSibling;
-            const isExpanded = content.style.display === 'block';
-            content.style.display = isExpanded ? 'none' : 'block';
-            header.classList.toggle('expanded', !isExpanded);
-        }
-        
-        function copyCode(event, codeId) {
-            event.stopPropagation();
-            const code = document.getElementById(codeId).textContent;
-            navigator.clipboard.writeText(code).then(() => {
-                const btn = event.target;
-                btn.textContent = 'Copied!';
-                setTimeout(() => btn.textContent = 'Copy', 2000);
-            });
-        }
-        
-        Prism.highlightAll();
+      function toggleRun(header) {
+        const content = header.nextElementSibling;
+        const isExpanded = content.style.display === "block";
+        content.style.display = isExpanded ? "none" : "block";
+        header.classList.toggle("expanded", !isExpanded);
+      }
+
+      function copyCode(event, codeId) {
+        event.stopPropagation();
+        const code = document.getElementById(codeId).textContent;
+        navigator.clipboard.writeText(code).then(() => {
+          const btn = event.target;
+          btn.textContent = "Copied!";
+          setTimeout(() => (btn.textContent = "Copy"), 2000);
+        });
+      }
+
+      Prism.highlightAll();
     </script>
-</body>
+  </body>
 </html>
