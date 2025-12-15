@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>SLD - LR & Batch Size Scaling Law - SLDAgent + Claude Sonnet 4.5</title>
+    <title>SLD - LR-BSZ Scaling Law - SLDAgent + Claude Sonnet 4.5</title>
     <link rel="icon" type="image/png" href="assets/sld_logo.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -285,10 +285,10 @@
     <div class="bg-pattern"></div>
 
     <div class="container">
-      <a href="sld_index.html" class="back-link"> ← Back to Leaderboard </a>
+      <a href="index.html" class="back-link"> ← Back to Leaderboard </a>
 
       <div class="header">
-        <h1>LR & Batch Size Scaling Law</h1>
+        <h1>LR-BSZ Scaling Law</h1>
         <div class="meta-row">
           <div class="meta-item">
             <span class="meta-label">Agent:</span>
@@ -300,15 +300,15 @@
           </div>
           <div class="meta-item">
             <span class="meta-label">Best R²:</span>
-            <span class="r2-badge" style="background-color: #d2691e; color: white"> 0.227188 </span>
+            <span class="r2-badge" style="background-color: #228B22; color: white"> 0.921644 </span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Mean R²:</span>
-            <span class="meta-value">-0.068944</span>
+            <span class="meta-value">0.910950</span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Min R²:</span>
-            <span class="meta-value">-1.000000</span>
+            <span class="meta-value">0.894674</span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Runs:</span>
@@ -320,12 +320,13 @@
       <h2 class="section-title">All Runs (sorted by R²)</h2>
 
       <div class="runs-container">
+
         <div class="run-card best-run">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge best-badge">Best</span>
-              <span class="run-label">Run 5</span>
-              <span class="r2-badge" style="background-color: #d2691e; color: white"> R² = 0.227188 </span>
+              <span class="run-label">Run 3</span>
+              <span class="r2-badge" style="background-color: #228B22; color: white"> R² = 0.921644 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -337,23 +338,24 @@
               </div>
               <pre><code class="language-python" id="code-0"># EVOLVE-BLOCK-START
 &quot;&quot;&quot;
-Theoretically-grounded scaling law with adaptive hyperparameter dynamics
-Combines Chinchilla scaling with gradient noise theory and critical batch effects
-Key innovation: Adaptive optimal lr that depends on model/data scale
+Physics-informed scaling law with improved hyperparameter modeling
+Key improvements:
+1. Chinchilla power laws with data-driven exponent fitting
+2. Learning rate modeled via μP-inspired optimal scaling (lr_opt ~ 1/N)
+3. Batch size effect via gradient noise scale theory with critical batch
+4. Reduced to 9 parameters for better generalization
+5. Enhanced optimizer with adaptive bounds and multi-stage refinement
 &quot;&quot;&quot;
 import numpy as np
-from scipy.optimize import differential_evolution, minimize
+from scipy.optimize import minimize, differential_evolution
 
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    10-parameter scaling law with adaptive hyperparameter optimum:
-    L = A + B/N^α + C/D^β + E*lr²/(bsz^γ + ε) + F*(log(lr) - lr_opt(N,D))² + G*log(lr)*log(bsz)
+    Scaling law: L = L_inf + A/N^α + B/D^β + lr_penalty + bsz_penalty
     
-    Key features:
-    1. Chinchilla power laws: B/N^α + C/D^β
-    2. Gradient noise: E*lr²/(bsz^γ + ε) - captures noise-to-signal ratio
-    3. Adaptive lr optimum: lr_opt depends on log(N) and log(D) 
-    4. lr-bsz interaction: G*log(lr)*log(bsz) captures critical batch dynamics
+    Key physics:
+    - lr_penalty: quadratic deviation from μP-style optimal LR
+    - bsz_penalty: gradient noise model with critical batch size
     &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
     params = np.asarray(params, dtype=np.float64)
@@ -361,58 +363,64 @@ def scaling_law_func(data_points, params):
     if params.ndim == 1:
         params = params[None, :]
     
-    # Safe extraction with appropriate clipping
+    # Extract and normalize features with safety bounds
     lr = np.clip(X[:, 0], 1e-10, 1.0)
-    bsz = np.clip(X[:, 1], 1.0, 1e6)
-    data_size = np.clip(X[:, 2], 1e9, 1e12)
-    model_params = np.clip(X[:, 3], 1e7, 1e10)
+    bsz = np.clip(X[:, 1], 1.0, 1e8)
+    D = np.clip(X[:, 2], 1e6, 1e15)
+    N = np.clip(X[:, 3], 1e6, 1e12)
     
-    # Extract 10 parameters with constraints
-    A = params[:, 0]                                    # Irreducible loss
-    B = np.clip(np.abs(params[:, 1]), 0.01, 12.0)     # Model coefficient
-    alpha = np.clip(params[:, 2], 0.02, 0.4)          # Model exponent
-    C = np.clip(np.abs(params[:, 3]), 0.01, 12.0)     # Data coefficient
-    beta = np.clip(params[:, 4], 0.02, 0.4)           # Data exponent
-    E = np.clip(np.abs(params[:, 5]), 0.0, 6.0)       # Noise coefficient
-    gamma = np.clip(params[:, 6], 0.15, 0.85)         # Noise exponent
-    F = np.clip(np.abs(params[:, 7]), 0.0, 4.0)       # LR penalty coefficient
-    k_lr = np.clip(params[:, 8], -0.5, 0.0)           # LR optimum scaling factor
-    G = np.clip(params[:, 9], -1.2, 1.2)              # LR-BSZ interaction
+    # Unpack parameters (9 total - balanced complexity)
+    L_inf = params[:, 0:1].T       # Irreducible loss
+    A = params[:, 1:2].T           # Model size coefficient
+    alpha = params[:, 2:3].T       # Model size exponent
+    B = params[:, 3:4].T           # Data coefficient
+    beta = params[:, 4:5].T        # Data exponent
+    gamma = params[:, 5:6].T       # LR penalty scale
+    lr_exp = params[:, 6:7].T      # LR-N coupling (μP theory)
+    delta = params[:, 7:8].T       # BSZ penalty scale
+    bsz_exp = params[:, 8:9].T     # BSZ-D coupling
     
-    # Log transformations for stability
-    log_lr = np.log(lr)
-    log_bsz = np.log(bsz)
-    log_N = np.log(model_params)
-    log_D = np.log(data_size)
+    # Core Chinchilla-style power laws
+    model_term = A / np.power(N[:, None], alpha)
+    data_term = B / np.power(D[:, None], beta)
     
-    # Core Chinchilla scaling
-    N_term = B[:, None] / (model_params[None, :] ** alpha[:, None])
-    D_term = C[:, None] / (data_size[None, :] ** beta[:, None])
+    # Learning rate penalty with μP-inspired scaling
+    # Optimal LR scales inversely with model size: lr_opt ~ N^(-1)
+    # Base LR of 0.005 is empirically reasonable for standard parameterization
+    lr_opt = 0.005 * np.power(N[:, None], lr_exp)
+    lr_ratio = lr[:, None] / np.clip(lr_opt, 1e-10, 1.0)
     
-    # Gradient noise term: lr²/(bsz^γ + ε)
-    # Captures: larger lr increases noise, larger bsz reduces it
-    noise_term = E[:, None] * (lr[None, :] ** 2) / (bsz[None, :] ** gamma[:, None] + 100.0)
+    # Symmetric quadratic penalty in log-space with gentle tails
+    log_lr_ratio = np.log(lr_ratio)
+    lr_penalty = gamma * (log_lr_ratio ** 2 + 0.05 * log_lr_ratio ** 4)
     
-    # Adaptive optimal learning rate (theory: lr_opt ~ 1/sqrt(N*D))
-    # Using k_lr as scaling: lr_opt_log = k_lr * (log_N + log_D)
-    lr_opt_adaptive = k_lr[:, None] * (log_N[None, :] + log_D[None, :])
+    # Batch size penalty with gradient noise theory
+    # Critical batch size grows with data: B_crit ~ D^κ
+    # Below critical: strong noise penalty; above: mild inefficiency
+    bsz_crit = 128.0 * np.power(D[:, None] / 1e10, bsz_exp)
+    bsz_ratio = bsz[:, None] / np.clip(bsz_crit, 8.0, 1e7)
     
-    # LR penalty (quadratic in log space around adaptive optimum)
-    lr_penalty = F[:, None] * (log_lr[None, :] - lr_opt_adaptive) ** 2
+    # Asymmetric penalty function
+    # Small batches (ratio &lt; 1): severe gradient noise
+    # Large batches (ratio &gt; 1): mild diminishing returns
+    log_bsz_ratio = np.log(bsz_ratio)
+    bsz_penalty = delta * np.where(
+        bsz_ratio &lt; 1.0,
+        # Strong penalty for small batches: noise dominates
+        0.5 * (1.0 / bsz_ratio - 1.0) + 0.3 * log_bsz_ratio ** 2,
+        # Mild penalty for large batches: diminishing returns
+        0.1 * log_bsz_ratio + 0.05 * log_bsz_ratio ** 2
+    )
     
-    # LR-BSZ multiplicative interaction (critical batch size theory)
-    lr_bsz_interaction = G[:, None] * log_lr[None, :] * log_bsz[None, :]
+    # Total prediction
+    pred = L_inf + model_term + data_term + lr_penalty + bsz_penalty
     
-    # Total loss
-    pred = (A[:, None] + N_term + D_term + noise_term + 
-            lr_penalty + lr_bsz_interaction)
-    
-    return pred[0, :] if pred.shape[0] == 1 else pred.T
+    return pred[:, 0] if pred.shape[1] == 1 else pred
 
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Robust multi-stage optimization with adaptive weighting and extensive multi-start
+    Advanced three-stage fitting: global search → local refinement → final polish
     &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
     y = np.asarray(loss_values, dtype=np.float64)
@@ -420,132 +428,156 @@ def fit_scaling_law(data_points, loss_values):
     if y.ndim == 1:
         y = y[:, None]
     
-    # Compute robust statistics
-    loss_min = np.percentile(y, 5)
-    loss_max = np.percentile(y, 95)
+    T = y.shape[1]
+    n_params = 9
+    
+    # Compute data statistics for adaptive bounds
+    loss_min, loss_max = np.min(y), np.max(y)
+    loss_range = loss_max - loss_min
+    loss_std = np.std(y)
     loss_median = np.median(y)
     
-    # Well-informed parameter bounds (10 parameters)
+    # Percentile-based bounds for robustness
+    loss_p10 = np.percentile(y, 10)
+    loss_p90 = np.percentile(y, 90)
+    
+    # Theory-informed parameter bounds
     bounds = [
-        (loss_min - 0.25, loss_min + 0.35),  # A: near minimum
-        (0.08, 10.0),     # B: model coefficient
-        (0.04, 0.35),     # alpha: model exponent (Chinchilla: ~0.07-0.2)
-        (0.08, 10.0),     # C: data coefficient
-        (0.04, 0.35),     # beta: data exponent
-        (0.0, 5.0),       # E: noise coefficient
-        (0.2, 0.75),      # gamma: noise exponent
-        (0.0, 3.5),       # F: lr penalty
-        (-0.4, -0.05),    # k_lr: lr optimum scaling (negative for inverse relationship)
-        (-1.0, 1.0),      # G: lr-bsz interaction
+        (loss_min - 0.4, loss_p10 + 0.1),    # L_inf: near achievable minimum
+        (0.005, loss_range * 150),            # A: wide range for model term
+        (0.08, 0.65),                         # alpha: 0.3-0.5 typical, allow broader
+        (0.005, loss_range * 150),            # B: wide range for data term
+        (0.08, 0.65),                         # beta: similar to alpha
+        (0.0, loss_std * 8),                  # gamma: LR penalty strength
+        (-1.2, -0.05),                        # lr_exp: negative (μP theory)
+        (0.0, loss_std * 6),                  # delta: BSZ penalty strength
+        (0.0, 0.3),                           # bsz_exp: positive (larger D → larger B_crit)
     ]
     
-    def objective(params):
+    def objective(flat_params):
+        params = flat_params.reshape(T, n_params)
         try:
             pred = scaling_law_func(X, params)
             if pred.ndim == 1:
                 pred = pred[:, None]
             
+            # Robust loss: Huber-style combination
             residuals = pred - y
+            abs_residuals = np.abs(residuals)
             
-            # Stratified weighting: emphasize different loss regions
-            # More weight on low losses (well-trained models) and mid-range
-            weights_low = np.exp(-3.0 * np.abs(y - loss_min) / (loss_max - loss_min))
-            weights_mid = np.exp(-2.0 * np.abs(y - loss_median) / (loss_max - loss_min))
-            weights = 0.6 * weights_low + 0.4 * weights_mid
-            weights = weights / np.mean(weights)
+            # MSE for small errors, MAE for large (outlier robustness)
+            huber_delta = 0.5 * loss_std
+            huber_loss = np.where(
+                abs_residuals &lt;= huber_delta,
+                0.5 * residuals ** 2,
+                huber_delta * (abs_residuals - 0.5 * huber_delta)
+            )
+            main_loss = np.mean(huber_loss)
             
-            # Hybrid loss: 75% weighted MSE + 25% MAE for robustness
-            mse = np.mean(weights * residuals ** 2)
-            mae = np.mean(np.abs(residuals))
-            loss = 0.75 * mse + 0.25 * mae
+            # Regularization: prefer Chinchilla-like exponents
+            reg_alpha = 0.015 * (params[:, 2] - 0.38) ** 2
+            reg_beta = 0.015 * (params[:, 4] - 0.38) ** 2
             
-            # Tiered regularization: lighter on core terms, moderate on others
-            reg_core = 5e-7 * (params[1]**2 + params[3]**2)
-            reg_hp = 1e-6 * (params[5]**2 + params[7]**2)
-            reg_inter = 8e-7 * params[9]**2
+            # Mild parameter magnitude regularization
+            reg_l2 = 1e-9 * np.sum(params ** 2)
             
-            return loss + reg_core + reg_hp + reg_inter
+            return main_loss + reg_alpha + reg_beta + reg_l2
         except:
-            return 1e10
+            return 1e16
     
-    # Stage 1: Extended global search with differential evolution
+    # Smart initialization based on low-loss samples
+    low_loss_mask = y &lt; np.percentile(y, 25)
+    L_inf_init = np.mean(y[low_loss_mask]) - 0.15 if np.any(low_loss_mask) else loss_min
+    
+    init_params = np.array([
+        np.clip(L_inf_init, loss_min - 0.3, loss_p10),
+        loss_range * 12,      # A
+        0.38,                 # alpha (Chinchilla default)
+        loss_range * 10,      # B
+        0.38,                 # beta
+        0.4,                  # gamma
+        -0.6,                 # lr_exp (μP-like)
+        0.25,                 # delta
+        0.15,                 # bsz_exp
+    ])
+    
+    # Stage 1: Differential evolution with enhanced settings
     result_de = differential_evolution(
         objective,
-        bounds,
-        maxiter=200,
-        popsize=22,
-        tol=1e-9,
-        atol=1e-9,
+        bounds=bounds * T,
+        maxiter=600,
+        popsize=30,
         seed=42,
+        atol=1e-11,
+        tol=1e-11,
         workers=1,
-        polish=False,
         strategy=&#x27;best1bin&#x27;,
-        updating=&#x27;deferred&#x27;
+        mutation=(0.3, 1.3),
+        recombination=0.85,
+        polish=False,
+        init=&#x27;sobol&#x27;  # Better space coverage than latinhypercube
     )
     
-    # Stage 2: Local refinement with L-BFGS-B
-    result_local = minimize(
-        objective,
-        result_de.x,
-        method=&#x27;L-BFGS-B&#x27;,
-        bounds=bounds,
-        options={&#x27;maxiter&#x27;: 600, &#x27;ftol&#x27;: 1e-12, &#x27;gtol&#x27;: 1e-10}
-    )
+    best_params = result_de.x
+    best_score = result_de.fun
     
-    # Track best result
-    best_result = result_local if result_local.success else result_de
-    best_loss = best_result.fun
+    # Stage 2: L-BFGS-B refinement with multiple restarts
+    for attempt in range(3):
+        try:
+            if attempt == 0:
+                start_point = best_params
+            else:
+                # Add small perturbations for exploration
+                noise_scale = 0.005 * (2 - attempt)
+                start_point = best_params + np.random.randn(len(best_params)) * noise_scale
+            
+            result_lbfgs = minimize(
+                objective,
+                start_point,
+                method=&#x27;L-BFGS-B&#x27;,
+                bounds=bounds * T,
+                options={&#x27;maxiter&#x27;: 2500, &#x27;ftol&#x27;: 1e-15, &#x27;gtol&#x27;: 1e-13}
+            )
+            
+            if result_lbfgs.success and result_lbfgs.fun &lt; best_score:
+                best_params = result_lbfgs.x
+                best_score = result_lbfgs.fun
+        except:
+            continue
     
-    # Stage 3: Extensive multi-start with systematic perturbations
-    perturbation_scales = [0.98, 1.02, 0.96, 1.04, 0.94, 1.06, 0.92, 1.08, 0.97, 1.03]
-    
-    for scale in perturbation_scales:
-        x0 = np.clip(
-            best_result.x * scale,
-            [b[0] for b in bounds],
-            [b[1] for b in bounds]
-        )
-        
-        result = minimize(
-            objective,
-            x0,
-            method=&#x27;L-BFGS-B&#x27;,
-            bounds=bounds,
-            options={&#x27;maxiter&#x27;: 400, &#x27;ftol&#x27;: 1e-12, &#x27;gtol&#x27;: 1e-10}
-        )
-        
-        if result.success and result.fun &lt; best_loss:
-            best_loss = result.fun
-            best_result = result
-    
-    # Stage 4: Final polish with Powell (derivative-free, can escape shallow minima)
+    # Stage 3: Powell for final polish (unconstrained but verify bounds)
     try:
         result_powell = minimize(
             objective,
-            best_result.x,
+            best_params,
             method=&#x27;Powell&#x27;,
-            options={&#x27;maxiter&#x27;: 150, &#x27;ftol&#x27;: 1e-11}
+            options={&#x27;maxiter&#x27;: 1500, &#x27;ftol&#x27;: 1e-13, &#x27;xtol&#x27;: 1e-13}
         )
         
-        if result_powell.success and result_powell.fun &lt; best_loss:
-            params_opt = result_powell.x
-        else:
-            params_opt = best_result.x
+        if result_powell.success and result_powell.fun &lt; best_score:
+            # Verify all parameters within bounds
+            params_check = result_powell.x.reshape(T, n_params)
+            within_bounds = all(
+                bounds[i][0] &lt;= params_check[0, i] &lt;= bounds[i][1]
+                for i in range(n_params)
+            )
+            if within_bounds:
+                best_params = result_powell.x
     except:
-        params_opt = best_result.x
+        pass
     
-    return params_opt if y.shape[1] == 1 else params_opt[None, :]
+    params_opt = best_params.reshape(T, n_params)
+    return params_opt[0] if T == 1 else params_opt
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#2</span>
-              <span class="run-label">Run 4</span>
-              <span class="r2-badge" style="background-color: #d2691e; color: white"> R² = 0.223694 </span>
+              <span class="run-label">Run 2</span>
+              <span class="r2-badge" style="background-color: #228B22; color: white"> R² = 0.914496 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -557,120 +589,90 @@ def fit_scaling_law(data_points, loss_values):
               </div>
               <pre><code class="language-python" id="code-1"># EVOLVE-BLOCK-START
 &quot;&quot;&quot;
-Enhanced scaling law with physically-motivated hyperparameter modeling.
-Incorporates asymmetric learning rate effects, gradient noise from batch size,
-and cross-scale interactions based on training dynamics theory.
+Refined exponential scaling law with lr-batch interaction.
+Combines proven exponential penalties with critical hyperparameter coupling.
 &quot;&quot;&quot;
 import numpy as np
-from scipy.optimize import minimize, differential_evolution, dual_annealing
+from scipy.optimize import minimize, differential_evolution
 
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    Extended Chinchilla-style scaling law with training dynamics:
-    loss = A/N^alpha + B/D^beta + C + lr_effects + bsz_effects + interactions
+    Loss = (A/N^α + B/D^β + C) * exp(γ·log²(lr/lr_opt)) * exp(δ·log²(bsz/bsz_opt)) * exp(ε·log(lr)·log(bsz))
     
-    Key physics-inspired features:
-    - Asymmetric lr penalty (too high causes divergence, too low causes slow convergence)
-    - Batch size gradient noise: smaller batches add regularization
-    - Data-parameter interaction: overtraining vs undertraining regimes
-    - Learning rate schedule approximation via effective lr
+    Key features:
+    - Chinchilla base: A/N^α + B/D^β + C
+    - Exponential LR penalty (Gaussian in log-space) - proven effective
+    - Exponential batch size penalty
+    - Critical lr-batch interaction: optimal batch size couples with learning rate
+    - 9 parameters for expressiveness while maintaining stability
     &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
-    lr, bsz, data_size, param_size = X[:, 0], X[:, 1], X[:, 2], X[:, 3]
-    
     params = np.asarray(params, dtype=np.float64)
-    if len(params) &lt; 13:
-        params = np.pad(params, (0, 13 - len(params)), constant_values=0.0)
     
-    # Core Chinchilla parameters with tighter control
-    A = np.abs(params[0]) + 1e-10
-    alpha = np.clip(params[1], 0.1, 0.8)  # Narrower range based on empirical data
-    B = np.abs(params[2]) + 1e-10
-    beta = np.clip(params[3], 0.1, 0.8)
-    C = params[4]  # Irreducible loss
+    lr = X[:, 0]
+    bsz = X[:, 1]
+    data_size = X[:, 2]
+    param_size = X[:, 3]
     
-    # Learning rate parameters with asymmetry
-    lr_opt = np.clip(np.abs(params[5]), 5e-5, 5e-3)  # Optimal lr
-    lr_penalty_low = np.abs(params[6])  # Penalty for lr &lt; lr_opt
-    lr_penalty_high = np.abs(params[7])  # Penalty for lr &gt; lr_opt (usually stronger)
+    # 9 parameters: A, alpha, B, beta, C, gamma, lr_opt, delta, epsilon
+    A, alpha, B, beta, C, gamma, lr_opt, delta, epsilon = params
     
-    # Batch size gradient noise effects
-    bsz_noise_coeff = params[8]  # Gradient noise benefit
-    bsz_scale = np.clip(np.abs(params[9]), 32, 512)  # Characteristic batch size
+    eps = 1e-10
+    param_size = np.maximum(param_size, eps)
+    data_size = np.maximum(data_size, eps)
+    lr = np.maximum(lr, eps)
+    bsz = np.maximum(bsz, eps)
+    lr_opt = np.maximum(lr_opt, eps)
     
-    # Cross-scale interactions
-    data_param_ratio_coeff = params[10]  # D/N ratio effect (compute-optimal)
-    lr_data_interact = params[11]  # lr × data interaction
-    lr_param_interact = params[12]  # lr × param interaction
+    # Base Chinchilla scaling
+    base_loss = A / np.power(param_size, np.abs(alpha)) + \
+                B / np.power(data_size, np.abs(beta)) + C
     
-    # Safe clipping with wider ranges
-    param_size_safe = np.clip(param_size, 5e7, 2e9)
-    data_size_safe = np.clip(data_size, 1e9, 2e11)
-    lr_safe = np.clip(lr, 1e-5, 0.05)
-    bsz_safe = np.clip(bsz, 8, 4096)
+    # Learning rate penalty (Gaussian in log-space)
+    lr_penalty = np.exp(gamma * np.square(np.log(lr / lr_opt)))
     
-    # Base Chinchilla loss
-    loss = C + A / (param_size_safe ** alpha) + B / (data_size_safe ** beta)
+    # Batch size penalty (Gaussian in log-space, using adaptive reference)
+    bsz_ref = 512.0  # Typical batch size
+    bsz_penalty = np.exp(delta * np.square(np.log(bsz / bsz_ref)))
     
-    # Asymmetric learning rate penalty
-    log_lr_ratio = np.log(lr_safe / lr_opt)
-    # Use different penalties for too high vs too low
-    lr_penalty = np.where(
-        log_lr_ratio &gt; 0,
-        lr_penalty_high * log_lr_ratio ** 2,  # Too high: divergence risk
-        lr_penalty_low * log_lr_ratio ** 2    # Too low: slow convergence
-    )
-    loss += lr_penalty
+    # LR-Batch interaction: optimal batch size depends on learning rate
+    # Higher LR may benefit from different batch sizes
+    lr_ref = 1e-3
+    lr_bsz_interaction = np.exp(epsilon * np.log(lr / lr_ref) * np.log(bsz / bsz_ref))
     
-    # Batch size gradient noise effect
-    # Smaller batches provide regularization, modeled as:
-    # noise_effect ~ 1/sqrt(bsz) scaled by distance from characteristic batch size
-    bsz_ratio = bsz_safe / bsz_scale
-    loss += bsz_noise_coeff * (1.0 / np.sqrt(bsz_ratio) - 1.0)
+    pred = base_loss * lr_penalty * bsz_penalty * lr_bsz_interaction
     
-    # Data-parameter ratio (compute-optimal allocation)
-    # Penalty when D/N deviates from optimal ratio
-    data_param_ratio = data_size_safe / param_size_safe
-    log_ratio = np.log(data_param_ratio)
-    loss += data_param_ratio_coeff * log_ratio ** 2
-    
-    # Learning rate interactions with scale
-    # lr affects how well model can utilize data/parameters
-    loss += lr_data_interact * np.log(lr_safe) * np.log(data_size_safe / 1e10)
-    loss += lr_param_interact * np.log(lr_safe) * np.log(param_size_safe / 1e8)
-    
-    return loss
+    return pred
 
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Multi-stage optimization with adaptive strategy selection.
-    Uses simulated annealing for exploration, then local refinement.
+    Two-stage optimization: global search then local refinement
     &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
     y = np.asarray(loss_values, dtype=np.float64)
     
-    # Data statistics for initialization
-    min_loss = np.min(y)
-    median_loss = np.median(y)
-    p10_loss = np.percentile(y, 10)
+    # Statistics for initialization
+    lr_median = np.median(X[:, 0])
+    loss_min = np.min(y)
+    loss_mean = np.mean(y)
     
-    # Physics-informed initialization
-    init_params = np.array([
-        80.0,           # A - parameter coefficient
-        0.35,           # alpha - parameter exponent
-        40.0,           # B - data coefficient
-        0.28,           # beta - data exponent
-        p10_loss,       # C - baseline irreducible loss
-        0.0008,         # lr_opt - optimal learning rate
-        0.3,            # lr_penalty_low
-        0.8,            # lr_penalty_high (stronger for too-high lr)
-        0.02,           # bsz_noise_coeff
-        128.0,          # bsz_scale
-        0.0,            # data_param_ratio_coeff
-        0.0,            # lr_data_interact
-        0.0             # lr_param_interact
-    ])
+    # Find minimum loss configuration
+    min_idx = np.argmin(y)
+    lr_at_min = X[min_idx, 0]
+    
+    # Parameter bounds: [A, alpha, B, beta, C, gamma, lr_opt, delta, epsilon]
+    bounds = [
+        (0.1, 50.0),              # A: model coefficient
+        (0.1, 0.8),               # alpha: model exponent
+        (0.1, 50.0),              # B: data coefficient
+        (0.1, 0.8),               # beta: data exponent
+        (loss_min * 0.3, loss_mean * 0.7),  # C: baseline
+        (-2.0, 2.0),              # gamma: lr penalty strength
+        (X[:, 0].min(), X[:, 0].max()),  # lr_opt
+        (-1.0, 1.0),              # delta: batch size penalty
+        (-0.3, 0.3)               # epsilon: lr-batch interaction
+    ]
     
     def objective(params):
         try:
@@ -679,104 +681,80 @@ def fit_scaling_law(data_points, loss_values):
                 return 1e10
             residuals = pred - y
             mse = np.mean(residuals ** 2)
-            # Regularization to prefer simpler models
-            reg = 1e-8 * (params[0]**2 + params[2]**2 + params[6]**2 + params[7]**2)
+            
+            # Light regularization for extreme penalties
+            reg = 0.0001 * (np.square(params[5]) + np.square(params[7]) + np.square(params[8]))
+            
             return mse + reg
         except:
             return 1e10
     
-    # Carefully designed bounds based on physical constraints
-    bounds = [
-        (1.0, 500),         # A
-        (0.1, 0.8),         # alpha (tighter based on theory)
-        (1.0, 500),         # B
-        (0.1, 0.8),         # beta (tighter based on theory)
-        (min_loss - 0.1, median_loss),  # C
-        (1e-5, 0.01),       # lr_opt
-        (0.01, 3.0),        # lr_penalty_low
-        (0.01, 5.0),        # lr_penalty_high
-        (-0.2, 0.2),        # bsz_noise_coeff
-        (16, 1024),         # bsz_scale
-        (-0.1, 0.1),        # data_param_ratio_coeff
-        (-0.02, 0.02),      # lr_data_interact
-        (-0.02, 0.02)       # lr_param_interact
-    ]
+    # Smart initialization
+    x0 = np.array([
+        12.0,              # A
+        0.35,              # alpha (Chinchilla)
+        15.0,              # B
+        0.32,              # beta (Chinchilla)
+        loss_min * 0.6,    # C
+        0.0,               # gamma (neutral start)
+        lr_at_min,         # lr_opt (near observed minimum)
+        0.0,               # delta (neutral start)
+        0.0                # epsilon (neutral interaction)
+    ])
     
-    best_params = init_params
-    best_score = objective(init_params)
+    # Global search with differential evolution
+    result = differential_evolution(
+        objective,
+        bounds,
+        seed=42,
+        maxiter=250,
+        popsize=15,
+        atol=1e-8,
+        tol=1e-8,
+        workers=1,
+        init=&#x27;sobol&#x27;,
+        strategy=&#x27;best1bin&#x27;,
+        x0=x0
+    )
     
-    try:
-        # Stage 1: Dual annealing for robust global optimization
-        result_sa = dual_annealing(
-            objective,
-            bounds,
-            maxiter=200,
-            seed=42,
-            no_local_search=True
-        )
-        
-        if result_sa.fun &lt; best_score:
-            best_params = result_sa.x
-            best_score = result_sa.fun
-        
-        # Stage 2: Differential evolution as backup/refinement
-        result_de = differential_evolution(
-            objective,
-            bounds,
-            maxiter=120,
-            popsize=15,
-            seed=123,
-            atol=1e-10,
-            tol=1e-10,
-            workers=1,
-            init=&#x27;latinhypercube&#x27;,
-            polish=False
-        )
-        
-        if result_de.fun &lt; best_score:
-            best_params = result_de.x
-            best_score = result_de.fun
-        
-        # Stage 3: Local refinement with multiple methods
-        for method in [&#x27;L-BFGS-B&#x27;, &#x27;TNC&#x27;]:
-            result_local = minimize(
+    # Local refinement with multiple attempts
+    best_result = result
+    
+    for attempt in range(3):
+        try:
+            start_point = best_result.x
+            if attempt &gt; 0:
+                rng = np.random.RandomState(42 + attempt)
+                noise = rng.randn(len(start_point)) * 0.02
+                start_point = start_point * (1.0 + noise)
+                start_point = np.clip(start_point, 
+                                     [b[0] for b in bounds], 
+                                     [b[1] for b in bounds])
+            
+            local_result = minimize(
                 objective,
-                best_params,
-                method=method,
+                start_point,
+                method=&#x27;L-BFGS-B&#x27;,
                 bounds=bounds,
-                options={&#x27;maxiter&#x27;: 1500, &#x27;ftol&#x27;: 1e-13}
+                options={&#x27;maxiter&#x27;: 800, &#x27;ftol&#x27;: 1e-10}
             )
             
-            if result_local.success and result_local.fun &lt; best_score:
-                best_params = result_local.x
-                best_score = result_local.fun
-        
-        # Stage 4: Final polish with Nelder-Mead (unbounded, starts from best)
-        result_nm = minimize(
-            objective,
-            best_params,
-            method=&#x27;Nelder-Mead&#x27;,
-            options={&#x27;maxiter&#x27;: 800, &#x27;xatol&#x27;: 1e-11, &#x27;fatol&#x27;: 1e-11}
-        )
-        
-        if result_nm.fun &lt; best_score:
-            best_params = result_nm.x
-            
-    except Exception as e:
-        print(f&quot;Optimization warning: {e}, using best found parameters&quot;)
+            if local_result.success and local_result.fun &lt; best_result.fun:
+                best_result = local_result
+        except:
+            pass
     
-    return best_params
+    return best_result.x
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#3</span>
-              <span class="run-label">Run 3</span>
-              <span class="r2-badge" style="background-color: #d2691e; color: white"> R² = 0.217225 </span>
+              <span class="run-label">Run 4</span>
+              <span class="r2-badge" style="background-color: #228B22; color: white"> R² = 0.913341 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -788,200 +766,173 @@ def fit_scaling_law(data_points, loss_values):
               </div>
               <pre><code class="language-python" id="code-2"># EVOLVE-BLOCK-START
 &quot;&quot;&quot;
-Improved scaling law with multiplicative interactions and robust fitting.
-Based on Chinchilla principles with enhanced optimizer dynamics modeling.
+Proven asymmetric scaling law with enhanced numerical stability and optimization.
+L = E + A/N^α + B/D^β + C*max(0,log(lr/lr_opt))^2 + D*|min(0,log(lr/lr_opt))| + F*exp(-bsz/G)
+
+Key improvements (10 params, 2702 data points):
+- Asymmetric LR: quadratic high penalty (catastrophic), linear low penalty (benign)
+- Exponential batch saturation (proven stable)
+- Enhanced numerical stability with careful clipping
+- Improved optimization strategy with better convergence
+- Strong Chinchilla regularization (α≈β≈0.35)
 &quot;&quot;&quot;
 import numpy as np
 from scipy.optimize import minimize, differential_evolution
 
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    Scaling law: L = (A/N^alpha + B/D^beta) * (1 + C*lr_term + E*bsz_term + H*lr_bsz_term) + F
-    
-    Key improvements:
-    - Multiplicative form captures interaction between base loss and optimizer effects
-    - More stable numerically
-    - Theoretically motivated from optimization dynamics
+    Robust asymmetric scaling law with proven additive structure.
+    High LR causes catastrophic failures (quadratic), low LR just slows convergence (linear).
     &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
     params = np.asarray(params, dtype=np.float64)
     
-    lr = X[:, 0]
-    bsz = X[:, 1]
-    D = X[:, 2]
-    N = X[:, 3]
+    if params.ndim == 1:
+        params = params[None, :]
     
-    # Unpack parameters (8 total - simplified)
-    A = np.abs(params[0])       # Model size coefficient
-    alpha = np.abs(params[1])   # Model size exponent
-    B = np.abs(params[2])       # Data size coefficient
-    beta = np.abs(params[3])    # Data size exponent
-    C = np.abs(params[4])       # LR sensitivity
-    E = np.abs(params[5])       # Batch size sensitivity
-    H = np.abs(params[6])       # LR-BSZ interaction
-    F = params[7]               # Irreducible loss offset
+    # Strict bounds for numerical stability
+    lr = np.clip(X[:, 0], 1e-8, 1.0)
+    bsz = np.clip(X[:, 1], 1.0, 1e5)
+    D = np.clip(X[:, 2], 1e8, 1e12)
+    N = np.clip(X[:, 3], 1e7, 1e10)
     
-    # Numerical stability with tighter clipping
-    N_safe = np.clip(N, 1e7, 1e10)
-    D_safe = np.clip(D, 1e9, 1e12)
-    lr_safe = np.clip(lr, 1e-5, 0.1)
-    bsz_safe = np.clip(bsz, 8.0, 4096.0)
+    preds = []
+    for p in params:
+        E = p[0]                          # Irreducible loss
+        A = np.abs(p[1])                  # Model coefficient (forced positive)
+        alpha = np.clip(p[2], 0.1, 0.6)   # Model exponent (Chinchilla range)
+        B = np.abs(p[3])                  # Data coefficient (forced positive)
+        beta = np.clip(p[4], 0.1, 0.6)    # Data exponent (Chinchilla range)
+        C = np.abs(p[5])                  # High LR penalty (catastrophic)
+        lr_opt = np.exp(np.clip(p[6], -10, 0))  # Optimal LR (realistic range)
+        D_param = np.abs(p[7])            # Low LR penalty (benign)
+        F = np.abs(p[8])                  # Batch inefficiency coefficient
+        G = np.abs(p[9])                  # Batch saturation scale
+        
+        # Core Chinchilla scaling with stable computation
+        base = E + A / (N ** alpha) + B / (D ** beta)
+        
+        # Asymmetric learning rate penalties
+        log_ratio = np.log(lr / lr_opt)
+        
+        # High LR: quadratic penalty (superlinear, catastrophic divergence)
+        lr_high = C * np.maximum(0, log_ratio) ** 2
+        
+        # Low LR: linear penalty (just slower convergence, not catastrophic)
+        lr_low = D_param * np.abs(np.minimum(0, log_ratio))
+        
+        # Batch size: exponential saturation (small batches inefficient)
+        bsz_pen = F * np.exp(-bsz / G)
+        
+        pred = base + lr_high + lr_low + bsz_pen
+        preds.append(pred)
     
-    # Core Chinchilla power laws
-    base_loss = A / np.power(N_safe, alpha) + B / np.power(D_safe, beta)
-    
-    # Optimal LR scales with model size: lr_opt ~ N^(-0.5)
-    lr_optimal = 0.003 * np.power(N_safe / 2e8, -0.5)
-    lr_optimal = np.clip(lr_optimal, 5e-5, 0.02)
-    
-    # LR term: asymmetric penalty (worse when too high)
-    lr_ratio = lr_safe / lr_optimal
-    lr_log = np.log(lr_ratio)
-    # Asymmetric: higher penalty for lr too high than too low
-    lr_term = np.where(lr_log &gt; 0, lr_log**2, 0.7 * lr_log**2)
-    
-    # Optimal batch size scales with data and model
-    bsz_optimal = 128.0 * np.power(D_safe / 2e10, 0.2) * np.power(N_safe / 2e8, 0.15)
-    bsz_optimal = np.clip(bsz_optimal, 32.0, 1024.0)
-    
-    # BSZ term: symmetric in log space
-    bsz_ratio = bsz_safe / bsz_optimal
-    bsz_log = np.log(bsz_ratio)
-    bsz_term = bsz_log**2
-    
-    # Interaction term: LR and BSZ interact (gradient noise effects)
-    # When both are suboptimal in same direction, penalty increases
-    lr_bsz_term = lr_log * bsz_log
-    
-    # Multiplicative form: optimizer effects scale with base loss
-    # This is more theoretically sound - larger models are more sensitive
-    optimizer_multiplier = 1.0 + C * lr_term + E * bsz_term + H * lr_bsz_term
-    
-    pred = base_loss * optimizer_multiplier + F
-    
-    return pred
+    preds = np.array(preds).T
+    return preds[:, 0] if preds.shape[1] == 1 else preds
 
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Robust two-stage fitting: global search + local refinement.
+    Enhanced three-stage optimization with improved convergence.
     &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
     y = np.asarray(loss_values, dtype=np.float64)
     
+    if y.ndim == 1:
+        y = y[:, None]
+    T = y.shape[1]
+    
+    # Analyze data for smart initialization
+    lr_vals = X[:, 0]
+    bsz_vals = X[:, 1]
     y_min = np.min(y)
-    y_max = np.max(y)
-    y_mean = np.mean(y)
-    y_std = np.std(y)
     
-    def objective(params):
-        try:
-            pred = scaling_law_func(X, params)
-            pred = np.clip(pred, y_min - y_std, y_max + y_std)
-            
-            residuals = pred - y
-            
-            # Weighted combination: MAE for robustness, MSE for accuracy
-            mae = np.mean(np.abs(residuals))
-            mse = np.mean(residuals ** 2)
-            loss = 0.4 * mae + 0.6 * mse
-            
-            # Regularization toward Chinchilla values
-            reg = 0.005 * ((params[1] - 0.34)**2 + (params[3] - 0.28)**2)
-            
-            # Penalize extreme interactions
-            reg += 0.002 * params[6]**2
-            
-            return loss + reg
-        except:
-            return 1e10
+    # Find optimal hyperparameters from elite performers (top 10%)
+    elite_mask = y.ravel() &lt; np.percentile(y, 10)
+    lr_opt_init = np.median(lr_vals[elite_mask]) if np.any(elite_mask) else np.median(lr_vals)
     
-    # Parameter bounds: [A, alpha, B, beta, C, E, H, F]
+    # 10 parameters: [E, A, alpha, B, beta, C, log_lr_opt, D, F, G]
     bounds = [
-        (1.0, 60.0),            # A
-        (0.15, 0.55),           # alpha (Chinchilla: ~0.34)
-        (1.0, 60.0),            # B
-        (0.15, 0.45),           # beta (Chinchilla: ~0.28)
-        (0.0, 12.0),            # C: LR sensitivity
-        (0.0, 8.0),             # E: BSZ sensitivity
-        (0.0, 5.0),             # H: LR-BSZ interaction
-        (y_min - 1.0, y_max),   # F: offset
+        (y_min * 0.7, y_min * 1.05),     # E: slightly below minimum
+        (1e2, 1e9),                       # A: model coefficient
+        (0.1, 0.6),                       # alpha: Chinchilla range
+        (1e2, 1e11),                      # B: data coefficient
+        (0.1, 0.6),                       # beta: Chinchilla range
+        (0.0, 5.5),                       # C: high LR penalty
+        (np.log(lr_vals.min() * 0.3), np.log(lr_vals.max() * 3.0)),  # log_lr_opt
+        (0.0, 2.8),                       # D: low LR penalty
+        (0.0, 2.2),                       # F: batch inefficiency
+        (40.0, 1200.0),                   # G: batch saturation scale
     ]
     
-    # Stage 1: Global search with multiple strategies
-    best_result = None
-    best_score = 1e10
+    all_params = []
     
-    for seed_val in [42, 123, 456, 789, 2024]:
-        result = differential_evolution(
-            objective,
-            bounds,
-            seed=seed_val,
-            maxiter=350,
-            popsize=18,
-            atol=1e-7,
-            tol=1e-7,
-            workers=1,
-            strategy=&#x27;best1bin&#x27;,
-            mutation=(0.6, 1.4),
-            recombination=0.8,
-            polish=False
+    for t in range(T):
+        y_t = y[:, t]
+        
+        def objective(p):
+            try:
+                pred = scaling_law_func(X, p)
+                mse = np.mean((pred - y_t) ** 2)
+                
+                # Strong Chinchilla regularization
+                reg_chinchilla = 2.5e-3 * ((p[2] - 0.35)**2 + (p[4] - 0.35)**2)
+                
+                # Light coefficient regularization
+                reg_coef = 1e-8 * (p[1]**2 + p[3]**2)
+                
+                # Moderate penalty term regularization
+                reg_penalty = 6e-4 * (p[5]**2 + p[7]**2 + p[8]**2)
+                
+                return mse + reg_chinchilla + reg_coef + reg_penalty
+            except:
+                return 1e10
+        
+        # Stage 1: Broad global search
+        res1 = differential_evolution(
+            objective, bounds, seed=42, maxiter=240, popsize=14,
+            atol=1e-7, tol=1e-7, workers=1, strategy=&#x27;best1bin&#x27;, polish=False
         )
         
-        if result.fun &lt; best_score:
-            best_score = result.fun
-            best_result = result
-    
-    # Stage 2: Local refinement
-    if best_result and best_result.success:
-        result_local = minimize(
-            objective,
-            best_result.x,
-            method=&#x27;L-BFGS-B&#x27;,
-            bounds=bounds,
-            options={&#x27;maxiter&#x27;: 4000, &#x27;ftol&#x27;: 1e-12, &#x27;gtol&#x27;: 1e-10}
+        # Stage 2: Refined global search
+        res2 = differential_evolution(
+            objective, bounds, seed=123, maxiter=280, popsize=15,
+            atol=1e-8, tol=1e-8, workers=1, init=&#x27;latinhypercube&#x27;,
+            x0=res1.x, polish=False
         )
         
-        if result_local.success and result_local.fun &lt; best_result.fun:
-            return result_local.x
-        return best_result.x
+        # Stage 3: Local refinement with multiple restarts
+        best = res2.x
+        best_loss = res2.fun
+        
+        for restart in range(3):
+            # Add small perturbation for diversity
+            init_point = best + np.random.randn(10) * 0.015 if restart &gt; 0 else best
+            
+            refined = minimize(
+                objective, init_point,
+                method=&#x27;L-BFGS-B&#x27;, bounds=bounds,
+                options={&#x27;maxiter&#x27;: 1500, &#x27;ftol&#x27;: 1e-11, &#x27;gtol&#x27;: 1e-9}
+            )
+            
+            if refined.success and refined.fun &lt; best_loss:
+                best_loss = refined.fun
+                best = refined.x
+        
+        all_params.append(best)
     
-    # Fallback: theory-based initialization
-    init_params = np.array([
-        15.0,       # A (Chinchilla-based)
-        0.34,       # alpha
-        12.0,       # B
-        0.28,       # beta
-        2.5,        # C
-        1.5,        # E
-        0.8,        # H
-        y_mean - (y_max - y_min) * 0.15,  # F
-    ])
-    
-    result_fallback = minimize(
-        objective,
-        init_params,
-        method=&#x27;L-BFGS-B&#x27;,
-        bounds=bounds,
-        options={&#x27;maxiter&#x27;: 4000, &#x27;ftol&#x27;: 1e-11}
-    )
-    
-    if result_fallback.success:
-        return result_fallback.x
-    
-    return init_params
-
+    params_array = np.array(all_params)
+    return params_array[0] if T == 1 else params_array
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#4</span>
-              <span class="run-label">Run 2</span>
-              <span class="r2-badge" style="background-color: #b22222; color: white"> R² = -0.012828 </span>
+              <span class="run-label">Run 1</span>
+              <span class="r2-badge" style="background-color: #228B22; color: white"> R² = 0.910593 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -993,200 +944,214 @@ def fit_scaling_law(data_points, loss_values):
               </div>
               <pre><code class="language-python" id="code-3"># EVOLVE-BLOCK-START
 &quot;&quot;&quot;
-Optimized scaling law combining proven approaches from best performers.
-Focus on numerical stability, smart initialization, and robust functional forms.
+Enhanced scaling law incorporating best practices:
+- Chinchilla power laws (A/N^α + B/D^β + C) as foundation
+- Asymmetric LR penalty: low LR (underfitting) &gt;&gt; high LR (instability)
+- Smooth batch size saturation with critical point
+- Multiplicative structure for cross-scale robustness
+- 11 parameters for optimal expressiveness/generalizability balance
 &quot;&quot;&quot;
 import numpy as np
 from scipy.optimize import minimize, differential_evolution
 
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    Scaling law: L = A/N^α + B/D^β + C*log²(lr_opt/lr) + E*(bsz/bsz₀)^γ + F*sqrt(N/D) + L_inf
+    Multiplicative scaling law:
+    L = (A/N^α + B/D^β + C) * (1 + E_low*max(0,-log(lr/lr_o))^ζ_low + E_high*max(0,log(lr/lr_o))^ζ_high) * (1 + F/(1+(bsz/b_c)^η))
     
-    Combines best elements:
-    - Standard power law for N and D (Chinchilla)
-    - Squared log penalty for LR (stable and effective)
-    - Normalized batch size with power law
-    - Interaction term for model/data ratio
+    Key insights:
+    - Underfitting (low LR) causes worse degradation than instability (high LR)
+    - Batch size has diminishing returns with smooth transition
+    - Multiplicative effects preserve relative scale relationships
+    
+    Features: [lr, bsz, data_size, non_embedding_param_size]
+    params = [A, α, B, β, C, E_low, E_high, log_lr_opt, F, log_bsz_crit, η]
     &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
     params = np.asarray(params, dtype=np.float64)
     
-    # Extract and clip features
-    lr = np.clip(X[:, 0], 1e-6, 1.0)
-    bsz = np.clip(X[:, 1], 1.0, 1e6)
-    data_size = np.clip(X[:, 2], 1e6, 1e15)
-    param_size = np.clip(X[:, 3], 1e6, 1e12)
+    lr = X[:, 0]
+    bsz = X[:, 1]
+    data_size = X[:, 2]
+    model_params = X[:, 3]
     
-    # Extract 9 parameters
-    A, alpha, B, beta, C, lr_opt_base, E, gamma, L_inf = params
+    # Extract and constrain parameters for numerical stability
+    A = np.abs(params[0]) + 1e-10
+    alpha = np.clip(params[1], 0.16, 0.54)
+    B = np.abs(params[2]) + 1e-10
+    beta = np.clip(params[3], 0.16, 0.54)
+    C = params[4]
+    E_low = np.abs(params[5])    # Penalty for low LR (stronger)
+    E_high = np.abs(params[6])   # Penalty for high LR (weaker)
+    lr_opt = np.exp(params[7])
+    F = np.abs(params[8])         # Batch size penalty magnitude
+    bsz_crit = np.exp(params[9])  # Critical batch size
+    eta = np.clip(params[10], 0.38, 1.85)  # Transition sharpness
     
     # Core Chinchilla-style power laws
-    model_term = A * np.power(param_size, -alpha)
-    data_term = B * np.power(data_size, -beta)
+    base_loss = A / (model_params ** alpha) + B / (data_size ** beta) + C
     
-    # Learning rate term: squared log penalty (most stable)
-    # Optimal LR scales with sqrt(1/N)
-    lr_optimal = np.exp(lr_opt_base) * np.power(param_size, -0.5)
-    lr_ratio = np.clip(lr_optimal / lr, 0.1, 10.0)
-    lr_term = C * np.power(np.log(lr_ratio), 2)
+    # Asymmetric learning rate penalty (multiplicative)
+    # Physics: Low LR causes underfitting (worse), high LR causes instability (less bad)
+    lr_ratio = np.clip(lr / lr_opt, 1e-6, 1e6)
+    log_lr_ratio = np.log(lr_ratio)
     
-    # Batch size term: normalized around typical value
-    bsz_normalized = bsz / 256.0
-    bsz_term = E * np.power(bsz_normalized, gamma)
+    # Steeper penalty for low LR (power 1.9), gentler for high LR (power 1.45)
+    penalty_low = E_low * np.maximum(0, -log_lr_ratio) ** 1.9
+    penalty_high = E_high * np.maximum(0, log_lr_ratio) ** 1.45
+    lr_penalty = 1.0 + penalty_low + penalty_high
     
-    # Total loss (removed interaction term for simplicity)
-    loss = model_term + data_term + lr_term + bsz_term + L_inf
+    # Batch size effect: smooth saturation via sigmoid-like function
+    # Small batches: high gradient noise (penalty)
+    # Large batches: diminishing returns (approaches asymptote)
+    bsz_ratio = bsz / bsz_crit
+    bsz_penalty = 1.0 + F / (1.0 + bsz_ratio ** eta)
+    
+    # Multiplicative combination for better cross-scale behavior
+    loss = base_loss * lr_penalty * bsz_penalty
     
     return loss
 
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Enhanced multi-stage optimization with adaptive strategy
+    Robust three-stage optimization with intelligent initialization
     &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
     y = np.asarray(loss_values, dtype=np.float64)
     
-    # Robust normalization
-    y_mean = np.mean(y)
-    y_std = np.std(y)
-    y_normalized = (y - y_mean) / (y_std + 1e-8)
+    lr = X[:, 0]
+    bsz = X[:, 1]
     
-    # Bounds: [A, alpha, B, beta, C, lr_opt_base, E, gamma, L_inf]
+    loss_min, loss_max = np.min(y), np.max(y)
+    loss_std = np.std(y)
+    
+    # Smart initialization: find optimal LR from low-loss region
+    low_loss_threshold = np.percentile(y, 18)
+    low_loss_mask = y &lt;= low_loss_threshold
+    if np.sum(low_loss_mask) &gt; 10:
+        lr_opt_init = np.median(lr[low_loss_mask])
+        bsz_crit_init = np.median(bsz[low_loss_mask])
+    else:
+        # Fallback: weighted by inverse loss
+        weights = np.exp(-2.0 * (y - loss_min) / (loss_std + 1e-8))
+        lr_opt_init = np.average(lr, weights=weights)
+        bsz_crit_init = np.median(bsz)
+    
+    # Bounds: [A, α, B, β, C, E_low, E_high, log_lr_opt, F, log_bsz_crit, η]
     bounds = [
-        (1e-3, 100.0),     # A: model coefficient
-        (0.01, 0.9),       # alpha: model exponent (0.1-0.5 typical)
-        (1e-3, 100.0),     # B: data coefficient
-        (0.01, 0.9),       # beta: data exponent
-        (1e-4, 15.0),      # C: LR coefficient
-        (-10.0, -2.0),     # lr_opt_base: log optimal LR base
-        (-2.0, 2.0),       # E: batch size coefficient
-        (-0.5, 0.5),       # gamma: batch size exponent
-        (1.5, 3.5),        # L_inf: irreducible loss
+        (1e-4, 82.0),           # A
+        (0.19, 0.51),           # α (near Chinchilla 0.34)
+        (1e-4, 82.0),           # B
+        (0.19, 0.51),           # β (near Chinchilla 0.28)
+        (loss_min * 0.43, loss_max * 0.89),  # C
+        (0.0, 6.2),             # E_low (typically larger)
+        (0.0, 4.2),             # E_high (typically smaller)
+        (np.log(np.min(lr) * 0.23), np.log(np.max(lr) * 4.3)),  # log_lr_opt
+        (0.0, 3.1),             # F
+        (np.log(18), np.log(720)),  # log_bsz_crit
+        (0.43, 1.72),           # η
     ]
     
     def objective(params):
         try:
             pred = scaling_law_func(X, params)
-            pred_normalized = (pred - y_mean) / (y_std + 1e-8)
             
-            # MSE with adaptive regularization
-            mse = np.mean((pred_normalized - y_normalized) ** 2)
-            reg = 1e-6 * np.sum(params ** 2)
+            if not np.all(np.isfinite(pred)):
+                return 1e10
             
-            return mse + reg
+            residuals = pred - y
+            mse = np.mean(residuals ** 2)
+            mae = np.mean(np.abs(residuals))
+            
+            # Regularization toward theoretical values and simplicity
+            reg_alpha = 0.0078 * (params[1] - 0.34) ** 2
+            reg_beta = 0.0078 * (params[3] - 0.28) ** 2
+            
+            # Encourage asymmetry: E_low should be &gt;= E_high
+            reg_asymmetry = 0.0015 * max(0, params[6] - params[5] - 0.3) ** 2
+            
+            # Prefer moderate effect strengths
+            reg_effects = 0.0011 * (params[5] ** 2 + params[6] ** 2 + params[8] ** 2)
+            
+            reg = reg_alpha + reg_beta + reg_asymmetry + reg_effects
+            
+            # Balanced objective with slight MSE emphasis
+            return 0.64 * mse + 0.36 * mae + reg
         except:
             return 1e10
     
-    # Smart initialization from data statistics
-    lr_vals = X[:, 0]
-    param_vals = X[:, 3]
+    # Stage 1: Global search with differential evolution
+    result_de = differential_evolution(
+        objective,
+        bounds,
+        strategy=&#x27;best1bin&#x27;,
+        maxiter=470,
+        popsize=23,
+        atol=1e-9,
+        tol=1e-9,
+        seed=42,
+        workers=1,
+        polish=False,
+        updating=&#x27;deferred&#x27;,
+        init=&#x27;sobol&#x27;,
+        recombination=0.7,
+        mutation=(0.55, 1.45)
+    )
     
-    init_guess = np.array([
-        12.0,                                    # A
-        0.32,                                    # alpha
-        4.5,                                     # B
-        0.28,                                    # beta
-        0.3,                                     # C
-        np.log(np.median(lr_vals)) + 3.0,       # lr_opt_base
-        0.05,                                    # E
-        0.0,                                     # gamma
-        y_mean,                                  # L_inf
-    ])
-    init_guess = np.clip(init_guess, [b[0] for b in bounds], [b[1] for b in bounds])
+    best_params = result_de.x
+    best_score = result_de.fun
     
-    best_params = None
-    best_loss = np.inf
-    
-    # Stage 1: Differential evolution with larger population
-    try:
-        result = differential_evolution(
+    # Stage 2: Local refinement with smart restarts
+    for attempt in range(5):
+        if attempt == 0:
+            init_params = best_params
+        else:
+            # Adaptive perturbation: vary effect parameters more than exponents
+            perturbation = np.random.randn(len(best_params)) * 0.024
+            perturbation[1] *= 0.57  # α: keep stable
+            perturbation[3] *= 0.57  # β: keep stable
+            perturbation[5] *= 2.5   # E_low: explore more
+            perturbation[6] *= 2.5   # E_high: explore more
+            perturbation[8] *= 2.15  # F: explore more
+            init_params = best_params + perturbation
+        
+        init_params = np.clip(init_params, [b[0] for b in bounds], [b[1] for b in bounds])
+        
+        result_local = minimize(
             objective,
-            bounds,
-            seed=42,
-            maxiter=350,
-            popsize=18,
-            atol=1e-7,
-            tol=1e-7,
-            workers=1,
-            polish=False
-        )
-        if result.fun &lt; best_loss:
-            best_loss = result.fun
-            best_params = result.x
-    except:
-        pass
-    
-    # Stage 2: Local refinement from DE result
-    if best_params is not None:
-        try:
-            res = minimize(
-                objective,
-                best_params,
-                method=&#x27;L-BFGS-B&#x27;,
-                bounds=bounds,
-                options={&#x27;maxiter&#x27;: 2000, &#x27;ftol&#x27;: 1e-11, &#x27;gtol&#x27;: 1e-8}
-            )
-            if res.fun &lt; best_loss:
-                best_loss = res.fun
-                best_params = res.x
-        except:
-            pass
-    
-    # Stage 3: Local optimization from smart init (backup)
-    try:
-        res = minimize(
-            objective,
-            init_guess,
+            init_params,
             method=&#x27;L-BFGS-B&#x27;,
             bounds=bounds,
-            options={&#x27;maxiter&#x27;: 2000, &#x27;ftol&#x27;: 1e-11}
+            options={&#x27;maxiter&#x27;: 3650, &#x27;ftol&#x27;: 1e-13, &#x27;gtol&#x27;: 1e-10, &#x27;maxls&#x27;: 48}
         )
-        if res.fun &lt; best_loss:
-            best_loss = res.fun
-            best_params = res.x
-    except:
-        pass
+        
+        if result_local.success and result_local.fun &lt; best_score:
+            best_params = result_local.x
+            best_score = result_local.fun
     
-    # Stage 4: Multiple random restarts for robustness
-    for seed_val in [123, 456, 789]:
-        try:
-            np.random.seed(seed_val)
-            random_init = np.array([
-                np.random.uniform(b[0], b[1]) for b in bounds
-            ])
-            
-            res = minimize(
-                objective,
-                random_init,
-                method=&#x27;L-BFGS-B&#x27;,
-                bounds=bounds,
-                options={&#x27;maxiter&#x27;: 1500}
-            )
-            
-            if res.fun &lt; best_loss:
-                best_loss = res.fun
-                best_params = res.x
-        except:
-            continue
+    # Stage 3: Final polish with Nelder-Mead (derivative-free)
+    result_nm = minimize(
+        objective,
+        best_params,
+        method=&#x27;Nelder-Mead&#x27;,
+        options={&#x27;maxiter&#x27;: 1900, &#x27;xatol&#x27;: 1e-11, &#x27;fatol&#x27;: 1e-12}
+    )
     
-    # Fallback
-    if best_params is None:
-        best_params = init_guess
+    if result_nm.success and result_nm.fun &lt; best_score:
+        best_params = result_nm.x
     
     return best_params
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#5</span>
-              <span class="run-label">Run 1</span>
-              <span class="r2-badge" style="background-color: #b22222; color: white"> R² = -1.000000 </span>
+              <span class="run-label">Run 5</span>
+              <span class="r2-badge" style="background-color: #32CD32; color: black"> R² = 0.894674 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -1198,160 +1163,185 @@ def fit_scaling_law(data_points, loss_values):
               </div>
               <pre><code class="language-python" id="code-4"># EVOLVE-BLOCK-START
 &quot;&quot;&quot;
-Enhanced scaling law with improved stability and better hyperparameter modeling.
-Key improvements:
-1. Additive log-space terms (more stable than quadratic penalties)
-2. Better interaction modeling between LR and batch size
-3. Normalized features for numerical stability
-4. Robust multi-start optimization
+Refined Chinchilla scaling law with enhanced numerical stability
+L = A + B/N^α + C/D^β + E*log(lr/lr0) + F*log(bsz/bsz0)
+Focus: Robust fitting with physical constraints and numerical safety
 &quot;&quot;&quot;
 import numpy as np
-from scipy.optimize import minimize
+from scipy.optimize import minimize, differential_evolution
 
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    Scaling law: L = A/N^alpha + B/D^beta + C*log(lr) + D*log(bsz) + E*log(lr)*log(bsz) + F*log(lr)^2 + G
-    
-    This captures:
-    - Chinchilla power laws for model size and data
-    - Direct logarithmic effects of LR and batch size
-    - Interaction between LR and batch size (gradient noise)
-    - Quadratic LR term to capture optimal learning rate
+    9-parameter Chinchilla scaling law with robust numerical handling
     &quot;&quot;&quot;
-    X = np.atleast_2d(np.asarray(data_points))
+    X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
+    params = np.asarray(params, dtype=np.float64)
     
-    lr = X[:, 0]
-    bsz = X[:, 1]
-    data_size = X[:, 2]
-    param_size = X[:, 3]
+    if params.ndim == 1:
+        params = params[None, :]
     
-    # Ensure we have 10 parameters
-    params = np.asarray(params)
-    if len(params) &lt; 10:
-        params = np.pad(params, (0, 10 - len(params)), constant_values=0.0)
+    lr, bsz, D, N = X[:, 0], X[:, 1], X[:, 2], X[:, 3]
     
-    A, alpha, B, beta, C, D, E, F, G, H = params[:10]
+    # Unpack parameters
+    A, B, alpha, C, beta, E, lr0, F, bsz0 = [params[:, i] for i in range(9)]
     
     eps = 1e-10
     
-    # Chinchilla-style power law terms
-    term_param = A / (param_size ** np.abs(alpha) + eps)
-    term_data = B / (data_size ** np.abs(beta) + eps)
+    # Core power law terms with safe operations
+    N_safe = np.maximum(N[None, :], eps)
+    param_term = B[:, None] / (N_safe ** alpha[:, None])
     
-    # Learning rate effects in log space
-    log_lr = np.log(lr + eps)
-    term_lr_linear = C * log_lr
-    term_lr_quad = F * (log_lr ** 2)  # Captures optimal LR
+    D_safe = np.maximum(D[None, :], eps)
+    data_term = C[:, None] / (D_safe ** beta[:, None])
     
-    # Batch size effects in log space
-    log_bsz = np.log(bsz + eps)
-    term_bsz = D * log_bsz
+    # Log-ratio terms with conservative clipping
+    lr_safe = np.maximum(lr[None, :], eps)
+    lr0_safe = np.maximum(lr0[:, None], eps)
+    lr_ratio = np.clip(lr_safe / lr0_safe, 1e-2, 1e2)
+    lr_term = E[:, None] * np.log(lr_ratio)
     
-    # Interaction: LR and batch size affect each other (gradient noise scaling)
-    term_lr_bsz = E * log_lr * log_bsz
+    bsz_safe = np.maximum(bsz[None, :], 1.0)
+    bsz0_safe = np.maximum(bsz0[:, None], 1.0)
+    bsz_ratio = np.clip(bsz_safe / bsz0_safe, 1e-2, 1e2)
+    bsz_term = F[:, None] * np.log(bsz_ratio)
     
-    # Additional stabilization term: ratio of data to parameters
-    log_ratio = np.log((data_size / (param_size + eps)) + eps)
-    term_ratio = H * log_ratio
+    pred = A[:, None] + param_term + data_term + lr_term + bsz_term
     
-    # Combine all terms
-    pred = term_param + term_data + term_lr_linear + term_lr_quad + term_bsz + term_lr_bsz + term_ratio + G
-    
-    return pred
+    return pred[0, :] if pred.shape[0] == 1 else pred
 
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Fit scaling law using multi-start L-BFGS-B optimization for robustness
+    Multi-stage optimization with robust initialization
     &quot;&quot;&quot;
-    X = np.atleast_2d(np.asarray(data_points))
-    y = np.asarray(loss_values)
+    X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
+    y = np.asarray(loss_values, dtype=np.float64)
     
-    # Data statistics
-    loss_min = np.min(y)
-    loss_max = np.max(y)
-    loss_median = np.median(y)
-    loss_mean = np.mean(y)
+    if y.ndim == 1:
+        y = y[:, None]
     
-    # Estimate optimal hyperparameters from low-loss region
-    low_loss_mask = y &lt; np.percentile(y, 25)
-    if np.any(low_loss_mask):
-        lr_est = np.median(X[low_loss_mask, 0])
-        bsz_est = np.median(X[low_loss_mask, 1])
-    else:
-        lr_est = np.median(X[:, 0])
-        bsz_est = np.median(X[:, 1])
+    lr, bsz, D, N = X[:, 0], X[:, 1], X[:, 2], X[:, 3]
     
-    # Initial parameters: [A, alpha, B, beta, C, D, E, F, G, H]
+    # Loss statistics
+    loss_min, loss_max = np.min(y), np.max(y)
+    loss_range = loss_max - loss_min
+    
+    # Find good hyperparameters from top performers
+    top_20_mask = y[:, 0] &lt; np.percentile(y, 20)
+    lr0_init = np.median(lr[top_20_mask]) if np.any(top_20_mask) else np.median(lr)
+    bsz0_init = np.median(bsz[top_20_mask]) if np.any(top_20_mask) else np.median(bsz)
+    
+    # Physics-based initialization
+    N_mean = np.exp(np.mean(np.log(N)))
+    D_mean = np.exp(np.mean(np.log(D)))
+    
+    # Chinchilla-inspired exponents
+    alpha_init = 0.40
+    beta_init = 0.28
+    
+    # Initialize coefficients
+    A_init = loss_min * 0.90
+    B_init = loss_range * 0.3 * (N_mean ** alpha_init)
+    C_init = loss_range * 0.3 * (D_mean ** beta_init)
+    E_init = 0.05
+    F_init = 0.02
+    
     init_params = np.array([
-        0.5,                # A: param coefficient
-        0.25,               # alpha: param exponent (~0.25-0.35 typical)
-        0.8,                # B: data coefficient  
-        0.28,               # beta: data exponent (~0.25-0.35 typical)
-        -0.08,              # C: lr linear (negative - higher lr helps initially)
-        -0.03,              # D: batch size (negative - larger batch helps)
-        0.015,              # E: lr-bsz interaction (positive - they compound)
-        0.02,               # F: lr quadratic (positive - too high lr hurts)
-        loss_median,        # G: baseline loss
-        -0.01               # H: data/param ratio effect
+        A_init, B_init, alpha_init, C_init, beta_init,
+        E_init, lr0_init, F_init, bsz0_init
     ])
     
-    # Bounds for physical constraints
+    # Conservative bounds for stability
     bounds = [
-        (0.001, 5.0),       # A
-        (0.05, 0.6),        # alpha
-        (0.001, 5.0),       # B
-        (0.05, 0.6),        # beta
-        (-0.5, 0.5),        # C
-        (-0.5, 0.5),        # D
-        (-0.2, 0.2),        # E
-        (-0.2, 0.2),        # F
-        (1.8, 4.0),         # G
-        (-0.1, 0.1)         # H
+        (loss_min * 0.7, loss_min * 1.3),      # A
+        (1e-4, loss_range * 150),               # B
+        (0.25, 0.60),                           # α
+        (1e-4, loss_range * 150),               # C
+        (0.18, 0.38),                           # β
+        (-0.35, 0.35),                          # E
+        (np.min(lr) * 0.3, np.max(lr) * 3.5),  # lr0
+        (-0.25, 0.25),                          # F
+        (np.min(bsz) * 0.3, np.max(bsz) * 3.5) # bsz0
     ]
     
     def objective(params):
-        pred = scaling_law_func(X, params)
-        mse = np.mean((pred - y) ** 2)
-        # Light regularization to keep exponents near typical Chinchilla values
-        reg = 0.005 * ((params[1] - 0.3)**2 + (params[3] - 0.3)**2)
-        # Regularize interaction terms to prevent overfitting
-        reg += 0.001 * (params[6]**2 + params[7]**2 + params[9]**2)
-        return mse + reg
+        try:
+            pred = scaling_law_func(X, params)
+            residuals = pred - y[:, 0]
+            mse = np.mean(residuals ** 2)
+            
+            # Light regularization
+            reg = 1e-8 * np.sum(params ** 2)
+            
+            # Preference for literature values
+            reg += 5e-6 * ((params[2] - 0.40) ** 2 + (params[4] - 0.28) ** 2)
+            
+            return mse + reg
+        except (ValueError, RuntimeWarning, FloatingPointError):
+            return 1e12
     
-    # Multi-start optimization to avoid local minima
-    best_result = None
-    best_loss = float(&#x27;inf&#x27;)
+    best_params = init_params.copy()
+    best_loss = objective(init_params)
     
-    # Try several random initializations
-    np.random.seed(42)
-    for i in range(5):
-        if i == 0:
-            # First try: use the smart initialization
-            init = init_params.copy()
-        else:
-            # Subsequent tries: add random perturbations
-            init = init_params + np.random.randn(10) * np.array([0.2, 0.05, 0.2, 0.05, 0.05, 0.05, 0.01, 0.01, 0.2, 0.01])
-            # Clip to bounds
-            init = np.clip(init, [b[0] for b in bounds], [b[1] for b in bounds])
-        
-        result = minimize(
+    # Stage 1: Differential evolution for global search
+    try:
+        result_de = differential_evolution(
+            objective, bounds,
+            seed=42,
+            maxiter=350,
+            popsize=16,
+            atol=1e-6,
+            tol=1e-5,
+            workers=1,
+            updating=&#x27;deferred&#x27;,
+            polish=True
+        )
+        if result_de.fun &lt; best_loss:
+            best_params = result_de.x
+            best_loss = result_de.fun
+    except Exception:
+        pass
+    
+    # Stage 2: Local refinement from initialization
+    try:
+        result_local1 = minimize(
             objective,
-            init,
+            init_params,
             method=&#x27;L-BFGS-B&#x27;,
             bounds=bounds,
-            options={&#x27;maxiter&#x27;: 1000, &#x27;ftol&#x27;: 1e-10}
+            options={
+                &#x27;maxiter&#x27;: 1500,
+                &#x27;ftol&#x27;: 1e-10,
+                &#x27;gtol&#x27;: 1e-8
+            }
         )
-        
-        if result.success and result.fun &lt; best_loss:
-            best_loss = result.fun
-            best_result = result
+        if result_local1.success and result_local1.fun &lt; best_loss:
+            best_params = result_local1.x
+            best_loss = result_local1.fun
+    except Exception:
+        pass
     
-    # If all optimizations failed, return smart initialization
-    if best_result is None:
-        return init_params
+    # Stage 3: Polish from best found
+    try:
+        result_final = minimize(
+            objective,
+            best_params,
+            method=&#x27;L-BFGS-B&#x27;,
+            bounds=bounds,
+            options={
+                &#x27;maxiter&#x27;: 2000,
+                &#x27;ftol&#x27;: 1e-11,
+                &#x27;gtol&#x27;: 1e-9,
+                &#x27;maxcor&#x27;: 20
+            }
+        )
+        if result_final.success and result_final.fun &lt; best_loss:
+            best_params = result_final.x
+    except Exception:
+        pass
     
-    return best_result.x
+    return best_params
+
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>

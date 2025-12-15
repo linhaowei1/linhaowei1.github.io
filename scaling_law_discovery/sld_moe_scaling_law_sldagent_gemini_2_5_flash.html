@@ -285,7 +285,7 @@
     <div class="bg-pattern"></div>
 
     <div class="container">
-      <a href="sld_index.html" class="back-link"> ← Back to Leaderboard </a>
+      <a href="index.html" class="back-link"> ← Back to Leaderboard </a>
 
       <div class="header">
         <h1>MoE Scaling Law</h1>
@@ -300,15 +300,15 @@
           </div>
           <div class="meta-item">
             <span class="meta-label">Best R²:</span>
-            <span class="r2-badge" style="background-color: #228b22; color: white"> 0.911320 </span>
+            <span class="r2-badge" style="background-color: #006400; color: white"> 0.958324 </span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Mean R²:</span>
-            <span class="meta-value">0.608705</span>
+            <span class="meta-value">0.957962</span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Min R²:</span>
-            <span class="meta-value">0.056532</span>
+            <span class="meta-value">0.957564</span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Runs:</span>
@@ -320,12 +320,13 @@
       <h2 class="section-title">All Runs (sorted by R²)</h2>
 
       <div class="runs-container">
+
         <div class="run-card best-run">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge best-badge">Best</span>
-              <span class="run-label">Run 2</span>
-              <span class="r2-badge" style="background-color: #228b22; color: white"> R² = 0.911320 </span>
+              <span class="run-label">Run 1</span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.958324 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -337,254 +338,148 @@
               </div>
               <pre><code class="language-python" id="code-0"># EVOLVE-BLOCK-START
 import numpy as np
-from scipy.optimize import minimize
+from scipy.optimize import minimize, Bounds
 
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    Predicts validation loss based on a multiplicative power law with interaction terms for exponents and a bias.
-    The model is: loss = A * (P_norm ^ (alpha_p + beta_p * log_E_norm)) * (E_norm ^ (alpha_e + beta_e * log_P_norm)) + L_min
+    Predicts validation loss based on MoE architecture parameters using an evolved scaling law.
+    The law is of the form:
+    Loss = (A * num_experts^alpha_e1 + B * num_experts^alpha_e2) * (scaled_dense_param_count^beta_p) + C0
+
+    This model proposes that the overall scaling with dense parameters (beta_p) is modulated
+    by a coefficient that is itself a sum of two power laws of the number of experts.
+    This aims to capture more nuanced interactions between expert count and parameter count,
+    suggesting that the benefit from dense parameters might scale differently depending on
+    the number of experts. It utilizes 6 parameters. Numerical stability is enhanced by using
+    log-exp transformations for power terms.
 
     Args:
-        data_points (np.ndarray): (N, 2) array with columns [num_experts, dense_parameter_count].
-        params (np.ndarray): Array of parameters. Can be (P,) or (T, P) where P=6.
-                             P = [A_coeff, alpha_param, alpha_exp, beta_param, beta_exp, L_min_bias]
+        data_points (np.ndarray): (N,2) array with columns [num_experts, dense_parameter_count].
+        params (np.ndarray): Array of 6 parameters:
+                             [A, alpha_e1, B, alpha_e2, beta_p, C0].
 
     Returns:
-        np.ndarray: Predicted validation loss values (N,) or (N, T).
+        np.ndarray: Predicted validation loss values (N,).
     &quot;&quot;&quot;
-    X = np.atleast_2d(np.asarray(data_points)) # Shape (N, 2)
-    
-    # Ensure params is 2D (T, P) for consistent broadcasting
-    params_arr = np.asarray(params)
-    if params_arr.ndim == 1:
-        params_arr = params_arr[None, :] # Make it (1, P) if 1D
+    X = np.atleast_2d(np.asarray(data_points))
+    num_experts = X[:, 0]
+    dense_parameter_count = X[:, 1]
 
-    # Unpack parameters for each T set (P=6)
-    A_coeffs = params_arr[:, 0]
-    alpha_params = params_arr[:, 1] # Base exponent for dense parameters
-    alpha_exps = params_arr[:, 2]   # Base exponent for number of experts
-    beta_params = params_arr[:, 3]  # Interaction coefficient for dense_param exponent
-    beta_exps = params_arr[:, 4]    # Interaction coefficient for num_experts exponent
-    L_mins = params_arr[:, 5]
+    # Normalize dense_parameter_count to a more manageable scale (e.g., 1 to 8 for this dataset)
+    # This improves numerical stability for power calculations and makes exponents more interpretable.
+    # P_norm is a fixed constant, chosen as an approximate lower bound of parameter counts in the dataset.
+    P_norm = 1e8 
+    scaled_dense_param_count = dense_parameter_count / P_norm
 
-    # Extract features, ensuring they are strictly positive for power function stability
-    num_experts = np.maximum(X[:, 0], 1e-9) # (N,)
-    dense_param_count = np.maximum(X[:, 1], 1e-9) # (N,)
-    
-    # --- Normalization of features for numerical stability ---
-    # These reference values (geometric means of the observed ranges)
-    # help keep the A_coeff in a more manageable range during optimization,
-    # without changing the fundamental scaling law form.
-    P_ref = 2.8284271247e8 
-    E_ref = 8.0    
+    # Unpack parameters
+    A = params[0]
+    alpha_e1 = params[1] # Exponent for num_experts in the first expert-dependent coefficient term
+    B = params[2]
+    alpha_e2 = params[3] # Exponent for num_experts in the second expert-dependent coefficient term
+    beta_p = params[4]   # Exponent for scaled_dense_param_count (common to both expert terms)
+    C0 = params[5]       # Irreducible loss
 
-    normalized_dense_param = dense_param_count / P_ref
-    normalized_num_experts = num_experts / E_ref
-    
-    # Calculate log-normalized features for interaction terms
-    # Ensure arguments to log are strictly positive
-    log_normalized_dense_param = np.log(np.maximum(normalized_dense_param, 1e-9))
-    log_normalized_num_experts = np.log(np.maximum(normalized_num_experts, 1e-9))
-    
-    # Calculate effective exponents with interaction terms using broadcasting
-    effective_alpha_params = alpha_params[None, :] + beta_params[None, :] * log_normalized_num_experts[:, None]
-    effective_alpha_exps = alpha_exps[None, :] + beta_exps[None, :] * log_normalized_dense_param[:, None]
-    
-    # Calculate power terms using broadcasting for (N, T) result
-    term_dense = np.power(normalized_dense_param[:, None], effective_alpha_params) # (N, T)
-    term_experts = np.power(normalized_num_experts[:, None], effective_alpha_exps) # (N, T)
-    
-    # Combine terms to get final predictions (N, T)
-    pred = A_coeffs[None, :] * term_dense * term_experts + L_mins[None, :]
-    
-    # Return (N,) if T=1, otherwise (N, T)
-    return pred[:, 0] if pred.shape[1] == 1 else pred
+    # Use log-exp transformation for numerical stability when dealing with power laws.
+    # Add a small epsilon (1e-9) to bases before taking logarithm to prevent log(0) errors,
+    # ensuring robustness even if num_experts or scaled_dense_param_count could theoretically be zero.
+    log_num_experts = np.log(num_experts + 1e-9)
+    log_scaled_dense_param_count = np.log(scaled_dense_param_count + 1e-9)
 
+    # First expert-dependent coefficient part: A * num_experts^alpha_e1
+    term_expert_coeff1 = A * np.exp(alpha_e1 * log_num_experts)
+    
+    # Second expert-dependent coefficient part: B * num_experts^alpha_e2
+    term_expert_coeff2 = B * np.exp(alpha_e2 * log_num_experts)
+
+    # Combine expert-dependent coefficients. This sum forms the overall coefficient
+    # for the parameter scaling term.
+    combined_expert_coeff = term_expert_coeff1 + term_expert_coeff2
+    
+    # Apply the common parameter scaling: scaled_dense_param_count^beta_p
+    param_scaling_term = np.exp(beta_p * log_scaled_dense_param_count)
+
+    # Total predicted loss including the irreducible loss C0
+    pred = combined_expert_coeff * param_scaling_term + C0
+
+    return pred
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Fits an enhanced multiplicative power law scaling function with interaction terms to the provided data.
-    Improvements include:
-    1. Symmetric interaction terms in the exponents (up to 6 parameters).
-    2. Feature normalization within the scaling_law_func for numerical stability.
-    3. A robust initialization strategy for L_min using a search over candidates
-       and selecting the best linear regression fit, improving the starting point
-       for the non-linear optimizer.
-    4. Interaction terms (beta_p, beta_e) are initialized to zero for the initial linear fit.
-    5. The non-linear optimization is run from multiple initial guesses for beta_p and beta_e,
-       to help find a better global minimum for the 6-parameter model.
+    Fits the evolved 6-parameter scaling law to the provided data using bounded optimization.
+    This function leverages &#x27;L-BFGS-B&#x27;, a robust quasi-Newton method, with carefully chosen
+    initial guesses and parameter bounds to guide the optimization towards physically
+    realistic and accurate solutions for the new model structure.
 
     Args:
-        data_points (np.ndarray): (N, 2) array with columns [num_experts, dense_parameter_count].
-        loss_values (np.ndarray): (N,) array of corresponding validation loss values.
+        data_points (np.ndarray): (N,2) array with columns [num_experts, dense_parameter_count].
+        loss_values (np.ndarray): Array of corresponding validation loss values (N,).
 
     Returns:
-        np.ndarray: Optimized parameters [A_coeff, alpha_param, alpha_exp, beta_param, beta_exp, L_min_bias] (1D array).
+        np.ndarray: Optimized parameters [A, alpha_e1, B, alpha_e2, beta_p, C0].
     &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points))
     y = np.asarray(loss_values)
-    
-    # The enhanced scaling law uses 6 parameters: [A, alpha_p, alpha_e, beta_p, beta_e, L_min]
-    num_params = 6
 
-    # --- Initial guess and bounds setup ---
-    min_loss_obs = np.min(y)
-    max_loss_obs = np.max(y)
-    
-    # Initial heuristic for L_min: slightly below the minimum observed loss.
-    # Clamped to be positive and strictly less than min_loss_obs.
-    l_min_heuristic_val = np.clip(min_loss_obs - 0.05 * (max_loss_obs - min_loss_obs), 
-                                  0.001, min_loss_obs - 1e-4)
+    min_loss = np.min(y)
 
-    # Define a robust range for L_min candidates
-    l_min_low_bound = max(0.001, l_min_heuristic_val * 0.9)
-    l_min_high_bound = min(min_loss_obs - 1e-5, l_min_heuristic_val * 1.05)
+    # Informed initial guesses for the 6 parameters: [A, alpha_e1, B, alpha_e2, beta_p, C0].
+    # These are adapted for the new model structure and common scaling law patterns.
+    # Exponents (alpha_e1, alpha_e2, beta_p) are typically negative as increasing resources reduces loss.
+    initial_params = np.array([
+        5.0,                 # A: Coefficient for the first expert term, generally positive
+        -0.05,               # alpha_e1: Exponent for num_experts in the first term (expected negative)
+        1.0,                 # B: Coefficient for the second expert term, generally positive
+        -0.01,               # alpha_e2: Exponent for num_experts in the second term (expected negative, potentially a smaller effect)
+        -0.1,                # beta_p: Exponent for dense_parameter_count (typically negative)
+        min_loss * 0.9       # C0: Irreducible loss, initialized slightly below min observed loss
+    ])
 
-    if l_min_low_bound &gt;= l_min_high_bound:
-        # Fallback if the calculated range is invalid or too small
-        l_min_candidates = np.array([l_min_heuristic_val])
-        # If heuristic is also invalid, use a safe default
-        if l_min_candidates[0] &gt;= min_loss_obs - 1e-6:
-             l_min_candidates = np.array([max(0.001, min_loss_obs * 0.9)])
-    else:
-        l_min_candidates = np.linspace(l_min_low_bound, l_min_high_bound, num=15)
-    
-    # Ensure all candidates are strictly less than min_loss_obs after generation
-    l_min_candidates = l_min_candidates[l_min_candidates &lt; min_loss_obs - 1e-6]
-    # Final check if filtering left it empty
-    if len(l_min_candidates) == 0:
-        l_min_candidates = np.array([max(0.001, min_loss_obs * 0.9)])
+    # Define bounds for each parameter to ensure physical realism and aid optimizer convergence.
+    # The bounds are set to allow sufficient exploration while preventing unphysical solutions.
+    # Specific bounds interpretation:
+    # A, B: Must be positive (or very close to zero). Upper bounds are generous.
+    # alpha_e1, alpha_e2: Exponents for num_experts. Typically negative (more experts reduce loss),
+    #                     but allowing up to 0.1 to account for plateauing or minor overheads.
+    # beta_p: Exponent for dense_parameter_count. Must be negative or zero (loss decreases or plateaus with more params).
+    # C0: Irreducible loss, must be non-negative and less than or equal to the maximum observed loss.
+    bounds = Bounds(
+        [0.001, -5.0, 0.001, -5.0, -5.0, 0.0],  # Lower bounds
+        [1000.0, 0.1,  1000.0, 0.1,  0.0, np.max(y)] # Upper bounds
+    )
 
-
-    best_lr_mse = np.inf
-    best_lr_params = None
-
-    # Use log-linear regression to find initial A, alpha_param, alpha_exp for each L_min candidate.
-    # This approximates the model log(Y - L_min) = log(A) + alpha_param * log(P_norm) + alpha_exp * log(E_norm).
-    
-    # Normalize features for the initial linear regression calculation using the same refs as scaling_law_func
-    P_ref = 2.8284271247e8 
-    E_ref = 8.0
-    log_normalized_dense_params = np.log(np.maximum(X[:, 1] / P_ref, 1e-9))
-    log_normalized_num_experts = np.log(np.maximum(X[:, 0] / E_ref, 1e-9))
-    
-    # Design matrix for linear regression: [1 (intercept), log(normalized_dense_params), log(normalized_num_experts)]
-    A_lr_base = np.vstack([np.ones(len(X)), log_normalized_dense_params, log_normalized_num_experts]).T
-
-    for l_min_candidate in l_min_candidates:
-        # Ensure (y - l_min_candidate) is strictly positive for log
-        y_adjusted = np.maximum(y - l_min_candidate, 1e-6) 
-        log_y_adjusted = np.log(y_adjusted)
-
-        # Filter out any NaN/Inf values that could result from log transformations
-        valid_indices = np.all(np.isfinite(A_lr_base), axis=1) &amp; np.isfinite(log_y_adjusted)
-
-        current_init_A, current_init_alpha_param, current_init_alpha_exp = 1.0, -0.1, -0.1 # Default fallback values
-
-        # Perform linear regression if enough valid data points exist
-        if np.sum(valid_indices) &gt;= 3: # Need at least 3 points for 3 coefficients
-            try:
-                coeffs_lr, _, _, _ = np.linalg.lstsq(A_lr_base[valid_indices], log_y_adjusted[valid_indices], rcond=None)
-                current_init_A = np.exp(coeffs_lr[0]) # From log(A)
-                current_init_alpha_param = coeffs_lr[1]
-                current_init_alpha_exp = coeffs_lr[2]
-                
-                # Clip initial estimates to reasonable ranges to assist the optimizer
-                current_init_A = np.clip(current_init_A, 1e-3, 1e3) 
-                current_init_alpha_param = np.clip(current_init_alpha_param, -1.0, 0.0) # Exponents typically negative or zero
-                current_init_alpha_exp = np.clip(current_init_alpha_exp, -1.0, 0.0)
-            except np.linalg.LinAlgError:
-                pass # Fallback to default values if linear regression fails
-
-        # For the linear regression evaluation, interaction terms are zero
-        current_initial_candidate_params = np.array([
-            current_init_A,
-            current_init_alpha_param,
-            current_init_alpha_exp,
-            0.0, # beta_param
-            0.0, # beta_exp
-            l_min_candidate
-        ])
-        
-        # Evaluate MSE for this initial guess using the 6-parameter scaling_law_func
-        # This gives us the best 4-parameter fit (with zero interaction terms) with L_min chosen from candidates
-        pred_initial = scaling_law_func(X, current_initial_candidate_params)
-        current_mse = np.mean((pred_initial - y) ** 2)
-
-        if current_mse &lt; best_lr_mse:
-            best_lr_mse = current_mse
-            best_lr_params = current_initial_candidate_params
-    
-    # If no valid L_min candidate produced a good fit, fall back to a safe default.
-    if best_lr_params is None:
-        best_lr_params = np.array([1.0, -0.1, -0.1, 0.0, 0.0, l_min_heuristic_val]) # Default for 6 params
-    
-    # Define bounds for parameters: [A, alpha_p, alpha_e, beta_p, beta_e, L_min]
-    bounds = [
-        (1e-6, 1e6),    # A_coeff: Must be positive, can range widely
-        (-2.0, 0.0),    # alpha_param: Typically negative or zero for loss reduction
-        (-2.0, 0.0),    # alpha_exp: Typically negative or zero for loss reduction
-        (-1.0, 1.0),    # beta_param: Interaction coeff for alpha_param, can be positive or negative
-        (-1.0, 1.0),    # beta_exp: Interaction coeff for alpha_exp, can be positive or negative
-        (0.001, min_loss_obs - 1e-5) # L_min: Strictly positive, and strictly less than min observed loss
-    ]
-    # Ensure L_min upper bound is valid, especially if min_loss_obs is very small.
-    if bounds[5][0] &gt;= bounds[5][1]: # Check for L_min bounds (index 5)
-        bounds[5] = (0.001, min_loss_obs * 0.999 if min_loss_obs &gt; 0.001 else 0.001)
-
-    def objective(params_local):
-        &quot;&quot;&quot;Calculates the Mean Squared Error for the given parameters.&quot;&quot;&quot;
-        pred = scaling_law_func(X, params_local)
+    def objective(params):
+        &quot;&quot;&quot;Objective function for minimization (Mean Squared Error).&quot;&quot;&quot;
+        pred = scaling_law_func(X, params)
+        # Robustness check: Penalize heavily if predictions are non-finite (NaN, Inf) or unphysical (negative loss).
+        # This guides the optimizer away from problematic parameter regions that yield invalid predictions.
+        if not np.all(np.isfinite(pred)) or np.any(pred &lt; 0):
+            return np.inf 
         mse = np.mean((pred - y) ** 2)
         return mse
 
-    # --- Multi-start optimization for beta_p and beta_e ---
-    best_overall_mse = np.inf
-    best_overall_params = np.copy(best_lr_params) # Start with the best 4-param fit as a fallback
+    # Perform optimization using &#x27;L-BFGS-B&#x27;, which is suitable for bounded, non-linear problems.
+    # This method has proven effective in previous top-performing programs for this task.
+    result = minimize(objective, initial_params, method=&#x27;L-BFGS-B&#x27;, bounds=bounds)
 
-    # Perturb initial beta_p and beta_e around 0, based on the best 4-param fit
-    beta_p_starts = np.linspace(bounds[3][0], bounds[3][1], 3) # Use bounds for start points
-    beta_e_starts = np.linspace(bounds[4][0], bounds[4][1], 3) 
-    
-    # Add 0.0 if not already included due to linspace range/num.
-    # This ensures the best_lr_params (beta=0) start is always considered.
-    if 0.0 not in beta_p_starts: beta_p_starts = np.sort(np.append(beta_p_starts, 0.0))
-    if 0.0 not in beta_e_starts: beta_e_starts = np.sort(np.append(beta_e_starts, 0.0))
-
-    for bp_start in beta_p_starts:
-        for be_start in beta_e_starts:
-            # Create an initial guess by taking the best values from LR for A, alpha_p, alpha_e, L_min
-            # and combining them with current beta_p_start, beta_e_start
-            current_initial_guess = np.copy(best_lr_params)
-            current_initial_guess[3] = bp_start # beta_param
-            current_initial_guess[4] = be_start # beta_exp
-            
-            # Ensure the initial guess respects the bounds
-            for i in range(num_params):
-                current_initial_guess[i] = np.clip(current_initial_guess[i], bounds[i][0], bounds[i][1])
-
-            result = minimize(objective, current_initial_guess, method=&#x27;L-BFGS-B&#x27;, bounds=bounds)
-            
-            if result.success and result.fun &lt; best_overall_mse:
-                best_overall_mse = result.fun
-                best_overall_params = result.x
-    
-    # If optimization failed across all starts (e.g. no result.success), return the best_lr_params
-    if not np.isfinite(best_overall_mse):
-        return best_lr_params
-
-    return best_overall_params
+    if result.success:
+        # Optimization converged successfully, return the found parameters.
+        return result.x
+    else:
+        # If optimization failed (e.g., did not converge within max iterations or reached a local minimum
+        # that doesn&#x27;t satisfy convergence criteria), print a warning and return the initial parameters
+        # as a fallback. This indicates potential issues with the model, data, or optimization settings.
+        print(f&quot;Optimization failed: {result.message}. Returning initial parameters.&quot;)
+        return initial_params
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#2</span>
-              <span class="run-label">Run 1</span>
-              <span class="r2-badge" style="background-color: #228b22; color: white"> R² = 0.872454 </span>
+              <span class="run-label">Run 5</span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.958143 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -595,205 +490,148 @@ def fit_scaling_law(data_points, loss_values):
                 <button class="copy-btn" onclick="copyCode(event, 'code-1')">Copy</button>
               </div>
               <pre><code class="language-python" id="code-1"># EVOLVE-BLOCK-START
+&quot;&quot;&quot;
+Scaling law discovery for LLM finetuning scenarios
+Evolved program with a more robust and proven scaling law for MoE architectures,
+drawing inspiration from top-performing models in previous attempts.
+
+Key improvements over the immediately preceding version:
+1.  **Refined Scaling Law Function**: The core scaling law function `scaling_law_func`
+    maintains the effective multiplicative power law form:
+    L = p0 * (P_dense_norm^p1) * (N_experts^p2) + p3 * (N_experts^p4) + p5
+    This structure separates the contributions of dense parameters and experts into a
+    primary interactive term and a secondary expert-specific term, plus an irreducible loss.
+    This form has demonstrated strong performance in modeling MoE architectures.
+2.  **Input Normalization**: `dense_parameter_count` is normalized by `1e8` to improve
+    numerical stability during optimization and make parameter interpretations more intuitive.
+    This normalization is a fixed constant, not dependent on the input data batch.
+3.  **Refined Initial Guesses**: Initial parameter values are carefully chosen to reflect
+    expected ranges after normalization and typical scaling law behaviors, aiding convergence.
+    These are based on the successful heuristic from previous top-performing programs.
+4.  **Optimized Bounds**: Parameter bounds are designed to be restrictive yet realistic,
+    guiding the optimizer towards physically plausible solutions. Small adjustments have been
+    made to `p0` and `p3` bounds to potentially explore a slightly wider optimal range,
+    while maintaining overall stability.
+5.  **Enhanced Objective Function**: The objective function includes robust checks for `NaN`,
+    `Inf`, and negative loss predictions, penalizing them heavily to steer the optimizer
+    away from unstable or unrealistic parameter spaces, ensuring numerical stability.
+6.  **Increased Max Iterations**: The `maxiter` for the L-BFGS-B optimizer has been further
+    increased to `2000` (from `1000`) to allow more steps for convergence, especially with
+    complex landscapes or tight bounds, potentially leading to a more precise minimum.
+&quot;&quot;&quot;
 import numpy as np
 from scipy.optimize import minimize
 
 def scaling_law_func(data_points, params):
-    &quot;&quot;&quot;
-    Predicts validation loss based on a combined power law, irreducible loss (L_min),
-    and logarithmic linear terms for expert count and parameter count.
-    The model is: loss = A * (dense_parameter_count ^ alpha_param) * (num_experts ^ alpha_expert) + L_min + D * log(dense_parameter_count) + F * log(num_experts)
+    # data_points: (N,2) array with columns [num_experts, dense_parameter_count]
+    # params: Array of 6 parameters: [p0, p1, p2, p3, p4, p5]
+    # Model form: L = p0 * (P_dense_norm^p1) * (N_experts^p2) + p3 * (N_experts^p4) + p5
 
-    Args:
-        data_points (np.ndarray): (N, 2) array with columns [num_experts, dense_parameter_count].
-                                  N is the number of data points.
-        params (np.ndarray): Array of parameters. Can be (P,) or (T, P) where P=6.
-                             P = [A_coeff, alpha_param, alpha_expert, L_min_bias, D_log_param, F_log_expert]
+    num_experts = data_points[:, 0]
+    dense_parameter_count = data_points[:, 1]
 
-    Returns:
-        np.ndarray: Predicted validation loss values (N,) or (N, T).
-    &quot;&quot;&quot;
-    X = np.atleast_2d(np.asarray(data_points)) # Shape (N, 2)
+    # Normalize dense_parameter_count by its minimum observed value (1e8) or a similar reference point.
+    # This transforms the large parameter counts (1e8 to 8e8) into a smaller, more numerically stable range (1 to 8),
+    # which helps the optimizer and makes p0 more interpretable as a base loss contribution.
+    # This is a fixed constant, not derived from the current batch of data_points.
+    dense_parameter_count_norm = dense_parameter_count / 1e8 
     
-    # Ensure params is 2D (T, P) for consistent broadcasting
-    params_arr = np.asarray(params)
-    if params_arr.ndim == 1:
-        params_arr = params_arr[None, :] # Make it (1, P) if 1D
+    p = np.asarray(params).flatten()
+    if len(p) != 6:
+        raise ValueError(f&quot;params must contain exactly 6 elements, but got {len(p)}&quot;)
 
-    # Unpack parameters for each T set
-    A_coeffs = params_arr[:, 0]
-    alpha_params = params_arr[:, 1]
-    alpha_experts = params_arr[:, 2]
-    L_mins = params_arr[:, 3]
-    D_log_params = params_arr[:, 4] # Coefficient for log(dense_parameter_count)
-    F_log_experts = params_arr[:, 5] # Coefficient for log(num_experts)
+    # Calculate the predicted loss using the evolved scaling law function.
+    # np.power handles fractional and negative exponents robustly.
+    # num_experts ranges from 1 to 64, dense_parameter_count_norm from 1 to 8,
+    # ensuring no issues with 0^negative_exponent or extremely large base values.
+    # Smallest num_experts is 1, smallest dense_parameter_count_norm is 1.
 
-    # Extract features, ensuring they are strictly positive for power function stability
-    # Use np.float64 for intermediate calculations to prevent potential overflow/underflow issues
-    # All input values (num_experts, dense_parameter_count) are strictly positive,
-    # so `1e-9` as a minimum clip is mostly for theoretical robustness and avoids log(0).
-    num_experts = np.maximum(X[:, 0].astype(np.float64), 1e-9) # (N,)
-    dense_param_count = np.maximum(X[:, 1].astype(np.float64), 1e-9) # (N,)
+    # Term 1: Joint scaling of normalized dense parameters and experts.
+    # This term captures the primary scaling effect where model size and expert count interact.
+    term1 = p[0] * np.power(dense_parameter_count_norm, p[1]) * np.power(num_experts, p[2])
     
-    # Calculate power law terms using broadcasting for (N, T) result
-    # np.power can handle negative exponents and fractional exponents
-    term_dense_pow = np.power(dense_param_count[:, None], alpha_params[None, :]) # (N, T)
-    term_experts_pow = np.power(num_experts[:, None], alpha_experts[None, :]) # (N, T)
+    # Term 2: Expert-specific scaling.
+    # This term captures additional effects purely related to the number of experts,
+    # such as routing overheads, expert capacity benefits, or other MoE-specific dynamics.
+    term2 = p[3] * np.power(num_experts, p[4])
     
-    # Combined power law component
-    power_law_component = A_coeffs[None, :] * term_dense_pow * term_experts_pow # (N, T)
-    
-    # Logarithmic linear components
-    log_param_component = D_log_params[None, :] * np.log(dense_param_count[:, None]) # (N, T)
-    log_expert_component = F_log_experts[None, :] * np.log(num_experts[:, None]) # (N, T)
-    
-    # Combine all terms
-    pred = power_law_component + L_mins[None, :] + log_param_component + log_expert_component
-    
-    # Return (N,) if T=1, otherwise (N, T)
-    return pred[:, 0] if pred.shape[1] == 1 else pred
+    # Term 3: Irreducible loss.
+    # Represents the asymptotic minimum loss that cannot be reduced by increasing model size or experts.
+    predicted_loss = term1 + term2 + p[5]
+
+    return predicted_loss
 
 
 def fit_scaling_law(data_points, loss_values):
-    &quot;&quot;&quot;
-    Fits the combined power law, irreducible loss (L_min), and logarithmic linear terms
-    scaling function to the provided data.
-    The model is: loss = A * (dense_parameter_count ^ alpha_param) * (num_experts ^ alpha_expert) + L_min + D * log(dense_parameter_count) + F * log(num_experts)
-
-    Args:
-        data_points (np.ndarray): (N, 2) array with columns [num_experts, dense_parameter_count].
-        loss_values (np.ndarray): (N,) array of corresponding validation loss values.
-
-    Returns:
-        np.ndarray: Optimized parameters [A, alpha_P, alpha_E, L_min, D_log_P, F_log_E] (1D array).
-    &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points))
-    y = np.asarray(loss_values)
-    
-    num_params = 6 # [A_coeff, alpha_param, alpha_expert, L_min_bias, D_log_param, F_log_expert]
+    y = np.asarray(loss_values).flatten()
 
-    min_loss_obs = np.min(y)
-    
-    # --- Refined Initial guess strategy using iterative L_min search for log-linear fit ---
-    # This aims to find a better L_min initial guess by evaluating its impact on a simplified log-linear model.
-    best_r_squared = -np.inf
-    best_init_coeffs = None
-    
-    # Candidates for L_min, ensuring it&#x27;s positive and strictly less than min_loss_obs
-    # Start with a range from a small positive number up to just below the minimum observed loss.
-    l_min_candidates = np.linspace(0.001, np.maximum(0.0011, min_loss_obs * 0.999 - 1e-5), 20)
-    # Ensure all candidates are strictly less than min_loss_obs to avoid log(0) or log(negative) in y_adjusted
-    l_min_candidates = l_min_candidates[l_min_candidates &lt; (min_loss_obs - 1e-5)] 
-    
-    # Fallback if the valid range for candidates is too small or empty
-    if len(l_min_candidates) == 0:
-        l_min_candidates = [np.clip(min_loss_obs * 0.9, 0.001, min_loss_obs - 1e-4)]
+    # Initial guess for the 6 parameters: [p0, p1, p2, p3, p4, p5]
+    # p0: Coefficient for the primary scaling term (P_dense_norm^p1 * N_experts^p2).
+    # p1: Exponent for dense_parameter_count_norm (expected negative, as more parameters reduce loss).
+    # p2: Exponent for num_experts in the first term (can be positive or negative).
+    # p3: Coefficient for the secondary num_experts term.
+    # p4: Exponent for num_experts in the second term (can be positive or negative).
+    # p5: Irreducible loss (asymptotic minimum).
 
-    # Log transform features for the power law part (and for initializing log-linear terms)
-    # Use np.maximum with a small epsilon to handle potential zero values gracefully before log.
-    log_num_experts_orig = np.log(np.maximum(X[:, 0], 1e-9))
-    log_dense_params_orig = np.log(np.maximum(X[:, 1], 1e-9))
+    # Heuristic initial guess based on typical scaling law values and the characteristics of the data.
+    # p0 is now adjusted for normalized P_dense, making it closer to the actual loss values.
+    # p1 is typically negative, indicating diminishing returns with more parameters.
+    # p2 and p4 often show slight negative exponents, suggesting experts generally help reduce loss.
+    initial_p5 = np.min(y) * 0.9 # A good starting point for irreducible loss, slightly below the observed minimum.
+    initial_params = np.array([
+        2.0,   # p0: Coefficient for the primary scaling term (closer to observed loss values after normalization)
+        -0.15, # p1: Exponent for dense_parameter_count (typical scaling exponent, slightly adjusted for better fit)
+        -0.05, # p2: Exponent for num_experts in the first term (experts often have a subtle scaling effect)
+        0.5,   # p3: Coefficient for the secondary num_experts term (reduced initial guess for potentially smaller effect)
+        -0.05, # p4: Exponent for num_experts in the second term
+        initial_p5 # p5: Irreducible loss
+    ])
 
-    for l_min_c in l_min_candidates:
-        # Adjust loss values and take log, ensuring positivity
-        y_adjusted = np.maximum(y - l_min_c, 1e-6) 
-        log_y_adjusted = np.log(y_adjusted)
-
-        # Design matrix for log-linear regression: [intercept, log(dense_param), log(num_experts)]
-        # This part of the initial guess primarily handles the A * P^alpha_P * E^alpha_E + L_min component.
-        A_lr = np.vstack([np.ones(len(X)), log_dense_params_orig, log_num_experts_orig]).T
-        
-        # Filter out any NaN/Inf that might arise from log operations, to ensure a robust linear regression
-        valid_indices = np.all(np.isfinite(A_lr), axis=1) &amp; np.isfinite(log_y_adjusted)
-        
-        if np.sum(valid_indices) &gt;= 3: # Need at least 3 points for 3 coefficients (intercept, alpha_P, alpha_E)
-            try:
-                # Solve for coefficients [log(A_coeff), alpha_param, alpha_expert]
-                coeffs_lr, _, _, _ = np.linalg.lstsq(A_lr[valid_indices], log_y_adjusted[valid_indices], rcond=None)
-                
-                # Calculate R-squared for this specific L_min to find the best one
-                pred_log_y_adjusted = A_lr[valid_indices] @ coeffs_lr
-                ss_total = np.sum((log_y_adjusted[valid_indices] - np.mean(log_y_adjusted[valid_indices]))**2)
-                
-                # Avoid division by zero for R-squared calculation if target variance is negligible
-                if ss_total &gt; 1e-9: 
-                    r_squared = 1 - np.sum((log_y_adjusted[valid_indices] - pred_log_y_adjusted)**2) / ss_total
-                else:
-                    r_squared = -np.inf # If no variance, R-squared is not well-defined, assign a low value.
-                
-                if r_squared &gt; best_r_squared:
-                    best_r_squared = r_squared
-                    # Store A_coeff (exp(intercept)), alpha_param, alpha_expert, and the current L_min candidate
-                    best_init_coeffs = (np.exp(coeffs_lr[0]), coeffs_lr[1], coeffs_lr[2], l_min_c)
-            except np.linalg.LinAlgError:
-                # If linear regression fails (e.g., singular matrix), this L_min candidate is skipped.
-                pass 
-
-    # Fallback if no valid R-squared was found or issues during iteration
-    if best_init_coeffs is None:
-        init_A = 10.0 # Default reasonable starting point for A
-        init_alpha_param = -0.1 # Exponents are typically negative for loss reduction
-        init_alpha_expert = -0.1
-        # Fallback L_min heuristic
-        l_min_init_val = np.clip(min_loss_obs * 0.9, 0.001, min_loss_obs - 1e-4) 
-    else:
-        init_A, init_alpha_param, init_alpha_expert, l_min_init_val = best_init_coeffs
-        # Clip initial estimates to reasonable ranges to assist the optimizer
-        init_A = np.clip(init_A, 1e-3, 1e3) 
-        init_alpha_param = np.clip(init_alpha_param, -1.0, 0.0) # Standard exponent range for loss reduction
-        init_alpha_expert = np.clip(init_alpha_expert, -1.0, 0.0) # Standard exponent range for loss reduction
-
-    # Initial guesses for the new logarithmic linear terms (start neutral at 0.0)
-    init_D_log_param = 0.0 
-    init_F_log_expert = 0.0 
-    
-    initial_params = np.array([init_A, init_alpha_param, init_alpha_expert, l_min_init_val, init_D_log_param, init_F_log_expert])
-    
-    # Define bounds for parameters: [A, alpha_P, alpha_E, L_min, D_log_P, F_log_E]
+    # Bounds for the 6 parameters to guide the optimizer and ensure physical realism.
+    # Tighter bounds are set to constrain the search space to more plausible values,
+    # improving convergence speed and preventing physically unrealistic solutions.
+    # Minor adjustments to p0 and p3 bounds to allow for a slightly wider search.
     bounds = [
-        (1e-6, 1e6),    # A_coeff: Must be positive, can range widely.
-        (-1.0, 0.0),    # alpha_param: Typically negative or zero for loss reduction.
-        (-1.0, 0.0),    # alpha_expert: Typically negative or zero for loss reduction.
-        (0.001, min_loss_obs - 1e-5), # L_min: Strictly positive, and strictly less than min observed loss.
-        (-1.0, 1.0),    # D_log_param: Coefficient for log(dense_parameter_count), allowing both positive and negative impact.
-                        #   log(1e8) is ~18.4, log(8e8) is ~20.5. A coefficient of 1.0 would add ~18-20 to loss.
-                        #   This range allows for significant contribution, but could be adjusted if too wide/narrow.
-        (-1.0, 1.0)     # F_log_expert: Coefficient for log(num_experts), allowing both positive and negative impact.
-                        #   log(1) is 0, log(64) is ~4.15. A coefficient of 1.0 would add ~0-4.15 to loss.
+        (0.001, 20.0),    # p0: Must be positive, wider upper bound to allow for more flexibility.
+        (-1.0, -0.01),    # p1: Must be negative (more parameters -&gt; less loss); tighter range for realistic exponents.
+        (-1.0, 1.0),      # p2: Can be positive or negative; tighter range to prevent extreme expert scaling.
+        (0.0, 10.0),      # p3: Must be non-negative; wider upper bound.
+        (-1.0, 1.0),      # p4: Can be positive or negative; tighter range.
+        (0.0, np.max(y))  # p5: Irreducible loss must be non-negative and less than max observed loss.
     ]
-    # Ensure L_min upper bound is valid (i.e., upper bound &gt; lower bound).
-    if bounds[3][0] &gt;= bounds[3][1]:
-        # Fallback to a tiny valid range if min_loss_obs is too low to provide a meaningful range
-        bounds[3] = (0.001, min_loss_obs * 0.999 if min_loss_obs &gt; 0.001 else 0.001)
-        if bounds[3][0] &gt;= bounds[3][1]: 
-             bounds[3] = (0.001, 0.002) # A last resort small valid range to prevent optimizer crash
 
-    def objective(params_local):
-        &quot;&quot;&quot;Calculates the Mean Squared Error for the given parameters.&quot;&quot;&quot;
-        pred = scaling_law_func(X, params_local)
+    def objective(params):
+        &quot;&quot;&quot;Calculates the Mean Squared Error for the given parameters, with penalties for invalid predictions.&quot;&quot;&quot;
+        pred = scaling_law_func(X, params)
+        
+        # Handle potential numerical instabilities (e.g., NaNs or Infs) or physically impossible predictions (e.g., negative loss).
+        # A very large error is returned to heavily penalize such parameter combinations and guide the optimizer away.
+        if np.any(np.isnan(pred)) or np.any(np.isinf(pred)) or np.any(pred &lt; 0):
+            return 1e10 # Return a very large error to guide optimizer away from these regions
+
         mse = np.mean((pred - y) ** 2)
         return mse
 
-    # Use &#x27;L-BFGS-B&#x27; for bounded optimization as it&#x27;s more robust than BFGS for constraints.
-    # Added options for maxiter and ftol for better control over convergence and precision.
-    result = minimize(objective, initial_params, method=&#x27;L-BFGS-B&#x27;, bounds=bounds,
-                      options={&#x27;maxiter&#x27;: 2000, &#x27;ftol&#x27;: 1e-9, &#x27;gtol&#x27;: 1e-6})
+    # Using L-BFGS-B for bounded optimization, which is more robust for constrained problems
+    # compared to BFGS, and allows specifying bounds for parameters.
+    # Increased maxiter to allow the optimizer more steps to find a better minimum, especially with tighter bounds.
+    result = minimize(objective, initial_params, method=&#x27;L-BFGS-B&#x27;, bounds=bounds, options={&#x27;maxiter&#x27;: 2000})
 
-    # Return optimized parameters if successful, otherwise return the robust initial guess
+    # Return optimized parameters if the optimization was successful, otherwise return the initial guess
+    # to ensure a valid output even if convergence fails.
     params_opt = result.x if result.success else initial_params
-    
     return params_opt
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#3</span>
-              <span class="run-label">Run 5</span>
-              <span class="r2-badge" style="background-color: #228b22; color: white"> R² = 0.819750 </span>
+              <span class="run-label">Run 3</span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.957990 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -804,196 +642,137 @@ def fit_scaling_law(data_points, loss_values):
                 <button class="copy-btn" onclick="copyCode(event, 'code-2')">Copy</button>
               </div>
               <pre><code class="language-python" id="code-2"># EVOLVE-BLOCK-START
+&quot;&quot;&quot;
+Scaling law discovery for LLM finetuning scenarios
+Evolved program with a more sophisticated scaling law for MoE architectures and improved optimization.
+Improvements:
+1.  Retained the robust scaling law function form: `L = p0 * (P_dense_norm^p1) * (N_experts_norm^p2) + p3 * (N_experts_norm^p4) + p5`.
+    This form effectively captures multiplicative interactions between dense parameters and experts,
+    common in scaling laws, and includes an additional additive term for experts and an irreducible loss.
+    It uses exactly 6 parameters, adhering to the constraint.
+2.  Maintained robust input normalization for `dense_parameter_count` and `num_experts` using
+    constant reference values. This significantly improves numerical stability and helps the
+    optimizer converge effectively by operating on smaller, well-behaved numbers.
+3.  **Refined initial parameter guesses** for `p0`, `p1`, `p2`, `p3`, `p4` to be more aligned with the observed loss range and typical scaling behaviors, providing a better starting point for the optimizer.
+4.  **Tightened parameter bounds** for exponents `p1`, `p2`, and `p4` to be even more physically realistic for LLM scaling, based on common observed exponents. This helps guide the optimizer towards more plausible solutions and potentially improves convergence to better local minima.
+5.  Retained robust optimization settings: L-BFGS-B method for bounded optimization, increased
+    `maxiter` for better convergence, and an explicit penalty in the objective function for
+    numerical instabilities (NaNs, Infs) or non-physical predictions (negative loss).
+&quot;&quot;&quot;
 import numpy as np
 from scipy.optimize import minimize
 
+# Reference values for normalizing input features.
+# These are constant and derived from the problem description&#x27;s data ranges, not dynamically computed.
+# Normalizing to make the smallest value 1 (or close to 1) for better power law calculations
+# and to improve the numerical conditioning of the optimization problem.
+DENSE_PARAM_REF = 1e8 # Smallest dense_parameter_count observed in data (1e8 to 8e8)
+NUM_EXPERTS_REF = 1   # Smallest num_experts observed in data (1 to 64)
+
 def scaling_law_func(data_points, params):
-    &quot;&quot;&quot;
-    Predicts validation loss based on an extended multiplicative inverse power law with a bias.
-    The model is: loss = A / (P^beta_P * E^beta_E) + C / (P * E) + D / E + L_min
-    where P is dense_parameter_count, E is num_experts.
-    beta_P and beta_E are positive exponents. This model uses 6 parameters.
+    # data_points: (N,2) array with columns [num_experts, dense_parameter_count]
+    # params: Array of 6 parameters: [p0, p1, p2, p3, p4, p5]
+    # Model form: L = p0 * (P_dense_norm^p1) * (N_experts_norm^p2) + p3 * (N_experts_norm^p4) + p5
 
-    Args:
-        data_points (np.ndarray): (N, 2) array with columns [num_experts, dense_parameter_count].
-                                  N is the number of data points.
-        params (np.ndarray): Array of parameters. Can be (P,) or (T, P) where P=6.
-                             P = [A_coeff, beta_P_exponent, beta_E_exponent, C_coeff, D_coeff, L_min_bias]
+    num_experts = data_points[:, 0]
+    dense_parameter_count = data_points[:, 1]
 
-    Returns:
-        np.ndarray: Predicted validation loss values (N,) or (N, T).
-    &quot;&quot;&quot;
-    X = np.atleast_2d(np.asarray(data_points)) # Shape (N, 2)
-    
-    # Ensure params is 2D (T, P) for consistent broadcasting
-    params_arr = np.asarray(params)
-    if params_arr.ndim == 1:
-        params_arr = params_arr[None, :] # Make it (1, P) if 1D
+    p = np.asarray(params).flatten()
+    if len(p) != 6:
+        raise ValueError(f&quot;params must contain exactly 6 elements, but got {len(p)}&quot;)
 
-    # Unpack parameters for each T set
-    # P must be 6 for our model: [A, beta_P, beta_E, C, D, L_min]
-    A_coeffs = params_arr[:, 0]
-    beta_P_exponents = params_arr[:, 1] # Positive exponents for dense_parameter_count
-    beta_E_exponents = params_arr[:, 2] # Positive exponents for num_experts
-    C_coeffs = params_arr[:, 3] # Coefficient for the additive P*E inverse term
-    D_coeffs = params_arr[:, 4] # Coefficient for the additive E inverse term
-    L_mins = params_arr[:, 5]
+    # Normalize inputs using constant reference values. This helps with numerical stability
+    # when raising large numbers to powers, and can make the optimization landscape smoother.
+    # The normalization itself does not add parameters, but implicitly adjusts the effective
+    # scale of coefficients like p0 and p3.
+    # The normalized input ranges (num_experts_norm from 1 to 64, dense_parameter_count_norm from 1 to 8)
+    # ensure no issues with 0^negative_exponent, as min values are 1.
+    num_experts_norm = num_experts / NUM_EXPERTS_REF
+    dense_parameter_count_norm = dense_parameter_count / DENSE_PARAM_REF
 
-    # Extract features, ensuring they are strictly positive for power function stability
-    num_experts = np.maximum(X[:, 0], 1e-9) # (N,)
-    dense_param_count = np.maximum(X[:, 1], 1e-9) # (N,)
-    
-    # Calculate first term: A / (P^beta_P * E^beta_E)
-    term_dense_denom_1 = np.power(dense_param_count[:, None], beta_P_exponents[None, :]) # (N, T)
-    term_experts_denom_1 = np.power(num_experts[:, None], beta_E_exponents[None, :]) # (N, T)
-    denominator_1 = term_dense_denom_1 * term_experts_denom_1
-    denominator_1 = np.maximum(denominator_1, 1e-30) # Prevent division by near zero
-    term1_pred = A_coeffs[None, :] / denominator_1
+    # Calculate the predicted loss using the evolved scaling law function.
+    # np.power handles fractional and negative exponents robustly.
 
-    # Calculate second term: C / (P * E)
-    denominator_2 = dense_param_count[:, None] * num_experts[:, None]
-    denominator_2 = np.maximum(denominator_2, 1e-30)
-    term2_pred = C_coeffs[None, :] / denominator_2
+    # Term 1: Multiplicative scaling term, capturing the combined effect of dense parameters and experts.
+    term1 = p[0] * np.power(dense_parameter_count_norm, p[1]) * np.power(num_experts_norm, p[2])
     
-    # Calculate third term: D / E
-    denominator_3 = num_experts[:, None]
-    denominator_3 = np.maximum(denominator_3, 1e-30)
-    term3_pred = D_coeffs[None, :] / denominator_3
+    # Term 2: Additional additive scaling term, specifically for the effect of experts.
+    term2 = p[3] * np.power(num_experts_norm, p[4])
     
-    # Combine terms to get final predictions (N, T)
-    pred = term1_pred + term2_pred + term3_pred + L_mins[None, :]
-    
-    # Return (N,) if T=1, otherwise (N, T)
-    return pred[:, 0] if pred.shape[1] == 1 else pred
+    # Term 3: Irreducible loss component (asymptotic minimum loss).
+    predicted_loss = term1 + term2 + p[5]
+
+    return predicted_loss
 
 
 def fit_scaling_law(data_points, loss_values):
-    &quot;&quot;&quot;
-    Fits the extended scaling function to the provided data.
-    The function uses a 6-parameter model:
-    loss = A / (P^beta_P * E^beta_E) + C / (P * E) + D / E + L_min
-
-    It employs a robust initialization strategy involving a grid search for L_min,
-    followed by an approximate log-linear fit for A, beta_P, beta_E, and finally
-    a bounded L-BFGS-B optimization for all 6 parameters.
-
-    Args:
-        data_points (np.ndarray): (N, 2) array with columns [num_experts, dense_parameter_count].
-        loss_values (np.ndarray): (N,) array of corresponding validation loss values.
-
-    Returns:
-        np.ndarray: Optimized parameters [A_coeff, beta_P_exponent, beta_E_exponent, C_coeff, D_coeff, L_min_bias] (1D array).
-    &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points))
-    y = np.asarray(loss_values)
-    
-    # The scaling law now uses 6 parameters: [A, beta_P, beta_E, C, D, L_min]
-    num_params = 6
+    y = np.asarray(loss_values).flatten()
 
-    # --- Initial guess and bounds setup ---
-    min_loss_obs = np.min(y)
-    
-    # Define a range of L_min candidates for a more robust initial guess
-    L_min_lower_bound = 1e-6 # Ensure L_min is strictly positive
-    # Upper bound for L_min must be strictly less than min_loss_obs to allow calculation of residuals for fitting
-    L_min_upper_bound = np.maximum(L_min_lower_bound + 1e-5, min_loss_obs - 1e-5) 
-    
-    # Generate candidates for L_min; use a single point if range is too small
-    if L_min_upper_bound &lt;= L_min_lower_bound:
-        l_min_candidates = np.array([L_min_lower_bound])
-    else:
-        # Increased number of candidates for L_min to explore the range more thoroughly
-        l_min_candidates = np.linspace(L_min_lower_bound, L_min_upper_bound, 15)
+    # Initial guess for the 6 parameters: [p0, p1, p2, p3, p4, p5]
+    # These heuristics are adjusted for the normalized input features and expected loss range (1.8 to 3.8).
+    # p0: Coefficient for the primary scaling term.
+    # p1: Exponent for dense_parameter_count (expected negative for loss reduction).
+    # p2: Exponent for num_experts in the multiplicative term (can be positive/negative).
+    # p3: Coefficient for the secondary num_experts term.
+    # p4: Exponent for num_experts in the additive term (can be positive/negative).
+    # p5: Irreducible loss.
 
-    best_mse = np.inf
-    best_initial_params = None
+    initial_p5 = np.min(y) * 0.95 # Start slightly below the minimum observed loss to allow upward movement.
+    # Refined initial guesses:
+    initial_params = np.array([
+        1.8,   # p0: Adjusted to make p0+p3+p5 closer to max(y) for smallest configurations.
+        -0.15, # p1: Slightly less aggressive negative exponent, common in LLM scaling.
+        -0.05, # p2: Smaller negative exponent for experts, indicating a milder scaling effect.
+        0.29,  # p3: Adjusted to balance with p0, making p0+p3+p5 closer to max(y).
+        -0.05, # p4: Similar to p2, anticipating a milder loss reduction from experts.
+        initial_p5 # p5: Irreducible loss.
+    ])
 
-    # Pre-calculate log features for efficiency, used for the log-linear part of initialization
-    log_num_experts = np.log(np.maximum(X[:, 0], 1e-9))
-    log_dense_params = np.log(np.maximum(X[:, 1], 1e-9))
-
-    # Iterate through L_min candidates to find the best initial guess
-    for l_min_try in l_min_candidates:
-        # For initialization of A, beta_P, beta_E, we approximate using the dominant power law term:
-        # log(Y - L_min) approx log(A) - beta_P * log(P) - beta_E * log(E)
-        # We start with C and D as small values and let the optimizer refine them.
-        y_adjusted = np.maximum(y - l_min_try, 1e-6) # Ensure strictly positive for log
-        log_y_adjusted = np.log(y_adjusted)
-
-        # Design matrix for linear regression: [1 (intercept, log A), -log(dense_params), -log(num_experts)]
-        A_lr = np.vstack([np.ones(len(X)), -log_dense_params, -log_num_experts]).T
-        
-        # Filter out any NaN/Inf values that could result from log transformations
-        valid_indices = np.all(np.isfinite(A_lr), axis=1) &amp; np.isfinite(log_y_adjusted)
-
-        current_init_A, current_init_beta_P, current_init_beta_E = 1.0, 0.1, 0.1 # Default fallback values
-        current_init_C = 1e-8 # Initial guess for the C parameter, a small positive value
-        current_init_D = 1e-8 # Initial guess for the D parameter, a small positive value
-
-        if np.sum(valid_indices) &gt;= 3: # Need at least 3 points for 3 coefficients
-            try:
-                coeffs_lr, _, _, _ = np.linalg.lstsq(A_lr[valid_indices], log_y_adjusted[valid_indices], rcond=None)
-                current_init_A = np.exp(coeffs_lr[0])
-                # beta_P and beta_E correspond to coeffs_lr[1] and coeffs_lr[2] because of the -log terms in A_lr
-                current_init_beta_P = coeffs_lr[1] 
-                current_init_beta_E = coeffs_lr[2]
-                
-                # Clip initial estimates to reasonable ranges
-                current_init_A = np.clip(current_init_A, 1e-3, 1e3) 
-                current_init_beta_P = np.clip(current_init_beta_P, 0.01, 2.0) 
-                current_init_beta_E = np.clip(current_init_beta_E, 0.01, 2.0)
-            except np.linalg.LinAlgError:
-                pass # Fallback to default in case of singular matrix
-
-        temp_initial_params = np.array([current_init_A, current_init_beta_P, current_init_beta_E, 
-                                        current_init_C, current_init_D, l_min_try])
-        
-        # Evaluate MSE using the full non-linear function
-        temp_pred = scaling_law_func(X, temp_initial_params)
-        temp_mse = np.mean((temp_pred - y) ** 2)
-
-        if temp_mse &lt; best_mse:
-            best_mse = temp_mse
-            best_initial_params = temp_initial_params
-
-    # If no valid initial params were found, use a safe default
-    if best_initial_params is None:
-        best_initial_params = np.array([1.0, 0.1, 0.1, 1e-8, 1e-8, L_min_lower_bound]) # Default with C=1e-8, D=1e-8
-
-    # Define bounds for parameters: [A, beta_P, beta_E, C, D, L_min]
+    # Bounds for the 6 parameters to guide the optimizer towards physically realistic values
+    # and prevent numerical instabilities or runaway parameter searches.
+    # Tightened bounds for p1, p2, p4 based on more common LLM scaling observations (from Program 1).
     bounds = [
-        (1e-8, 1e8),        # A_coeff: Can range widely, must be positive
-        (0.001, 5.0),       # beta_P_exponent: Positive, reasonable max
-        (0.001, 5.0),       # beta_E_exponent: Positive, reasonable max
-        (1e-8, 1e8),        # C_coeff: Must be positive, can range widely
-        (1e-8, 1e8),        # D_coeff: Must be positive, can range widely
-        (L_min_lower_bound, L_min_upper_bound) # L_min: Strictly positive, and strictly less than min observed loss
+        (0.001, 100.0),    # p0: Must be positive. Tighter upper bound after input normalization.
+        (-0.7, -0.001),    # p1: Exponent for dense_parameter_count must be negative.
+                           #     Tighter lower bound (-0.7) and upper bound (-0.001) reflect typical LLM scaling.
+        (-1.0, 0.5),       # p2: Exponent for num_experts. Tighter range to reflect common expert effects.
+        (0.0, 50.0),       # p3: Must be non-negative.
+        (-1.0, 0.5),       # p4: Exponent for num_experts, similar logic to p2.
+        (0.0, np.max(y) * 1.05) # p5: Irreducible loss.
     ]
-    
-    def objective(params_local):
-        &quot;&quot;&quot;Calculates the Mean Squared Error for the given parameters.&quot;&quot;&quot;
-        pred = scaling_law_func(X, params_local)
+
+    def objective(params):
+        pred = scaling_law_func(X, params)
+        
+        # Penalize numerical instabilities (NaNs, Infs) and non-physical predictions (negative loss).
+        # A very large penalty steers the optimizer away from these regions.
+        if np.any(np.isnan(pred)) or np.any(np.isinf(pred)) or np.any(pred &lt; 0):
+            return 1e12 
+
         mse = np.mean((pred - y) ** 2)
         return mse
 
-    # Use a bounded optimization method like &#x27;L-BFGS-B&#x27; for better stability and constraint handling
-    result = minimize(objective, best_initial_params, method=&#x27;L-BFGS-B&#x27;, bounds=bounds)
+    # Using L-BFGS-B for bounded optimization, which is a robust method for constrained non-linear problems.
+    # Increased &#x27;maxiter&#x27; to allow the optimizer more steps to converge to a better solution,
+    # especially in potentially complex loss landscapes.
+    result = minimize(objective, initial_params, method=&#x27;L-BFGS-B&#x27;, bounds=bounds,
+                      options={&#x27;disp&#x27;: False, &#x27;maxiter&#x27;: 2000})
 
-    # Return optimized parameters if successful, otherwise return the best initial guess
-    params_opt = result.x if result.success else best_initial_params
-    
+    # Return optimized parameters if the optimization was successful; otherwise,
+    # fall back to the initial guess to ensure a valid return value.
+    params_opt = result.x if result.success else initial_params
     return params_opt
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#4</span>
-              <span class="run-label">Run 4</span>
-              <span class="r2-badge" style="background-color: #d2691e; color: white"> R² = 0.383469 </span>
+              <span class="run-label">Run 2</span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.957790 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -1009,149 +788,138 @@ from scipy.optimize import minimize
 
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    Predicts validation loss based on MoE architecture parameters using a 
-    mixed log-polynomial and inverse-expert count model.
+    Predicts validation loss based on MoE architecture parameters using an extended multiplicative scaling law.
 
-    Parameters:
-    data_points: (N,2) array with columns [num_experts, dense_parameter_count]
-                 num_experts: Array of expert counts
-                 dense_parameter_count: Array of dense parameter counts
-    params: Array of 6 parameters [p0, p1, p2, p3, p4, p5]
-            Loss = p0 + p1*log(Np) + p2*log(Ne) + p3*log(Np)^2 + p4*(1/Ne) + p5*log(Np)*log(Ne)
+    The model form is:
+    Loss = exp(log_c0 + e_experts * log(N) + e_params * log(P) + e_interact * log(N) * log(P) + e_quad_log_P * (log(P))**2) + bias
+
+    Where:
+    - N = num_experts
+    - P = dense_parameter_count
+    - log_c0, e_experts, e_params, e_interact, e_quad_log_P, bias are the model parameters.
+
+    This model extends the previous version by adding a quadratic term for log(P) in the exponent.
+    This allows for more flexible modeling of diminishing returns or changing scaling behavior
+    with increasing model size (dense_parameter_count), while still adhering to the 6-parameter limit.
+
+    Args:
+        data_points (np.ndarray): (N_samples, 2) array with columns [num_experts, dense_parameter_count].
+        params (np.ndarray): Array of 6 parameters: [log_c0, e_experts, e_params, e_interact, e_quad_log_P, bias].
 
     Returns:
-    Predicted validation loss values (N,)
+        np.ndarray: Predicted validation loss values (N_samples,).
     &quot;&quot;&quot;
-    X = np.atleast_2d(np.asarray(data_points))
-    num_experts = X[:, 0]
-    dense_parameter_count = X[:, 1]
+    num_experts = data_points[:, 0]
+    dense_parameter_count = data_points[:, 1]
 
-    # Log transform inputs for numerical stability and to align with common scaling law forms.
-    # Using np.maximum to ensure inputs to log are positive and 1/X terms don&#x27;t divide by zero.
-    log_dense_parameter_count = np.log(np.maximum(dense_parameter_count, 1e-9))
+    # Log-transform features for linearity in the exponent.
+    # num_experts (1 to 64) and dense_parameter_count (1e8 to 8e8) are guaranteed positive.
+    # log(1) = 0, so dense models (N=1) naturally simplify the expert-related terms.
+    log_N = np.log(num_experts)
+    log_P = np.log(dense_parameter_count)
+
+    # Unpack parameters for clarity
+    log_c0, e_experts, e_params, e_interact, e_quad_log_P, bias = params
+
+    # Calculate the exponent term for the multiplicative scaling component
+    # The quadratic term (log_P**2) allows the effective exponent of P to change with P.
+    exponent_term = (
+        log_c0
+        + e_experts * log_N
+        + e_params * log_P
+        + e_interact * log_N * log_P
+        + e_quad_log_P * (log_P**2)  # Added quadratic term for log(P)
+    )
     
-    # log(Ne) term remains for general expert scaling behavior.
-    log_num_experts = np.log(np.maximum(num_experts, 1e-9))
+    # Clip exponent_term to prevent np.exp from returning inf/0 due to extreme values.
+    # This improves numerical stability during optimization, especially in early iterations.
+    scaling_component = np.exp(np.clip(exponent_term, -20, 20))
     
-    # New term: 1/Ne to capture inverse scaling or diminishing returns with experts.
-    inverse_num_experts = 1.0 / np.maximum(num_experts, 1e-9)
-
-    # Ensure params are correctly shaped for a single prediction set.
-    # The optimizer passes a 1D array of parameters.
-    params_flat = np.asarray(params).flatten()
-
-    # Unpack the 6 parameters: p0, p1, p2, p3, p4, p5
-    # Loss = p0 + p1*Lp + p2*Le + p3*Lp^2 + p4*(1/Ne) + p5*Lp*Le
-    # where Lp = log_dense_parameter_count, Le = log_num_experts
-    p0, p1, p2, p3, p4, p5 = params_flat[:6]
-
-    predicted_loss = p0 \
-                   + p1 * log_dense_parameter_count \
-                   + p2 * log_num_experts \
-                   + p3 * (log_dense_parameter_count ** 2) \
-                   + p4 * inverse_num_experts \
-                   + p5 * (log_dense_parameter_count * log_num_experts)
-
-    return predicted_loss
+    # Total predicted loss is the scaling component plus the irreducible bias
+    pred = scaling_component + bias
+    
+    return pred
 
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Fits the scaling law function to the provided data. This function uses 
-    Ordinary Least Squares (OLS) to derive an optimal initial guess for the
-    parameters, followed by L-BFGS-B optimization to refine them with bounds,
-    providing the analytical Jacobian for improved convergence and theoretical stability.
+    Fits the extended multiplicative scaling law function to the given data using L-BFGS-B optimization.
 
-    The model is linear in its parameters after feature transformations,
-    making OLS highly effective for parameter estimation.
-
-    Parameters:
-    data_points: (N,2) array with columns [num_experts, dense_parameter_count]
-    loss_values: Array of corresponding validation loss values (N,)
+    Args:
+        data_points (np.ndarray): (N_samples, 2) array with columns [num_experts, dense_parameter_count].
+        loss_values (np.ndarray): Array of corresponding validation loss values (N_samples,).
 
     Returns:
-    Optimized parameters (6 parameters) for the scaling_law_func.
+        np.ndarray: Optimized parameters [log_c0, e_experts, e_params, e_interact, e_quad_log_P, bias] (6 parameters).
     &quot;&quot;&quot;
-    X = np.atleast_2d(np.asarray(data_points))
-    y = np.asarray(loss_values)
-    N = len(y) # Number of data points
+    num_params = 6 # The number of parameters for our scaling law model
 
-    # Transform inputs for constructing the design matrix for OLS.
-    # Consistent robust transformation as in scaling_law_func.
-    log_dense_parameter_count = np.log(np.maximum(X[:, 1], 1e-9))
-    log_num_experts = np.log(np.maximum(X[:, 0], 1e-9))
-    inverse_num_experts = 1.0 / np.maximum(X[:, 0], 1e-9)
+    # --- Initial Parameter Guesses ---
+    min_loss = np.min(loss_values)
+    mean_loss = np.mean(loss_values)
 
-    # Construct the design matrix for linear regression (OLS).
-    # Each column corresponds to a term in the scaling_law_func:
-    # [1, log(Np), log(Ne), log(Np)^2, 1/Ne, log(Np)*log(Ne)]
-    design_matrix = np.column_stack([
-        np.ones(N),                                         # p0 (intercept)
-        log_dense_parameter_count,                         # p1 * log(Np)
-        log_num_experts,                                   # p2 * log(Ne)
-        log_dense_parameter_count ** 2,                    # p3 * log(Np)^2
-        inverse_num_experts,                               # p4 * (1/Ne)
-        log_dense_parameter_count * log_num_experts        # p5 * log(Np)*log(Ne)
+    # Heuristic for &#x27;bias&#x27;:
+    # It represents the irreducible loss, so it must be positive and less than any observed loss.
+    # A margin is used to ensure numerical stability for the scaling_component (which must be positive).
+    bias_init = max(0.01, min_loss - 0.1)
+    # Fallback if initial bias is too close to min_loss, to ensure a positive scaling component.
+    if bias_init &gt;= min_loss - 1e-6:
+        bias_init = min_loss * 0.9
+
+    # Heuristic for &#x27;log_c0&#x27;:
+    # Estimate based on the mean loss, assuming other terms are close to neutral on average.
+    # Ensure the argument to np.log is positive.
+    log_c0_init = np.log(max(1e-6, mean_loss - bias_init))
+
+    # Heuristics for exponents:
+    # Loss typically decreases with more experts/parameters, so linear exponents are expected to be negative.
+    e_experts_init = -0.05
+    e_params_init = -0.05
+    e_interact_init = 0.0  # Start with no interaction effect
+    e_quad_log_P_init = 0.0 # Start with no quadratic effect, allowing the optimizer to find its effect.
+
+    initial_params = np.array([
+        log_c0_init,
+        e_experts_init,
+        e_params_init,
+        e_interact_init,
+        e_quad_log_P_init, # Initial guess for the new quadratic parameter
+        bias_init
     ])
 
-    P_model = 6 # The number of parameters for our model
-
-    initial_params = np.zeros(P_model)
-    if N &gt; 0:
-        initial_params[0] = np.mean(y) # Default intercept guess
-
-    try:
-        # Perform OLS if enough data points exist to solve for parameters.
-        # rcond=None ensures modern default behavior for singular values.
-        if N &gt;= P_model:
-            ols_params, _, _, _ = np.linalg.lstsq(design_matrix, y, rcond=None)
-            
-            # Ensure the OLS result has P_model elements.
-            if len(ols_params) &lt; P_model:
-                initial_params = np.pad(ols_params, (0, P_model - len(ols_params)), &#x27;constant&#x27;)
-            elif len(ols_params) &gt; P_model:
-                initial_params = ols_params[:P_model]
-            else:
-                initial_params = ols_params
-    except np.linalg.LinAlgError:
-        # Fallback to default initial_params if OLS encounters an error.
-        pass
-
-    def objective_with_grad(flat_params):
-        &quot;&quot;&quot;
-        Calculates the Mean Squared Error (MSE) and its analytical Jacobian.
-        &quot;&quot;&quot;
-        # The scaling_law_func handles the internal log-transformation of data_points.
-        pred = scaling_law_func(data_points, flat_params)
-        residuals = pred - y
-        mse = np.mean(residuals ** 2)
-        
-        # The gradient of MSE for a linear model (Y = X @ p) is (2/N) * X.T @ (X @ p - y).
-        # Here, `design_matrix` is X, `flat_params` is p, and `residuals` is (X @ p - y).
-        grad = (2.0 / N) * np.dot(design_matrix.T, residuals)
-        
-        return mse, grad
-
-    # Define bounds for parameters to ensure theoretical stability and physical plausibility.
-    # These bounds are chosen based on typical scaling law behaviors for loss:
-    # - p1 (log(Np)): Should be negative or zero, as increasing model size usually reduces or plateaus loss.
-    # - p3 (log(Np)^2): Should be positive or zero, to model diminishing returns (loss curve bends upwards on log-log plot).
-    # - p4 (1/Ne): Should be positive or zero. As Ne increases, 1/Ne decreases. A positive p4 means this term reduces loss as Ne increases.
-    # Other parameters (p0, p2, p5) are left unbounded as their signs can be context-dependent or absorb other effects.
+    # --- Parameter Bounds ---
+    # Bounds help constrain the optimization to physically meaningful regions, improving stability and convergence.
     bounds = [
-        (None, None),   # p0: intercept - no strong theoretical bound
-        (-100.0, 0.0),  # p1: log_dense_parameter_count coefficient (loss decreases with model size)
-        (None, None),   # p2: log_num_experts coefficient - can be complex with 1/Ne present
-        (0.0, None),    # p3: (log_dense_parameter_count)^2 coefficient (diminishing returns)
-        (0.0, None),    # p4: 1/num_experts coefficient (loss decreases as Ne increases)
-        (None, None)    # p5: interaction term - no strong theoretical bound
+        (-np.inf, np.inf),        # log_c0: Can be any real number.
+        (-np.inf, 0.0),           # e_experts: Exponent for experts, typically negative for decreasing loss.
+        (-np.inf, 0.0),           # e_params: Exponent for parameters, typically negative for decreasing loss.
+        (-np.inf, np.inf),        # e_interact: Interaction term, can be positive or negative.
+        (-np.inf, np.inf),        # e_quad_log_P: Quadratic term, can be positive or negative.
+                                  # A positive value typically indicates diminishing returns.
+        (0.0, min_loss - 1e-6)    # bias: Must be positive and strictly less than min_loss.
+                                  # This ensures the &#x27;scaling_component&#x27; from scaling_law_func is always positive.
     ]
 
-    # Use the L-BFGS-B optimizer, which supports bounds and analytical Jacobian.
-    result = minimize(objective_with_grad, initial_params, method=&#x27;L-BFGS-B&#x27;, jac=True, bounds=bounds)
+    def objective(params):
+        &quot;&quot;&quot;Calculates the Mean Squared Error for the given parameters.&quot;&quot;&quot;
+        pred = scaling_law_func(data_points, params)
+        
+        # Check for NaN/Inf predictions; penalize heavily to guide optimizer away from invalid regions.
+        if not np.all(np.isfinite(pred)):
+            return np.finfo(float).max # Return a very large error to indicate an invalid state
 
-    # Return the optimized parameters if the optimization was successful,
-    # otherwise fall back to the initial OLS guess (which is generally good).
+        # Clip predictions to a reasonable range to prevent numerical issues in MSE calculation
+        # and to reflect the practical range of loss values (1.8 to 3.8).
+        # The lower bound ensures the scaling component is positive.
+        pred = np.clip(pred, 1e-6, 10.0)
+
+        mse = np.mean((pred - loss_values) ** 2)
+        return mse
+
+    # Use &#x27;L-BFGS-B&#x27; method for bounded optimization, which is robust and suitable for this problem.
+    result = minimize(objective, initial_params, method=&#x27;L-BFGS-B&#x27;, bounds=bounds)
+
+    # Return the optimized parameters if the optimization was successful; otherwise, return initial guesses.
     params_opt = result.x if result.success else initial_params
 
     return params_opt
@@ -1159,13 +927,12 @@ def fit_scaling_law(data_points, loss_values):
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#5</span>
-              <span class="run-label">Run 3</span>
-              <span class="r2-badge" style="background-color: #d2691e; color: white"> R² = 0.056532 </span>
+              <span class="run-label">Run 4</span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.957564 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -1176,148 +943,123 @@ def fit_scaling_law(data_points, loss_values):
                 <button class="copy-btn" onclick="copyCode(event, 'code-4')">Copy</button>
               </div>
               <pre><code class="language-python" id="code-4"># EVOLVE-BLOCK-START
+&quot;&quot;&quot;
+Scaling law discovery for LLM finetuning scenarios
+This evolved program maintains a robust and proven scaling law model for MoE architectures,
+combining multiplicative power-law effects with additive logarithmic and linear terms for
+expert counts. The primary refinement focuses on optimizing the parameter bounds,
+especially for the linear expert term, to improve numerical stability and convergence
+within the observed data range.
+&quot;&quot;&quot;
 import numpy as np
 from scipy.optimize import minimize
 
 def scaling_law_func(data_points, params):
-    &quot;&quot;&quot;
-    Predicts validation loss based on an additive inverse power law model, extended with an expert offset.
-    The model is: Loss = L_min + A_param / (dense_parameter_count ^ alpha_param) + A_expert / ((num_experts + C_expert_offset) ^ alpha_expert)
+    # data_points: (N,2) array with columns [num_experts, dense_parameter_count]
+    # params: Array of 6 parameters: [p0, p1, p2, p3, p4, p5]
+    # Model form: L = p0 * ( (P_dense/P_ref)^p1 ) * ( (N_experts/N_ref)^p2 ) + p3 * log(N_experts/N_ref) + p4 * (N_experts/N_ref) + p5
 
-    This formulation uses 6 parameters to capture the independent scaling effects of
-    dense parameter count and number of experts, plus an irreducible minimum loss and
-    an offset for the expert count that can better model MoE behavior at low expert counts.
+    num_experts = data_points[:, 0]
+    dense_parameter_count = data_points[:, 1]
 
-    Args:
-        data_points (np.ndarray): (N, 2) array with columns [num_experts, dense_parameter_count].
-                                  N is the number of data points.
-        params (np.ndarray): Array of 6 parameters. Can be (P,) or (T, P) where P=6.
-                             P = [L_min, A_param, alpha_param, A_expert, alpha_expert, C_expert_offset]
+    # Reference values for normalization. These constants are chosen based on the
+    # dataset&#x27;s minimum observed values (1e8 for dense params, 1 for experts)
+    # to ensure normalized values are &gt;= 1, aiding numerical stability for power functions.
+    P_ref = 1e8  # Minimum dense_parameter_count in the dataset
+    N_ref = 1    # Minimum num_experts in the dataset
 
-    Returns:
-        np.ndarray: Predicted validation loss values (N,) or (N, T).
-    &quot;&quot;&quot;
-    X = np.atleast_2d(np.asarray(data_points))
+    P_norm = dense_parameter_count / P_ref
+    N_norm = num_experts / N_ref
+
+    # Ensure params is a 1D array of 6 elements for consistent unpacking.
+    p = np.asarray(params).flatten()
+    if len(p) != 6:
+        raise ValueError(f&quot;params must contain exactly 6 elements, but got {len(p)}&quot;)
+
+    # Unpack parameters for clarity.
+    p0, p1, p2, p3, p4, p5 = p
+
+    # Calculate the predicted loss based on the evolved scaling law.
+    # Term 1: Multiplicative power-law scaling for dense parameters and experts.
+    #         This term captures the primary scaling trends.
+    # Term 2: Logarithmic effect of experts, often modeling diminishing returns or overheads.
+    # Term 3: Linear effect of experts, capturing direct cost or benefit per expert.
+    # Term 4: An irreducible loss offset.
     
-    # Ensure params is 2D (T, P) for consistent broadcasting
-    params_arr = np.asarray(params)
-    if params_arr.ndim == 1:
-        params_arr = params_arr[None, :]
-
-    # Unpack parameters (6 parameters total)
-    L_mins = params_arr[:, 0]          # Irreducible minimum loss
-    A_params = params_arr[:, 1]        # Coefficient for dense parameter scaling term
-    alpha_params = params_arr[:, 2]    # Exponent for dense parameter scaling term (positive for inverse power)
-    A_experts = params_arr[:, 3]       # Coefficient for expert count scaling term
-    alpha_experts = params_arr[:, 4]   # Exponent for expert count scaling term (positive for inverse power)
-    C_expert_offsets = params_arr[:, 5] # Offset added to num_experts, useful for small expert counts
-
-    # Extract features
-    num_experts_raw = X[:, 0]
-    dense_param_count_raw = X[:, 1]
-
-    # Apply a small epsilon to ensure positivity for power functions and avoid division by zero
-    dense_param_count = np.maximum(dense_param_count_raw, 1e-9)
+    term1 = p0 * np.power(P_norm, p1) * np.power(N_norm, p2)
+    term2 = p3 * np.log(N_norm) 
+    term3 = p4 * N_norm        
     
-    # Apply expert offset and ensure positivity
-    num_experts_adjusted = np.maximum(num_experts_raw[:, None] + C_expert_offsets[None, :], 1e-9)
-    
-    # Ensure exponents are positive for the inverse power law formulation (as in 1/x^alpha)
-    safe_alpha_params = np.maximum(alpha_params, 1e-9)
-    safe_alpha_experts = np.maximum(alpha_experts, 1e-9)
+    predicted_loss = term1 + term2 + term3 + p5
 
-    # Calculate the two additive inverse power law terms using broadcasting
-    term_param = A_params[None, :] / np.power(dense_param_count[:, None], safe_alpha_params[None, :])
-    term_expert = A_experts[None, :] / np.power(num_experts_adjusted, safe_alpha_experts[None, :])
-    
-    # Sum the terms with the minimum loss to get the final prediction
-    pred = L_mins[None, :] + term_param + term_expert
-    
-    # Return (N,) if T=1 (single set of parameters), otherwise (N, T)
-    return pred[:, 0] if pred.shape[1] == 1 else pred
+    return predicted_loss
 
 
 def fit_scaling_law(data_points, loss_values):
-    &quot;&quot;&quot;
-    Fits the additive inverse power law scaling function to the provided data using bounded optimization.
-
-    Args:
-        data_points (np.ndarray): (N, 2) array with columns [num_experts, dense_parameter_count].
-        loss_values (np.ndarray): (N,) array of corresponding validation loss values.
-
-    Returns:
-        np.ndarray: Optimized parameters [L_min, A_param, alpha_param, A_expert, alpha_expert, C_expert_offset] (1D array).
-    &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points))
-    y = np.asarray(loss_values)
-    
-    # The scaling law uses 6 parameters
-    # P = [L_min, A_param, alpha_param, A_expert, alpha_expert, C_expert_offset]
+    y = np.asarray(loss_values).flatten()
 
-    # --- Initial guess and bounds setup ---
-    min_loss_obs = np.min(y)
-    max_loss_obs = np.max(y)
-    
-    # Initial guess for L_min: a positive value strictly below the minimum observed loss.
-    # This ensures that the power law terms are positive contributions to the loss above L_min.
-    l_min_init_val = np.maximum(0.01, min_loss_obs - 0.05 * (max_loss_obs - min_loss_obs))
-    l_min_init_val = np.clip(l_min_init_val, 0.001, min_loss_obs * 0.999 if min_loss_obs &gt; 0.001 else 0.001)
+    # Initial guess for the 6 parameters: [p0, p1, p2, p3, p4, p5]
+    # p0: Multiplicative coefficient for the primary power-law term.
+    # p1: Exponent for normalized dense_parameter_count. Typically negative (loss decreases with more parameters).
+    # p2: Exponent for normalized num_experts in the multiplicative term. Can be positive or negative.
+    # p3: Coefficient for log(N_norm). Can be positive (cost) or negative (benefit).
+    # p4: Coefficient for N_norm. Can be positive (cost) or negative (benefit).
+    # p5: Irreducible loss (asymptotic minimum).
 
-    # Heuristic initial guesses for coefficients and exponents.
-    # The variable part of the loss is (max_loss_obs - l_min_init_val).
-    # We can distribute this potential reduction between the two power law terms.
-    total_variable_loss_range = max_loss_obs - l_min_init_val
-    # A_init takes half of the variable loss range as a starting point, ensuring it&#x27;s positive.
-    A_init = np.maximum(0.1, total_variable_loss_range / 2.0) 
+    # Heuristic initial guesses designed to provide a reasonable starting point for the optimizer.
+    # These are derived from general knowledge of scaling laws and the observed data range.
+    initial_p0 = np.mean(y) 
+    if initial_p0 &lt; 0.001: initial_p0 = 0.001 # Ensure p0 is positive
+
+    initial_p5 = np.min(y) * 0.9 
+    if initial_p5 &lt; 0: initial_p5 = 0.001 # Ensure p5 (offset) is non-negative
 
     initial_params = np.array([
-        l_min_init_val,  # L_min
-        A_init,          # A_param (coefficient for dense_parameter_count term)
-        0.1,             # alpha_param (exponent for dense_parameter_count term, common scaling value)
-        A_init,          # A_expert (coefficient for num_experts term)
-        0.1,             # alpha_expert (exponent for num_experts term, common scaling value)
-        1.0              # C_expert_offset (small positive offset for num_experts)
+        initial_p0,   # p0: Coefficient, related to average loss.
+        -0.1,         # p1: Expected negative exponent for parameter count.
+        -0.05,        # p2: Initial guess for expert exponent (can vary).
+        0.0,          # p3: Start with no logarithmic effect.
+        0.0,          # p4: Start with no linear effect.
+        initial_p5    # p5: Irreducible loss, close to minimum observed.
     ])
-    
-    # Define bounds for parameters to ensure stability and physical realism
-    bounds = [
-        (0.001, min_loss_obs - 1e-5), # L_min: Must be positive, strictly less than min observed loss.
-        (1e-6, max_loss_obs * 5),     # A_param: Positive, upper bound allows for a significant portion of max_loss_obs.
-        (1e-6, 2.0),                  # alpha_param: Positive exponent (e.g., 0.0 to 2.0).
-        (1e-6, max_loss_obs * 5),     # A_expert: Positive, upper bound allows for a significant portion of max_loss_obs.
-        (1e-6, 2.0),                  # alpha_expert: Positive exponent (e.g., 0.0 to 2.0).
-        (0.0, 64.0)                   # C_expert_offset: Non-negative, up to the maximum observed experts.
-    ]
-    
-    # Re-check and adjust L_min upper bound and initial guess if min_loss_obs is very small,
-    # ensuring the upper bound is always greater than the lower bound.
-    if bounds[0][0] &gt;= bounds[0][1]:
-        bounds[0] = (0.001, min_loss_obs * 0.999 if min_loss_obs &gt; 0.001 else 0.001)
-        # If L_min bound changes, adjust initial_params[0] to be within new valid range
-        if initial_params[0] &gt;= bounds[0][1]:
-            initial_params[0] = bounds[0][1] - 1e-6 
-        elif initial_params[0] &lt; bounds[0][0]:
-             initial_params[0] = bounds[0][0] # ensure it&#x27;s not below lower bound
 
-    def objective(params_local):
-        &quot;&quot;&quot;Calculates the Mean Squared Error for the given parameters.&quot;&quot;&quot;
-        pred = scaling_law_func(X, params_local)
+    # Bounds for the parameters, crucial for guiding the optimizer and ensuring physical realism.
+    # These bounds prevent unrealistic parameter values and improve convergence.
+    # P_norm range: [1, 8]. N_norm range: [1, 64]. log(N_norm) range: [0, log(64) approx 4.15].
+    # The observed validation loss range is 1.8 to 3.8.
+    bounds = [
+        (0.001, np.max(y) * 5),  # p0: Must be positive, upper bound generous but realistic.
+        (-5.0, 0.0),             # p1: Exponent for dense_parameter_count. Loss should decrease or stay constant.
+        (-5.0, 5.0),             # p2: Exponent for num_experts. Can be positive or negative.
+        (-5.0, 5.0),             # p3: Coefficient for log(N_norm).
+        (-0.02, 0.02),           # p4: Coefficient for N_norm. Tightened bounds to prevent linear term from over-dominating
+                                 # given the overall loss range (e.g., 0.02 * 64 = 1.28, which is a significant portion).
+        (0.0, np.max(y))         # p5: Irreducible loss. Must be non-negative and less than max observed.
+    ]
+
+    def objective(params):
+        pred = scaling_law_func(X, params)
         
-        # If predictions result in NaN or Inf (due to numerical instability, e.g., during intermediate steps),
-        # return an extremely large value to guide the optimizer away from invalid regions.
-        if not np.all(np.isfinite(pred)):
-            return np.inf
-        
+        # Robustness checks for numerical stability during optimization.
+        # Assign a very large error if predictions lead to NaN or Inf.
+        if np.any(np.isnan(pred)) or np.any(np.isinf(pred)):
+            return 1e12 
+
+        # Ensure predicted loss is non-negative, as cross-entropy loss cannot be negative.
+        pred[pred &lt; 0] = 0.001 
+
         mse = np.mean((pred - y) ** 2)
         return mse
 
-    # Use &#x27;L-BFGS-B&#x27; for bounded optimization, which is robust and handles constraints well.
-    result = minimize(objective, initial_params, method=&#x27;L-BFGS-B&#x27;, bounds=bounds)
+    # Employ L-BFGS-B, a robust bounded optimization method suitable for this problem.
+    # Increased maxiter and tightened ftol/gtol for better convergence.
+    result = minimize(objective, initial_params, method=&#x27;L-BFGS-B&#x27;, bounds=bounds, 
+                      options={&#x27;maxiter&#x27;: 10000, &#x27;ftol&#x27;: 1e-9, &#x27;gtol&#x27;: 1e-6})
 
     # Return the optimized parameters if the optimization was successful;
-    # otherwise, return the robust initial guess to avoid returning potentially bad/NaN results.
+    # otherwise, fall back to the initial guess to ensure a valid return value.
     params_opt = result.x if result.success else initial_params
-    
     return params_opt
 # EVOLVE-BLOCK-END</code></pre>
             </div>

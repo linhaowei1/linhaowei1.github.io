@@ -285,7 +285,7 @@
     <div class="bg-pattern"></div>
 
     <div class="container">
-      <a href="sld_index.html" class="back-link"> ← Back to Leaderboard </a>
+      <a href="index.html" class="back-link"> ← Back to Leaderboard </a>
 
       <div class="header">
         <h1>SFT Scaling Law</h1>
@@ -300,15 +300,15 @@
           </div>
           <div class="meta-item">
             <span class="meta-label">Best R²:</span>
-            <span class="r2-badge" style="background-color: #006400; color: white"> 0.995030 </span>
+            <span class="r2-badge" style="background-color: #006400; color: white"> 0.999265 </span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Mean R²:</span>
-            <span class="meta-value">0.993132</span>
+            <span class="meta-value">0.999074</span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Min R²:</span>
-            <span class="meta-value">0.991851</span>
+            <span class="meta-value">0.998768</span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Runs:</span>
@@ -320,12 +320,13 @@
       <h2 class="section-title">All Runs (sorted by R²)</h2>
 
       <div class="runs-container">
+
         <div class="run-card best-run">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge best-badge">Best</span>
-              <span class="run-label">Run 4</span>
-              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.995030 </span>
+              <span class="run-label">Run 5</span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.999265 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -337,143 +338,122 @@
               </div>
               <pre><code class="language-python" id="code-0"># EVOLVE-BLOCK-START
 import numpy as np
-from scipy.optimize import least_squares, minimize
+from scipy.optimize import minimize
 
 def scaling_law_func(data_points, params):
-    X = np.atleast_2d(np.asarray(data_points, float)); n = X[:, 0]
-    p = np.asarray(params, float); 
-    if p.ndim == 1: p = p[None, :]
-    T, P = p.shape
-    if P == 4:
-        L_inf, A, n0, alpha = p[:, 0], p[:, 1], np.maximum(p[:, 2], 1e-12), p[:, 3]
-        ratio = np.maximum(n[:, None] / n0[None, :], 1e-300)
-        z = np.exp(np.clip(np.log(ratio) * alpha[None, :], -700, 700))
-        pred = L_inf[None, :] + A[None, :] / (1.0 + z)
-    elif P == 3:
-        L_inf, A, alpha = p[:, 0], p[:, 1], p[:, 2]
-        z = np.exp(np.clip(-np.log(np.maximum(n[:, None], 1e-300)) * alpha[None, :], -700, 700))
-        pred = L_inf[None, :] + A[None, :] * z
-    else:
-        raise ValueError(&quot;params must have length 3 or 4&quot;)
+    # Saturating power law (Hill form): L(n) = c + A / (1 + (n/n0)^b)
+    X = np.atleast_2d(np.asarray(data_points)); n = X[:, 0].astype(float)
+    P = np.asarray(params)
+    if P.ndim == 1: P = P[None, :]
+    T, K = P.shape
+    if K not in (3, 4): raise ValueError(&quot;params must have length 3 or 4 per target&quot;)
+    c = P[:, 0][None, :]
+    A = P[:, 1][None, :]
+    b = P[:, 2][None, :]
+    n0 = (P[:, 3][None, :] if K == 4 else np.ones((1, T)))
+    ns = np.maximum(n[:, None], 1e-12)
+    n0s = np.maximum(n0, 1e-12)
+    z = np.clip(b * (np.log(ns) - np.log(n0s)), -50.0, 50.0)
+    pred = c + A / (1.0 + np.exp(z))
     return pred[:, 0] if pred.shape[1] == 1 else pred
 
 def fit_scaling_law(data_points, loss_values):
-    X = np.atleast_2d(np.asarray(data_points, float)); n = X[:, 0]
-    y = np.asarray(loss_values, float); Y = y[:, None] if y.ndim == 1 else y
-    N, T = Y.shape
-    logn = np.log(np.maximum(n, 1e-300))
-    nmin, nmax = float(np.min(n)), float(np.max(n))
-    gm = float(np.exp(np.mean(np.log(np.maximum(n, 1.0)))))
+    X = np.atleast_2d(np.asarray(data_points)); n = X[:, 0].astype(float)
+    y = np.asarray(loss_values); Y = y[:, None] if y.ndim == 1 else y
+    N, T = Y.shape; ln = np.log(np.maximum(n, 1e-12))
 
-    lb = np.array([0.1, np.log(1e-8), np.log(10.0), np.log(0.05)])
-    ub = np.array([10.0, np.log(10.0), np.log(1e7), np.log(2.5)])
+    def huber(r, d):
+        a = np.abs(r); m = np.minimum(a, d); return 0.5 * m * m + d * (a - m)
+    def dhuber(r, d):
+        a = np.abs(r); return np.where(a &lt;= d, r, d * np.sign(r))
 
-    lam = 0.02
-    idx = np.argsort(n); logn_s = logn[idx]
-
-    params_all = np.zeros((T, 4), float)
-
+    out = []
+    ln_geo = float(np.mean(ln))
     for t in range(T):
-        yt = Y[:, t]
+        yt = Y[:, t].astype(float)
         ymin, ymax = float(np.min(yt)), float(np.max(yt))
-        Linf0 = np.clip(ymin - 0.05, lb[0], ub[0])
-        A0 = np.clip(max(0.1, ymax - Linf0), np.exp(lb[1]), np.exp(ub[1]))
+        c0 = max(np.percentile(yt, 5), 0.0)
+        A0 = max(np.percentile(yt, 95) - c0, 1e-3)
 
-        u = (yt - Linf0) / max(A0, 1e-8)
-        u = np.clip(u, 1e-4, 1.0 - 1e-4)
-        zlin = np.log(u) - np.log1p(-u)
-        w = (n / nmax) ** 0.4
-        wls = np.sqrt(np.maximum(w, 1e-3))
-        Xlin = np.vstack([logn, np.ones_like(logn)]).T
-        alpha0, n00 = 0.6, gm
+        # Linearize to estimate b, n0
+        diff = np.maximum(yt - c0, 1e-8)
+        s = np.maximum(A0 / diff - 1.0, 1e-8)
+        S = np.log(s)
+        Xls = np.vstack([ln, np.ones_like(ln)]).T
         try:
-            Xw = Xlin * wls[:, None]; zw = zlin * wls
-            slope, intercept = np.linalg.lstsq(Xw, zw, rcond=None)[0]
-            slope, intercept = float(slope), float(intercept)
-            alpha0 = float(np.clip(-slope if np.isfinite(slope) else 0.6, np.exp(lb[3]), np.exp(ub[3])))
-            n00 = float(np.clip(np.exp(intercept / max(alpha0, 1e-6)) if np.isfinite(intercept) else gm,
-                                np.exp(lb[2]), np.exp(ub[2])))
+            sol, _, _, _ = np.linalg.lstsq(Xls, S, rcond=None)
+            b0 = max(sol[0], 1e-3)
+            ln_n0 = -sol[1] / max(b0, 1e-8)
+            n00 = float(np.exp(ln_n0))
         except Exception:
-            pass
+            b0 = 0.5
+            n00 = float(np.exp(ln_geo))
+        if not np.isfinite(n00) or n00 &lt;= 0: n00 = float(np.exp(ln_geo))
 
-        ymid = Linf0 + 0.5 * A0
-        n0_mid = float(np.clip(n[int(np.argmin(np.abs(yt - ymid)))], 10.0, 1e7))
+        # Coordinate LS refine c0, A0 given b0, n00
+        phi = 1.0 / (1.0 + np.exp(np.clip(b0 * (ln - np.log(max(n00, 1e-12))), -50.0, 50.0)))
+        D = np.vstack([np.ones_like(phi), phi]).T
+        try:
+            sol_ca, _, _, _ = np.linalg.lstsq(D, yt, rcond=None)
+            c0 = max(float(sol_ca[0]), 0.0)
+            A0 = max(float(sol_ca[1]), 1e-6)
+        except Exception:
+            c0 = c0
+            A0 = A0
 
-        seeds = [
-            np.array([Linf0, np.log(A0), np.log(n00), np.log(alpha0)]),
-            np.array([Linf0, np.log(A0), np.log(n0_mid), np.log(max(alpha0 * 0.8, 0.1))]),
-            np.array([Linf0, np.log(A0), np.log(gm), np.log(0.5)]),
-            np.array([min(9.9, Linf0 + 0.15), np.log(min(1.2 * A0, 10.0)), np.log(max(nmax / 3.0, 10.0)), np.log(1.1)]),
-            np.array([max(0.1, Linf0 - 0.15), np.log(max(0.7 * A0, 0.1)), np.log(max(nmin, 10.0)), np.log(0.3)]),
+        starts = [
+            (c0, A0, b0, n00),
+            (max(ymin - 0.05, 0.0), max(ymax - max(ymin - 0.05, 0.0), 1e-3), 1.0, n00)
         ]
 
-        def resid_z(theta_z):
-            Lf, a, b, c = np.clip(theta_z, lb, ub)
-            A = np.exp(a); alpha = np.exp(c); ln0 = b
-            r = np.exp(np.clip(alpha * (logn - ln0), -700, 700))
-            pred = Lf + A / (1.0 + r)
-            main = wls * (pred - yt)
-            r2 = np.exp(np.clip(alpha * (logn_s - ln0), -700, 700))
-            pred_s = Lf + A / (1.0 + r2)
-            pen = lam * np.maximum(pred_s[1:] - pred_s[:-1], 0.0)
-            return np.concatenate([main, pen])
+        def pack(p): c, A, b, n0 = p; return np.log([c + 1e-12, A + 1e-12, b + 1e-12, n0 + 1e-12])
+        def unpack(u): return np.exp(u[0]), np.exp(u[1]), np.exp(u[2]), np.exp(u[3])
 
-        best_cost, best_z = np.inf, np.clip(seeds[0], lb, ub)
-        for x0 in seeds:
-            try:
-                res = least_squares(resid_z, np.clip(x0, lb, ub),
-                                    bounds=(lb, ub), loss=&#x27;soft_l1&#x27;, f_scale=0.5, max_nfev=1500)
-                if res.cost &lt; best_cost and np.all(np.isfinite(res.x)):
-                    best_cost, best_z = res.cost, res.x
-            except Exception:
-                continue
+        md = 1.4826 * np.median(np.abs(yt - np.median(yt)))
+        d = max(0.02, 0.5 * md)
 
-        if not np.isfinite(best_cost) or best_cost &gt; 1e3:
-            lb3 = np.array([0.1, np.log(1e-8), np.log(1e-4)])
-            ub3 = np.array([10.0, np.log(10.0), np.log(3.0)])
-            def resid3(th):
-                Lf, a, c = th
-                A = np.exp(a); alpha = np.exp(c)
-                e = np.exp(np.clip(-alpha * logn, -700, 700))
-                return (Lf + A * e) - yt
-            x03 = np.clip(np.array([Linf0, np.log(A0), np.log(alpha0)]), lb3, ub3)
-            try:
-                r3 = least_squares(resid3, x03, bounds=(lb3, ub3), loss=&#x27;soft_l1&#x27;, f_scale=0.5, max_nfev=800)
-                seed_ref = np.array([r3.x[0], r3.x[1], np.log(gm), np.clip(r3.x[2], lb[3], ub[3])])
-                res = least_squares(resid_z, np.clip(seed_ref, lb, ub),
-                                    bounds=(lb, ub), loss=&#x27;soft_l1&#x27;, f_scale=0.5, max_nfev=1200)
-                if np.all(np.isfinite(res.x)):
-                    best_z = res.x
-            except Exception:
-                pass
+        def obj_grad(u):
+            c, A, b, n0 = unpack(u)
+            ln0 = np.log(max(n0, 1e-12))
+            z = np.clip(b * (ln - ln0), -50.0, 50.0)
+            s = np.exp(z); den = 1.0 + s
+            pred = c + A / den
+            r = pred - yt
+            w = dhuber(r, d) / max(1, len(r))
+            dl = (ln - ln0)
+            g_c = np.ones_like(r)
+            g_A = 1.0 / den
+            g_b = -A * s * dl / (den * den)
+            g_n0 = A * s * b / (den * den * max(n0, 1e-12))
+            val = float(np.mean(huber(r, d)))
+            g = np.array([np.sum(w * g_c) * c,
+                          np.sum(w * g_A) * A,
+                          np.sum(w * g_b) * b,
+                          np.sum(w * g_n0) * n0], dtype=float)
+            return val, g
 
-        def mse_obj(z):
-            zc = np.clip(z, lb, ub)
-            r = resid_z(zc)
-            return float(np.mean(r * r))
+        best_u, best_v = None, np.inf
+        for p0 in starts:
+            u0 = pack(p0); v0, _ = obj_grad(u0)
+            if v0 &lt; best_v: best_v, best_u = v0, u0
 
-        try:
-            res2 = minimize(mse_obj, best_z, method=&#x27;L-BFGS-B&#x27;, bounds=list(zip(lb, ub)))
-            if res2.success and np.isfinite(res2.fun):
-                best_z = res2.x
-        except Exception:
-            pass
+        res = minimize(lambda u: obj_grad(u)[0], best_u, jac=lambda u: obj_grad(u)[1],
+                       method=&quot;L-BFGS-B&quot;, options={&quot;maxiter&quot;: 400, &quot;ftol&quot;: 1e-9})
+        u = res.x if res.success else best_u
+        out.append(list(unpack(u)))
 
-        L_inf = best_z[0]; A = float(np.exp(best_z[1])); n0 = float(np.exp(best_z[2])); alpha = float(np.exp(best_z[3]))
-        params_all[t, :] = np.array([L_inf, A, n0, alpha])
-
-    return params_all[0] if T == 1 else params_all
+    P = np.asarray(out)
+    return P[0] if P.shape[0] == 1 else P
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#2</span>
-              <span class="run-label">Run 3</span>
-              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.994167 </span>
+              <span class="run-label">Run 4</span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.999255 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -485,161 +465,104 @@ def fit_scaling_law(data_points, loss_values):
               </div>
               <pre><code class="language-python" id="code-1"># EVOLVE-BLOCK-START
 import numpy as np
-from scipy.optimize import minimize
+from scipy.optimize import least_squares
 
-def _ensure_2d(a):
-    a = np.asarray(a)
-    return a if a.ndim == 2 else a.reshape(-1, 1)
-
+# L(N) = c + a / (1 + exp(p*(log(N) - log(b)))), params: [a,b,p,c] &gt;= 0
 def scaling_law_func(data_points, params):
-    # L + B / (1 + (x/s)^a) with stable exponentiation
-    X = _ensure_2d(data_points)
-    x = X[:, 0][:, None].astype(float)
-    p = np.asarray(params, dtype=float)
-    if p.ndim == 1:
-        p = p[None, :]
-    T, P = p.shape
-    L = p[:, 0][None, :]
-    B = (p[:, 1][None, :] if P &gt; 1 else np.ones((1, T)))
-    a = (p[:, 2][None, :] if P &gt; 2 else np.full((1, T), 0.5))
-    s = (p[:, 3][None, :] if P &gt; 3 else np.ones((1, T)))
-    B = np.maximum(B, 1e-12)
-    a = np.maximum(a, 1e-12)
-    s = np.maximum(s, 1e-12)
-    u = np.log(np.maximum(x, 1e-12)) - np.log(s)
-    z = np.exp(np.clip(a * u, -60.0, 60.0))
-    g = 1.0 / (1.0 + z)
-    pred = L + B * g
-    return pred[:, 0] if pred.shape[1] == 1 else pred
+    X = np.atleast_2d(np.asarray(data_points)); x = X[:, 0].astype(float)
+    P = np.asarray(params, dtype=float); 
+    if P.ndim == 1: P = P[None, :]
+    a = np.maximum(P[:, 0], 0.0)
+    b = np.maximum(P[:, 1], 1e-12)
+    p = np.maximum(P[:, 2], 1e-8)
+    c = np.maximum(P[:, 3], 0.0)
+    lx = np.log(np.maximum(x, 1.0))[:, None]
+    t = p[None, :] * (lx - np.log(b)[None, :])
+    s = 1.0 / (1.0 + np.exp(np.clip(t, -60.0, 60.0)))
+    y = c[None, :] + a[None, :] * s
+    return y[:, 0] if y.shape[1] == 1 else y
 
 def fit_scaling_law(data_points, loss_values):
-    X = _ensure_2d(data_points)
-    y = np.asarray(loss_values, dtype=float)
-    Y = y[:, None] if y.ndim == 1 else y
-    x = X[:, 0].astype(float)
-    xmin, xmax = float(np.min(x)), float(np.max(x))
+    X = np.atleast_2d(np.asarray(data_points)); x = X[:, 0].astype(float)
+    Y = np.asarray(loss_values); Y = Y[:, None] if Y.ndim == 1 else Y
+    T = Y.shape[1]
+    lx = np.log(np.maximum(x, 1.0))
+    gm = float(np.exp(np.mean(lx)))
+    w = np.sqrt(np.log1p(x) / np.maximum(np.mean(np.log1p(x)), 1e-12))
+    sp = lambda v: np.log1p(np.exp(v))
+    isp = lambda wv: np.log(np.expm1(np.maximum(float(wv), 1e-12)))
+    sig = lambda u: 1.0 / (1.0 + np.exp(-u))
 
-    def init_params(xv, yv):
-        ymin, ymax = float(np.min(yv)), float(np.max(yv))
-        rng = max(ymax - ymin, 1e-8)
-        best = (np.inf, None)
-        xs = np.log(np.maximum(xv, 1.0))
-        for f in (0.0, 0.05, 0.15):
-            L0 = float(np.clip(ymin - f * rng, ymin - 1.0, ymin - 1e-3))
-            z = np.log(np.maximum(yv - L0, 1e-12))
-            xm, zm = xs.mean(), z.mean()
-            den = np.sum((xs - xm) ** 2) + 1e-12
-            m = np.sum((xs - xm) * (z - zm)) / den
-            b = zm - m * xm
-            a0 = max(-m, 1e-6)
-            A0 = float(np.exp(b))
-            B0 = max(ymax - L0, 1e-6)
-            s0 = float(np.clip((A0 / B0) ** (1.0 / a0), xmin, xmax))
-            for sf in (0.5, 1.0, 2.0):
-                p0 = np.array([L0, B0, a0, np.clip(s0 * sf, xmin, xmax)], dtype=float)
-                mse = np.mean((scaling_law_func(xv.reshape(-1, 1), p0) - yv) ** 2)
-                if mse &lt; best[0]:
-                    best = (mse, p0)
-        return best[1]
+    R = np.zeros((T, 4))
+    order = np.argsort(x); top = order[max(0, int(0.7 * len(x))):]
 
-    def fit_one(yv):
-        p0 = init_params(x, yv)
-        th0 = np.array([
-            p0[0],
-            np.log(max(p0[1], 1e-12)),
-            np.log(max(p0[2], 1e-12)),
-            np.log(max(p0[3], 1e-12))
-        ], dtype=float)
-        rng = float(np.max(yv) - np.min(yv))
-        d1 = max(0.1 * rng, 1e-3)
-        d2 = 0.25  # relative residual scale
-        w1, w2 = 0.5, 0.5
-        epsD = 1e-6
+    for t in range(T):
+        y = Y[:, t]
+        c0 = float(np.median(y[top])) if top.size else float(np.min(y))
+        c0 = max(0.0, c0)
+        a0 = max(1e-3, float(np.max(y) - c0))
+        eps = 1e-8
+        m = y &gt; c0 + eps
+        if np.count_nonzero(m) &gt;= 2:
+            s = float(np.cov(lx[m], np.log(np.maximum(y[m] - c0, eps)), bias=True)[0, 1] / np.maximum(np.var(lx[m]), 1e-12))
+            p0 = float(np.clip(-s, 0.05, 4.0))
+        else:
+            p0 = 0.25
+        target = c0 + 0.5 * a0
+        b0 = float(np.clip(x[int(np.argmin(np.abs(y - target)))], 1.0, np.max(x))) if np.isfinite(target) else gm
 
-        def obj_grad(th):
-            L, lb, la, ls = th
-            B = np.exp(lb); a = np.exp(la); s = np.exp(ls)
-            B = max(B, 1e-12); a = max(a, 1e-12); s = max(s, 1e-12)
-            u = np.log(np.maximum(x, 1e-12)) - ls
-            au = np.clip(a * u, -60.0, 60.0)
-            z = np.exp(au)
-            g = 1.0 / (1.0 + z)
-            G = B * g
-            pred = L + G
-            r = pred - yv
-            # pseudo-Huber on absolute residual
-            q1 = np.sqrt(1.0 + (r / d1) ** 2)
-            loss1 = d1 * d1 * (np.mean(q1 - 1.0))
-            coeff1 = r / q1
-            # relative residual wrt (y - L), with clipping for stability
-            D = np.maximum(yv - L, epsD)
-            rr = r / D
-            q2 = np.sqrt(1.0 + (rr / d2) ** 2)
-            loss2 = d2 * d2 * (np.mean(q2 - 1.0))
-            coeff2 = (rr / q2)
-            # derivatives
-            dg_dlb = g * B  # via dB/dlb
-            dg_dla = -B * a * g * g * z * u
-            dg_dls =  B * a * g * g * z
-            dr_dL  = 1.0
-            dr_dlb = dg_dlb
-            dr_dla = dg_dla
-            dr_dls = dg_dls
-            # grad absolute
-            grad_L  = np.mean(coeff1 * dr_dL)
-            grad_lb = np.mean(coeff1 * dr_dlb)
-            grad_la = np.mean(coeff1 * dr_dla)
-            grad_ls = np.mean(coeff1 * dr_dls)
-            # grad relative
-            drr_dL  = G / (D * D)
-            drr_dlb = dr_dlb / D
-            drr_dla = dr_dla / D
-            drr_dls = dr_dls / D
-            grad_L  = w1 * grad_L  + w2 * np.mean(coeff2 * drr_dL)
-            grad_lb = w1 * grad_lb + w2 * np.mean(coeff2 * drr_dlb)
-            grad_la = w1 * grad_la + w2 * np.mean(coeff2 * drr_dla)
-            grad_ls = w1 * grad_ls + w2 * np.mean(coeff2 * drr_dls)
-            # regularization on transformed params to prevent extremes
-            reg = 1e-8 * (lb * lb + la * la + ls * ls)
-            grad_lb += 2e-8 * lb
-            grad_la += 2e-8 * la
-            grad_ls += 2e-8 * ls
-            loss = w1 * loss1 + w2 * loss2 + reg
-            return loss, np.array([grad_L, grad_lb, grad_la, grad_ls], dtype=float)
+        inits = [
+            (a0, b0, p0, c0),
+            (a0 * 0.7, b0 * 0.5, max(0.05, p0 * 0.8), c0),
+            (a0 * 1.3, b0 * 2.0, p0 * 1.2, c0),
+            (a0, b0 * 4.0, max(0.1, p0 * 0.6), c0 * 0.9),
+        ]
 
-        def run_opt(th_start):
-            res = minimize(lambda th: obj_grad(th)[0], th_start, method=&quot;L-BFGS-B&quot;,
-                           jac=lambda th: obj_grad(th)[1])
-            return res.x if res.success else th_start
+        best_x, best_c = None, np.inf
 
-        # multi-start around s and a for robustness
-        starts = [th0,
-                  th0 + np.array([0.0, 0.0, np.log(1.2), 0.0]),
-                  th0 + np.array([0.0, 0.0, np.log(0.8), 0.0]),
-                  th0 + np.array([0.0, 0.0, 0.0,  np.log(1.5)]),
-                  th0 + np.array([0.0, 0.0, 0.0,  np.log(0.67)])]
-        best = (np.inf, None)
-        for st in starts:
-            th = run_opt(st)
-            val = obj_grad(th)[0]
-            if val &lt; best[0]:
-                best = (val, th)
-        th = best[1]
-        return np.array([th[0], float(np.exp(th[1])), float(np.exp(th[2])), float(np.exp(th[3]))], dtype=float)
+        for a, b, p, c in inits:
+            u0 = np.array([isp(a), np.log(b), isp(p), isp(c)])
 
-    out = np.vstack([fit_one(Y[:, t]) for t in range(Y.shape[1])])
-    return out[0] if Y.shape[1] == 1 else out
+            def resid(u):
+                aa, bb, pp, cc = sp(u[0]), np.exp(u[1]), sp(u[2]), sp(u[3])
+                return w * (scaling_law_func(X, [aa, bb, pp, cc]) - y)
+
+            def jac(u):
+                u0_, u1_, u2_, u3_ = u
+                aa, pp = sp(u0_), sp(u2_)
+                lb = u1_
+                t = pp * (lx - lb)
+                s_ = 1.0 / (1.0 + np.exp(np.clip(t, -60.0, 60.0)))
+                dsdt = -s_ * (1.0 - s_)
+                J = np.empty((x.size, 4))
+                J[:, 0] = w * sig(u0_) * s_
+                J[:, 1] = w * (aa * pp * s_ * (1.0 - s_))
+                J[:, 2] = w * (aa * dsdt * sig(u2_) * (lx - lb))
+                J[:, 3] = w * sig(u3_)
+                return J
+
+            res = least_squares(resid, u0, jac=jac, loss=&#x27;soft_l1&#x27;, f_scale=0.5, max_nfev=2000)
+            cost = float(np.mean(res.fun ** 2))
+            if cost &lt; best_c and np.all(np.isfinite(res.x)):
+                best_c, best_x = cost, res.x
+
+        if best_x is None:
+            a, b, p, c = inits[0]
+        else:
+            a = sp(best_x[0]); b = np.exp(best_x[1]); p = sp(best_x[2]); c = sp(best_x[3])
+        R[t] = [a, b, p, c]
+
+    return R[0] if T == 1 else R
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#3</span>
-              <span class="run-label">Run 1</span>
-              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.992402 </span>
+              <span class="run-label">Run 2</span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.999208 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -654,93 +577,98 @@ import numpy as np
 from scipy.optimize import minimize
 
 def scaling_law_func(data_points, params):
-    X = np.atleast_2d(np.asarray(data_points)); s = X[:,0].astype(float)
-    p = np.asarray(params); 
-    if p.ndim == 1: p = p[None,:]
-    T, P = p.shape
-    L = p[:,0]
-    A = p[:,1] if P&gt;1 else np.ones(T)
-    a = p[:,2] if P&gt;2 else 0.5*np.ones(T)
-    C = p[:,3] if P&gt;3 else np.ones(T)
-    s0 = 1024.0
-    sn = np.maximum(s[:,None]/s0, 1e-12)
-    lg = np.log(sn)
-    powt = np.exp(np.clip(a[None,:],1e-9,10.0)*(lg - np.log(np.maximum(C[None,:],1e-12))))
-    y = L[None,:] + A[None,:]/(1.0 + powt)
-    return y[:,0] if y.shape[1]==1 else y
+    X = np.atleast_2d(np.asarray(data_points))
+    n = X[:, 0].astype(float)
+    p = np.asarray(params)
+    if p.ndim == 1:
+        p = p[None, :]
+    if p.shape[1] &lt; 4:
+        p = np.pad(p, ((0, 0), (0, 4 - p.shape[1])), &#x27;constant&#x27;)
+    L, A, a, n1 = p[:, 0], p[:, 1], p[:, 2], p[:, 3]
+    n_safe = np.maximum(n, 1e-12)
+    n1 = np.maximum(n1, 1e-12)
+    m = (n_safe[:, None] / n1[None, :])
+    y = L[None, :] + A[None, :] / (1.0 + np.power(m, np.maximum(a[None, :], 1e-8)))
+    return y[:, 0] if y.shape[1] == 1 else y
 
 def fit_scaling_law(data_points, loss_values):
-    s = np.atleast_2d(np.asarray(data_points))[:,0].astype(float)
-    y = np.asarray(loss_values).astype(float)
-    Y = y[:,None] if y.ndim==1 else y
-    T = Y.shape[1]
-    s0 = 1024.0
-    sn = np.maximum(s/s0, 1e-12)
-    lg = np.log(sn)
+    X = np.atleast_2d(np.asarray(data_points))
+    n = X[:, 0].astype(float)
+    y = np.asarray(loss_values)
+    Y = y[:, None] if y.ndim == 1 else y
+    N, T = Y.shape
 
-    def phuber(r,d): return d*d*(np.sqrt(1.0 + (r/d)**2) - 1.0)
+    lb, ub = 0.5, 6.0
+    eps = 1e-12
+    w = np.log1p(n)
+    w = w / (np.sum(w) + eps)
 
-    def init_one(yt):
-        a_grid = np.array([0.1,0.2,0.3,0.5,0.8,1.0,1.3,1.6])
-        C_grid = np.array([0.25,0.5,1.0,2.0,4.0,8.0,16.0,32.0,64.0,128.0,256.0])
-        best = None
-        for a in a_grid:
-            for C in C_grid:
-                f = 1.0/(1.0 + np.exp(a*(lg - np.log(C))))
-                D = np.stack([np.ones_like(f), f], 1)
-                try:
-                    sol,_,_,_ = np.linalg.lstsq(D, yt, rcond=None)
-                    L0,A0 = float(sol[0]), float(sol[1])
-                except Exception:
-                    L0,A0 = max(yt.min(),0.0), 1.0
-                pred = L0 + A0*f
-                sse = np.mean((pred - yt)**2)
-                if (best is None) or (sse &lt; best[0]): best = (sse,L0,A0,a,C)
-        return np.array([best[1],best[2],best[3],best[4]], float)
+    def hub(r, d=0.25):
+        ar = np.abs(r)
+        return np.where(ar &lt;= d, 0.5 * r * r, d * (ar - 0.5 * d))
 
-    def fit_one(yt):
-        p0 = init_one(yt)
-        r0 = scaling_law_func(s[:,None], p0) - yt
-        mad = np.median(np.abs(r0 - np.median(r0))) if r0.size else 0.0
-        d = float(np.clip(1.4826*mad, 0.1, 0.5))
-        bnds = ((0.0,10.0),(1e-9,10.0),(1e-3,3.0),(1e-6,1e6))
-        def obj(p):
-            yhat = scaling_law_func(s[:,None], p)
-            r = yhat - yt
-            l1 = np.mean(phuber(r,d))
-            gt = np.maximum(yt - p[0], 1e-8)
-            gp = np.maximum(yhat - p[0], 1e-8)
-            l2 = np.mean((np.log(gt)-np.log(gp))**2)
-            dy = np.diff(yhat)
-            mono = np.mean(np.square(np.maximum(dy,0.0))) if dy.size else 0.0
-            return l1 + 0.1*l2 + 1e-4*mono + 1e-8*np.sum(p*p)
-        starts = [
-            p0,
-            np.array([p0[0],p0[1],p0[2]*0.8,p0[3]],float),
-            np.array([p0[0],p0[1],p0[2]*1.2,max(p0[3]*0.5,1e-6)],float),
-            np.array([p0[0],p0[1],p0[2],p0[3]*2.0+1e-6],float),
+    def pack(L, A, a, n1):
+        z = np.clip((L - lb) / (ub - lb), 1e-6, 1 - 1e-6)
+        t0 = np.log(z) - np.log1p(-z)
+        return np.array([t0, np.log(max(A, 1e-12)), np.log(max(a, 1e-12)), np.log(max(n1, 1e-12))])
+
+    def unpack(t):
+        z = 1.0 / (1.0 + np.exp(-t[0]))
+        L = lb + (ub - lb) * z
+        return L, np.exp(t[1]), np.exp(t[2]), np.exp(t[3])
+
+    def obj(th, yy):
+        L, A, a, n1 = unpack(th)
+        pred = scaling_law_func(n[:, None], [L, A, a, n1])
+        r = pred - yy
+        return np.sum(w * hub(r)) + 1e-6 * (th[1]**2 + th[2]**2 + th[3]**2)
+
+    P = np.zeros((T, 4))
+    order = np.argsort(n)
+    high_idx = order[-max(3, N // 4):]
+
+    for t in range(T):
+        yy = Y[:, t]
+        L0 = float(np.clip(np.percentile(yy[high_idx], 30), lb, ub))
+        A0 = float(np.clip(np.percentile(yy, 95) - L0, 1e-3, 10.0))
+
+        r = np.clip(yy - L0, 1e-6, A0 - 1e-6)
+        z = np.clip(A0 / r - 1.0, 1e-6, 1e6)
+        ln_n = np.log(np.maximum(n, 1.0))
+        ln_z = np.log(z)
+
+        try:
+            a_est, b_est = np.polyfit(ln_n, ln_z, 1)
+            a0 = float(np.clip(a_est, 0.05, 2.5))
+            n10 = float(np.clip(np.exp(-b_est / max(a0, 1e-8)), 100.0, 1e7))
+        except Exception:
+            a0, n10 = 0.3, 3e3
+
+        seeds = [
+            pack(L0, A0, a0, n10),
+            pack(L0 * 0.98, A0 * 1.2, max(0.07, a0 * 0.8), n10 * 0.7),
+            pack(L0 * 1.02, A0 * 0.8, min(2.2, a0 * 1.25), n10 * 1.6),
+            pack(np.clip(np.min(yy), lb, ub), A0 * 0.6, 0.4, np.exp(np.mean(np.log(np.maximum(n, 1.0)))))
         ]
-        best = None
-        for st in starts:
-            res = minimize(obj, st, method=&#x27;L-BFGS-B&#x27;, bounds=bnds, options={&#x27;maxiter&#x27;:300})
-            cand = res.x if res.success else st
-            val = obj(cand)
-            if (best is None) or (val &lt; best[0]): best = (val,cand)
-        return best[1]
-
-    P = np.vstack([fit_one(Y[:,t]) for t in range(T)])
-    return P[0] if T==1 else P
+        best, bestv = seeds[0], np.inf
+        for s0 in seeds:
+            res = minimize(obj, s0, args=(yy,), method=&#x27;L-BFGS-B&#x27;, options={&#x27;maxiter&#x27;: 300})
+            th = res.x if res.success else s0
+            v = obj(th, yy)
+            if v &lt; bestv:
+                bestv, best = v, th
+        P[t] = np.array(unpack(best))
+    return P[0] if T == 1 else P
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#4</span>
-              <span class="run-label">Run 2</span>
-              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.992212 </span>
+              <span class="run-label">Run 3</span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.998872 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -754,153 +682,45 @@ def fit_scaling_law(data_points, loss_values):
 import numpy as np
 from scipy.optimize import minimize
 
-_NS = 1000.0  # normalization for data_size
+_S_REF=1e3
 
-def scaling_law_func(data_points, params):
-    # L(N) = L_inf + A / (1 + (k * (N/_NS))^alpha)
-    X = np.atleast_2d(np.asarray(data_points))
-    n = X[:, 0] / _NS
-    p = np.asarray(params)
-    if p.ndim == 1: p = p[None, :]
-    T, P = p.shape
-    L, A, alpha = p[:, 0], p[:, 1], p[:, 2]
-    k = p[:, 3] if P &gt; 3 else np.ones(T)
-    k = np.maximum(k, 0.0)
-    base = np.maximum(k[None, :] * n[:, None], 1e-12)
-    t = np.exp(alpha[None, :] * np.log(base))
-    phi = 1.0 / (1.0 + t)
-    pred = L[None, :] + A[None, :] * phi
-    return pred[:, 0] if pred.shape[1] == 1 else pred
+def scaling_law_func(data_points,params):
+    s=np.asarray(data_points,float).ravel();p=np.asarray(params,float).ravel()
+    L=p[0];A=p[1]if p.size&gt;1 else 1.;a=p[2]if p.size&gt;2 else .3;s0=p[3]if p.size&gt;3 else 0.
+    z=np.maximum(s/_S_REF+s0,1e-12)
+    return L+A*z**(-a)
 
-def fit_scaling_law(data_points, loss_values):
-    X = np.atleast_2d(np.asarray(data_points))
-    y = np.asarray(loss_values)
-    n = X[:, 0] / _NS
-    Y = y[:, None] if y.ndim == 1 else y
-    N, T = Y.shape
-
-    bounds = [(0.5, 6.0), (1e-6, 20.0), (0.01, 2.5), (1e-6, 10.0)]
-    lam, eps = 0.20, 1e-8
-    results = []
-
-    def ls_LA(phi, yt):
-        Xd = np.vstack((np.ones_like(phi), phi)).T
-        XtX = Xd.T @ Xd
-        XtY = Xd.T @ yt
-        XtX[0, 0] += 1e-12
-        XtX[1, 1] += 1e-12
-        sol = np.linalg.solve(XtX, XtY)
-        return float(sol[0]), float(sol[1])
-
-    for t_idx in range(T):
-        yt = Y[:, t_idx]
-        order = np.argsort(n)
-        ns, ys = n[order], yt[order]
-        tail = max(3, int(0.25 * N))
-        tail_mean = float(np.mean(ys[-tail:]))
-
-        # L_inf candidates near empirical floor
-        Lc = [np.clip(np.min(yt) - 0.05, bounds[0][0], bounds[0][1]),
-              np.clip(tail_mean - 0.02, bounds[0][0], bounds[0][1]),
-              np.clip(tail_mean - 0.15, bounds[0][0], bounds[0][1])]
-
-        # k grid from inverse quantiles plus log-spaced coverage
-        qs = np.clip(np.percentile(n, [10, 30, 50, 70, 90]), 1e-6, None)
-        k_grid = np.unique(np.clip(1.0 / qs, bounds[3][0], bounds[3][1]))
-        k_grid = np.concatenate((k_grid, np.exp(np.linspace(np.log(1e-3), np.log(8.0), 6))))
-        k_grid = np.clip(k_grid, bounds[3][0], bounds[3][1])
-
-        # alpha candidates from heuristics and slope estimates
-        alpha_set = {0.05, 0.12, 0.25, 0.5, 0.8, 1.2}
-        for L0 in Lc:
-            resid = np.maximum(yt - L0, eps)
-            xb = np.log(np.maximum(n, eps))
-            tb = np.log(resid)
-            xm, tm = xb.mean(), tb.mean()
-            varx = np.sum((xb - xm) ** 2)
-            if varx &gt; 1e-16:
-                m = np.sum((xb - xm) * (tb - tm)) / varx
-                alpha_set.add(float(np.clip(-m, bounds[2][0], bounds[2][1])))
-        alphas = np.array(sorted(alpha_set), dtype=float)
-
-        # Multi-start: grid over (alpha, k), solve L and A by least squares
-        best_p0, best_err = None, np.inf
-        for a0 in alphas:
-            for k0 in k_grid:
-                base = np.maximum(k0 * n, 1e-12)
-                tpow = np.exp(a0 * np.log(base))
-                phi = 1.0 / (1.0 + tpow)
-                L0, A0 = ls_LA(phi, yt)
-                L0 = float(np.clip(L0, bounds[0][0], bounds[0][1]))
-                A0 = float(np.clip(A0, bounds[1][0], bounds[1][1]))
-                p0 = np.array([L0, A0, a0, k0], dtype=float)
-                err = np.mean((scaling_law_func(X, p0) - yt) ** 2)
-                if err &lt; best_err:
-                    best_err, best_p0 = err, p0
-
-        # Objective: MSE + lam * log-MSE with analytic gradients
-        def obj_grad(p):
-            L0, A0, a0, k0 = p
-            base = np.maximum(k0 * n, 1e-12)
-            s = np.log(base)
-            tpow = np.exp(a0 * s)
-            phi = 1.0 / (1.0 + tpow)
-            pred = L0 + A0 * phi
-            e = pred - yt
-
-            dL = np.ones_like(n)
-            dA = phi
-            dphi_da = -(tpow * s) / (1.0 + tpow) ** 2
-            dphi_dk = -(a0 * tpow / np.maximum(k0, 1e-12)) / (1.0 + tpow) ** 2
-            da = A0 * dphi_da
-            dk = A0 * dphi_dk
-
-            f1 = np.mean(e * e)
-            g1 = np.array([
-                2.0 * np.mean(e * dL),
-                2.0 * np.mean(e * dA),
-                2.0 * np.mean(e * da),
-                2.0 * np.mean(e * dk)
-            ], dtype=float)
-
-            pred_s = np.maximum(pred, 1e-6)
-            lp = np.log(pred_s)
-            ly = np.log(np.maximum(yt, 1e-6))
-            r = lp - ly
-            dlp = np.vstack((dL, dA, da, dk)) / pred_s
-            f2 = np.mean(r * r)
-            g2 = 2.0 * np.mean(r[None, :] * dlp, axis=1)
-
-            return f1 + lam * f2, g1 + lam * g2
-
-        res = minimize(lambda p: obj_grad(p)[0], best_p0, method=&#x27;L-BFGS-B&#x27;,
-                       jac=lambda p: obj_grad(p)[1], bounds=bounds,
-                       options={&#x27;maxiter&#x27;: 700, &#x27;ftol&#x27;: 1e-12, &#x27;gtol&#x27;: 1e-8})
-        p_opt = res.x if res.success else best_p0
-
-        # Final linear refit of L and A given optimized (alpha,k)
-        base = np.maximum(p_opt[3] * n, 1e-12)
-        tpow = np.exp(p_opt[2] * np.log(base))
-        phi = 1.0 / (1.0 + tpow)
-        Lf, Af = ls_LA(phi, yt)
-        p_opt[0] = float(np.clip(Lf, bounds[0][0], bounds[0][1]))
-        p_opt[1] = float(np.clip(Af, bounds[1][0], bounds[1][1]))
-
-        results.append(p_opt)
-
-    params_opt = np.vstack(results)
-    return params_opt[0] if T == 1 else params_opt
+def fit_scaling_law(data_points,loss_values):
+    s=np.asarray(data_points,float).ravel();y=np.asarray(loss_values,float).ravel()
+    x=np.maximum(s/_S_REF,1e-12);sc=max(np.std(y),.1);w=1./(np.abs(y)+.5)
+    def up(t):return np.array([t[0],np.exp(t[1]),np.exp(t[2]),np.exp(t[3])],float)
+    def mk(Lm,s0):
+        L0=max(0.,float(np.min(y))-Lm);ya=np.maximum(y-L0,1e-8)
+        lx,ly=np.log(x+s0),np.log(ya)
+        if np.all(np.isfinite(lx))and np.all(np.isfinite(ly)):
+            b,c=np.polyfit(lx,ly,1);a0=max(1e-3,-float(b));A0=float(np.exp(c))
+        else:a0=.3;A0=max(float(np.max(y)-L0),.1)
+        return np.array([L0,np.log(A0),np.log(a0),np.log(max(s0,1e-12))],float)
+    def obj(t):
+        p=up(t);r=(scaling_law_func(s,p)-y)*w/sc
+        return float(np.mean(np.log(np.cosh(r)))+1e-6*(t[2]*t[2]+t[3]*t[3]))
+    bv=np.inf;bt=None
+    for s0 in(0.,.02,.05,.1,.3,1.):
+        for Lm in(.05,.2):
+            t0=mk(Lm,s0);res=minimize(obj,t0,method=&#x27;L-BFGS-B&#x27;,options={&#x27;maxiter&#x27;:600,&#x27;ftol&#x27;:1e-10})
+            t=res.x if res.success else t0;v=obj(t)
+            if np.isfinite(v)and v&lt;bv: bv=v;bt=t
+    return up(bt if bt is not None else mk(.1,0.))
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#5</span>
-              <span class="run-label">Run 5</span>
-              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.991851 </span>
+              <span class="run-label">Run 1</span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.998768 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -914,91 +734,91 @@ def fit_scaling_law(data_points, loss_values):
 import numpy as np
 from scipy.optimize import minimize
 
+# 4-parameter saturating power law: L(N)=L_inf + A*(1+N/N0)^(-alpha)
+# Parameters: [L_inf, b=lnA, c=lna, d=lnN0] to enforce positivity of A, alpha, N0.
 def scaling_law_func(data_points, params):
-    x = np.asarray(data_points, dtype=float).reshape(-1)
-    p = np.asarray(params, dtype=float)
-
-    def pred_single(pi):
-        L = pi[0]
-        A = np.exp(pi[1]) if pi.size &gt; 1 else 0.0
-        Nc = np.exp(pi[2]) if pi.size &gt; 2 else 1.0
-        beta = np.exp(pi[3]) if pi.size &gt; 3 else 1.0
-        lnz = beta * (np.log(x + 1e-12) - np.log(Nc))
-        z = np.exp(lnz)
-        return L + A / (1.0 + z)
-
-    if p.ndim == 1:
-        return pred_single(p)
-    else:
-        return np.column_stack([pred_single(pi) for pi in p])
+    x = np.asarray(data_points, float).reshape(-1)
+    p = np.asarray(params, float)
+    if p.ndim == 1: p = p[None, :]
+    L = p[:, 0]; A = np.exp(p[:, 1]); a = np.exp(p[:, 2]); N0 = np.exp(p[:, 3]) if p.shape[1] &gt; 3 else np.ones(len(L))
+    logz = np.log1p(x[:, None] / N0[None, :])
+    y = L[None, :] + A[None, :] * np.exp(-a[None, :] * logz)
+    return y[:, 0] if y.shape[1] == 1 else y
 
 def fit_scaling_law(data_points, loss_values):
-    x = np.asarray(data_points, dtype=float).reshape(-1)
-    y = np.asarray(loss_values, dtype=float)
+    x = np.asarray(data_points, float).reshape(-1)
+    y = np.asarray(loss_values, float)
     Y = y[:, None] if y.ndim == 1 else y
-    lnX = np.log(x + 1e-12)
     T = Y.shape[1]
+    xpos = np.clip(x, 1.0, None)
+    xmin, xmax = float(np.min(xpos)), float(np.max(xpos))
+    xg = float(np.exp(np.mean(np.log(xpos))))
+    w = (xpos / xmax) ** 0.25; w /= np.mean(w)
+
+    def pred_jac(p):
+        L, b, c, d = p
+        A = np.exp(b); a = np.exp(c); N0 = np.exp(d)
+        logz = np.log1p(x / N0)
+        t = np.exp(-a * logz)
+        yhat = L + A * t
+        dL = np.ones_like(x)
+        db = A * t
+        dc = -A * a * t * logz
+        dd = A * a * t * (x / (N0 + x))  # dy/d lnN0
+        J = np.vstack([dL, db, dc, dd]).T
+        return yhat, J
+
+    def huber(r, d):
+        a = np.abs(r); psi = np.where(a &lt;= d, r, d * np.sign(r))
+        val = np.where(a &lt;= d, 0.5 * r * r, d * (a - 0.5 * d))
+        return val, psi
+
     out = []
-
     for t in range(T):
-        yy = Y[:, t].astype(float)
-        L0 = float(np.min(yy) - 2e-2)
-        ys = yy - L0
-        if not np.all(ys &gt; 0):
-            pos = ys[ys &gt; 0]
-            floor = float(np.min(pos)) if pos.size else 1.0
-            ys[ys &lt;= 0] = floor
-        A0 = max(1e-6, 1.1 * float(np.max(ys)))
-        s = A0 / ys - 1.0
-        mask = s &gt; 1e-8
-        beta0 = 1.0
-        Nc0 = np.exp(np.mean(lnX))
-        if np.any(mask):
-            lnS = np.log(s[mask])
-            lnN = lnX[mask]
-            var_lnN = np.var(lnN) + 1e-12
-            slope = (np.cov(lnN, lnS, bias=True)[0, 1]) / var_lnN
-            if np.isfinite(slope) and slope &gt; 0:
-                beta0 = np.clip(slope, 1e-3, 5.0)
-                intercept = np.mean(lnS) - slope * np.mean(lnN)
-                lnNc = -intercept / (beta0 + 1e-12)
-                lnNc = np.clip(lnNc, np.min(lnX), np.max(lnX))
-                Nc0 = np.exp(lnNc)
+        yt = Y[:, t]
+        ymin, ymax = float(np.min(yt)), float(np.max(yt))
+        spread = max(1e-6, ymax - ymin)
+        delta = 0.1 * spread + 0.05
+        Lc = [max(0.3, ymin - 0.05), max(0.3, ymin - 0.2)]
+        N0c = [xg, np.sqrt(xmin * xmax), xmax / 5.0, max(1.0, xmin * 5.0)]
+        best_p, best_val = None, np.inf
 
-        p0 = np.array([L0, np.log(A0), np.log(Nc0), np.log(beta0)], dtype=float)
+        for L0 in Lc:
+            for N0 in N0c:
+                eps = 1e-8
+                z = np.maximum(yt - L0, eps)
+                lx = np.log1p(x / N0)
+                ly = np.log(z)
+                W = w
+                S0 = np.sum(W); Sx = np.sum(W * lx); Sy = np.sum(W * ly)
+                Sxx = np.sum(W * lx * lx); Sxy = np.sum(W * lx * ly)
+                den = max(1e-12, S0 * Sxx - Sx * Sx)
+                s = (S0 * Sxy - Sx * Sy) / den
+                b0 = (Sy * Sxx - Sx * Sxy) / den
+                a0 = max(1e-3, -float(s)); A0 = float(np.exp(b0))
+                p0 = np.array([L0, np.log(max(A0, eps)), np.log(a0), np.log(max(N0, 1.0))], float)
 
-        def obj_grad(p):
-            L, ua, un, ub = p
-            A = np.exp(ua)
-            Nc = np.exp(un)
-            beta = np.exp(ub)
-            lnz = beta * (np.log(x + 1e-12) - np.log(Nc))
-            z = np.exp(lnz)
-            dnm = 1.0 + z
-            g = 1.0 / dnm
-            pred = L + A * g
-            r = pred - yy
-            d = 0.3
-            a = np.abs(r)
-            w = np.where(a &lt;= d, r, d * np.sign(r))
-            z_over = z / (dnm * dnm)
-            safe_log = np.log(np.maximum(x / Nc, 1e-12))
-            N = x.size
-            reg = 1e-6
-            loss = np.where(a &lt;= d, 0.5 * r * r, d * (a - 0.5 * d)).mean() + reg * np.sum(p * p)
-            gL = np.mean(w)
-            gau = np.mean(w * (A * g))
-            gun = np.mean(w * (A * beta * z_over))
-            gub = np.mean(w * (-A * beta * z_over * safe_log))
-            grad = np.array([gL + 2 * reg * L, gau + 2 * reg * ua, gun + 2 * reg * un, gub + 2 * reg * ub], dtype=float)
-            return loss, grad
+                for jit in (0.0, 0.1):
+                    pj = p0 + jit * np.array([0.0, 0.1, 0.1, 0.1]) * (2.0 * np.random.rand(4) - 1.0)
 
-        res = minimize(lambda q: obj_grad(q)[0], p0, jac=lambda q: obj_grad(q)[1],
-                       method=&#x27;L-BFGS-B&#x27;, options={&#x27;maxiter&#x27;: 500, &#x27;ftol&#x27;: 1e-9})
-        out.append(res.x if res.success else p0)
+                    def obj_grad(p):
+                        yhat, J = pred_jac(p)
+                        r = yhat - yt
+                        vals, psi = huber(r, delta)
+                        val = np.sum(W * vals) / np.sum(W) + 1e-6 * (p[1] * p[1] + p[2] * p[2] + 0.5 * p[3] * p[3])
+                        g = (J.T @ (W * psi)) / np.sum(W)
+                        g[1] += 2e-6 * p[1]; g[2] += 2e-6 * p[2]; g[3] += 1e-6 * p[3]
+                        return float(val), g
 
-    P = np.vstack(out)
-    return P[0] if T == 1 else P
+                    res = minimize(lambda q: obj_grad(q)[0], pj, jac=lambda q: obj_grad(q)[1], method=&#x27;L-BFGS-B&#x27;)
+                    if res.success and np.all(np.isfinite(res.x)):
+                        fval = obj_grad(res.x)[0]
+                        if fval &lt; best_val: best_val, best_p = fval, res.x
+
+        out.append(best_p if best_p is not None else p0)
+
+    out = np.vstack(out)
+    return out[0] if out.shape[0] == 1 else out
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>

@@ -285,7 +285,7 @@
     <div class="bg-pattern"></div>
 
     <div class="container">
-      <a href="sld_index.html" class="back-link"> ← Back to Leaderboard </a>
+      <a href="index.html" class="back-link"> ← Back to Leaderboard </a>
 
       <div class="header">
         <h1>MoE Scaling Law</h1>
@@ -300,15 +300,15 @@
           </div>
           <div class="meta-item">
             <span class="meta-label">Best R²:</span>
-            <span class="r2-badge" style="background-color: #228b22; color: white"> 0.850315 </span>
+            <span class="r2-badge" style="background-color: #006400; color: white"> 0.958443 </span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Mean R²:</span>
-            <span class="meta-value">0.844292</span>
+            <span class="meta-value">0.957975</span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Min R²:</span>
-            <span class="meta-value">0.841581</span>
+            <span class="meta-value">0.957176</span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Runs:</span>
@@ -320,12 +320,13 @@
       <h2 class="section-title">All Runs (sorted by R²)</h2>
 
       <div class="runs-container">
+
         <div class="run-card best-run">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge best-badge">Best</span>
-              <span class="run-label">Run 3</span>
-              <span class="r2-badge" style="background-color: #228b22; color: white"> R² = 0.850315 </span>
+              <span class="run-label">Run 2</span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.958443 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -335,174 +336,202 @@
                 <span>Python</span>
                 <button class="copy-btn" onclick="copyCode(event, 'code-0')">Copy</button>
               </div>
-              <pre><code class="language-python" id="code-0">import numpy as np
-from scipy.optimize import minimize
+              <pre><code class="language-python" id="code-0"># EVOLVE-BLOCK-START
+&quot;&quot;&quot;
+Scaling law discovery for LLM finetuning scenarios
+Improved program using Variable Projection with Regularized NNLS.
+Model: L = c0 + c1 * N^-a1 + c2 * N^-a2 * E^-beta
+Inputs N and E are normalized to [0, 1] range to improve numerical conditioning 
+of the optimization problem. The linear coefficients are solved using regularized 
+Non-Negative Least Squares to handle collinearity and prevent overfitting.
+&quot;&quot;&quot;
+import numpy as np
+from scipy.optimize import least_squares, nnls
 
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    Computes validation loss using an additive MoE scaling law.
-    L = p0 + p1*N^(-p2) + p3*N^(-p5)*E^(-p4)
+    Predicts validation loss.
+    Model: L = c0 + c1 * N^(-a1) + c2 * N^(-a2) * E^(-beta)
     
-    Interpretation:
-    - p0: Irreducible loss (Bias).
-    - p1*N^(-p2): Asymptotic loss for a model of size N with infinite experts.
-    - p3*N^(-p5)*E^(-p4): The &#x27;gap&#x27; or overhead due to finite experts. 
-      Increasing E reduces this term, improving loss.
+    N is normalized by 1e9.
+    E is normalized by 64.0.
+    
+    Params: [c0, c1, a1, c2, a2, beta]
     &quot;&quot;&quot;
-    # data_points: (N_samples, 2) array [num_experts, dense_parameter_count]
-    # params: (N_param_sets, 6) or (6,) array
-    
-    # 1. Prepare Inputs
     X = np.atleast_2d(np.asarray(data_points))
-    # Normalize dense parameters N to range [1.0, 8.0] for numerical stability
+    # X[:, 0] is num_experts (E)
+    # X[:, 1] is dense_parameter_count (N)
+    
     E = X[:, 0]
-    N = X[:, 1] / 1e8 
+    N = X[:, 1]
+    
+    # Normalize inputs for numerical stability
+    # N ranges ~1e8-8e8 -&gt; 0.1-0.8
+    # E ranges 1-64 -&gt; 0.015-1.0
+    N_norm = N / 1e9
+    E_norm = E / 64.0
     
     params = np.asarray(params)
     if params.ndim == 1:
         params = params[None, :]
-        
-    # 2. Unpack Parameters
-    p0 = params[:, 0]  # Bias
-    p1 = params[:, 1]  # Dense Asymptote Coeff
-    p2 = params[:, 2]  # Dense Asymptote Exp
-    p3 = params[:, 3]  # Expert Gap Coeff
-    p4 = params[:, 4]  # Expert Gap Decay Exp
-    p5 = params[:, 5]  # Expert Gap Dense Exp
     
-    # 3. Calculate Terms (Broadcasting)
-    # Term 1: Bias
-    term_bias = p0[None, :]
+    # Extract parameters [c0, c1, a1, c2, a2, beta]
+    c0   = params[:, 0][:, None]
+    c1   = params[:, 1][:, None]
+    a1   = params[:, 2][:, None]
+    c2   = params[:, 3][:, None]
+    a2   = params[:, 4][:, None]
+    beta = params[:, 5][:, None]
     
-    # Term 2: Dense Asymptote (Base performance limit for size N)
-    term_dense = p1[None, :] * (N[:, None] ** (-p2[None, :]))
+    # Safe calculations
+    N_safe = np.maximum(N_norm, 1e-10)
+    E_safe = np.maximum(E_norm, 1e-10)
     
-    # Term 3: Expert Gap (Diminishing returns from adding experts)
-    # Scales with N (p5) and decays with E (p4)
-    term_gap = p3[None, :] * (N[:, None] ** (-p5[None, :])) * (E[:, None] ** (-p4[None, :]))
+    log_N = np.log(N_safe)
+    log_E = np.log(E_safe)
     
-    # Total Predicted Loss
-    pred = term_bias + term_dense + term_gap
+    # Term 1: N^(-a1)
+    # Shape: (T, N_samples)
+    term1 = np.exp(-a1 * log_N[None, :])
     
-    return pred[:, 0] if pred.shape[1] == 1 else pred
+    # Term 2: N^(-a2) * E^(-beta)
+    term2 = np.exp(-a2 * log_N[None, :] - beta * log_E[None, :])
+    
+    # Combine
+    pred = c0 + c1 * term1 + c2 * term2
+    
+    # Return shape (Data, T) or (Data,)
+    pred = pred.T
+    if pred.shape[1] == 1:
+        return pred[:, 0]
+    return pred
+
 
 def fit_scaling_law(data_points, loss_values):
+    &quot;&quot;&quot;
+    Fits the scaling law using Variable Projection (VarPro) with regularized NNLS.
+    Optimizes exponents [a1, a2, beta] using Trust Region Reflective (TRF) algorithm.
+    Optimizes coefficients [c0, c1, c2] using regularized Non-Negative Least Squares.
+    &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points))
     y = np.asarray(loss_values)
-    
     if y.ndim == 1:
-        ys = y[:, None]
-    else:
-        ys = y
+        y = y[:, None]
         
-    T = ys.shape[1]
+    n_samples = X.shape[0]
     E = X[:, 0]
-    N_norm = X[:, 1] / 1e8
+    N = X[:, 1]
+    
+    # Normalize inputs
+    N_norm = N / 1e9
+    E_norm = E / 64.0
+    
+    # Precompute logs
+    log_N = np.log(np.maximum(N_norm, 1e-10))
+    log_E = np.log(np.maximum(E_norm, 1e-10))
     
     results = []
     
-    # Constraints: Coefficients &gt;= 0, Exponents in [0, 5]
-    bounds = [
-        (0.0, None), (0.0, None), (0.0, 5.0), 
-        (0.0, None), (0.0, 5.0), (0.0, 5.0)
-    ]
+    # Regularization strength for NNLS
+    # Prevents overfitting to noise and handles collinearity
+    l2_reg = 1e-5
+    sqrt_lam = np.sqrt(l2_reg)
     
-    for i in range(T):
-        target = ys[:, i]
-        min_loss = np.min(target)
-        guesses = []
+    for i in range(y.shape[1]):
+        y_curr = y[:, i]
         
-        # --- Stage 1: Smart Initialization via Log-Linear Regression ---
-        # We approximate L approx p0 + C * N^-p2 * E^-p4
-        # This linearizes to: log(L - p0) = log(C) - p2*log(N) - p4*log(E)
+        # Augmented target for regularization
+        y_aug = np.concatenate([y_curr, np.zeros(3)])
         
-        # Try different bias assumptions to seed the regression
-        for bias_frac in [0.0, 0.85, 0.98]:
-            p0_guess = min_loss * bias_frac
-            # Avoid log(negative) by clipping
-            y_shifted = np.maximum(target - p0_guess, 1e-6)
-            y_log = np.log(y_shifted)
+        def solve_inner(exponents, return_coeffs=False):
+            a1, a2, beta = exponents
             
-            try:
-                # Construct design matrix: [1, -log(N), -log(E)]
-                A = np.column_stack([
-                    np.ones_like(target), 
-                    -np.log(N_norm), 
-                    -np.log(E)
-                ])
-                
-                # Least squares fit
-                coeffs, _, _, _ = np.linalg.lstsq(A, y_log, rcond=None)
-                
-                c_val, p2_est, p4_est = coeffs
-                C_est = np.exp(c_val)
-                
-                # Clip exponents to reasonable initial ranges
-                p2_est = np.clip(p2_est, 0.1, 3.0)
-                p4_est = np.clip(p4_est, 0.0, 2.0)
-                
-                # Create initial parameter sets
-                # Distribute total coefficient C_est between p1 (asymptote) and p3 (gap)
-                
-                # Guess A: Balanced split (50/50)
-                guesses.append([
-                    p0_guess,       # p0
-                    C_est * 0.5,    # p1
-                    p2_est,         # p2
-                    C_est * 0.5,    # p3
-                    p4_est,         # p4
-                    p2_est          # p5 (assume gap scales similar to dense initially)
-                ])
-                
-                # Guess B: Expert Gap Dominant (Model assumes most loss is reducible by experts)
-                guesses.append([
-                    p0_guess,
-                    C_est * 0.1,
-                    p2_est,
-                    C_est * 0.9,
-                    p4_est,
-                    p2_est
-                ])
-            except:
-                pass
-        
-        # --- Stage 2: Fallback Heuristics ---
-        # If regression fails or data is weird, add standard guesses
-        guesses.append([min_loss * 0.9, 1.0, 0.5, 1.0, 0.2, 0.5])
-        
-        # --- Stage 3: Optimization ---
-        best_params = None
-        best_mse = float(&#x27;inf&#x27;)
-        
-        def objective(p):
-            pred = scaling_law_func(X, p)
-            return np.mean((pred - target)**2)
-        
-        for g in guesses:
-            try:
-                res = minimize(objective, g, bounds=bounds, method=&#x27;L-BFGS-B&#x27;, tol=1e-6)
-                if res.fun &lt; best_mse:
-                    best_mse = res.fun
-                    best_params = res.x
-            except:
-                continue
-                
-        if best_params is None:
-            best_params = np.array(guesses[-1])
+            # Basis functions
+            # b0 = 1
+            # b1 = N^-a1
+            # b2 = N^-a2 * E^-beta
+            b1 = np.exp(-a1 * log_N)
+            b2 = np.exp(-a2 * log_N - beta * log_E)
             
-        results.append(best_params)
+            # Design matrix (n_samples, 3)
+            A = np.vstack([np.ones(n_samples), b1, b2]).T
+            
+            # Column scaling for numerical conditioning
+            # This balances the magnitude of bias (1.0) and power terms
+            norms = np.linalg.norm(A, axis=0)
+            norms[norms &lt; 1e-10] = 1.0
+            A_scaled = A / norms
+            
+            # Regularized NNLS
+            # min ||A_scaled * c&#x27; - y||^2 + lambda ||c&#x27;||^2
+            # Equivalent to solving augmented system
+            reg_block = np.eye(3) * sqrt_lam
+            A_aug = np.vstack([A_scaled, reg_block])
+            
+            c_scaled, _ = nnls(A_aug, y_aug)
+            coeffs = c_scaled / norms
+            
+            if return_coeffs:
+                return coeffs
+            
+            # Return residuals of the AUGMENTED problem
+            # This ensures the outer optimizer sees the regularization cost
+            return A_aug @ c_scaled - y_aug
 
-    return np.array(results) if T &gt; 1 else results[0]</code></pre>
+        # Grid search for initialization
+        # Helps to find a good basin of attraction
+        best_loss = np.inf
+        best_exp = [0.5, 0.5, 0.2]
+        
+        # Grid points covering typical scaling regimes
+        grid_a = [0.2, 0.6, 1.2]
+        grid_b = [0.0, 0.3, 0.8]
+        
+        for ga1 in grid_a:
+            for ga2 in grid_a:
+                for gb in grid_b:
+                    try:
+                        res = solve_inner([ga1, ga2, gb])
+                        loss = np.sum(res**2)
+                        if loss &lt; best_loss:
+                            best_loss = loss
+                            best_exp = [ga1, ga2, gb]
+                    except: pass
+            
+        # Refine with least_squares (TRF)
+        try:
+            res_opt = least_squares(
+                solve_inner, 
+                x0=best_exp, 
+                bounds=([0.0, 0.0, 0.0], [5.0, 5.0, 5.0]),
+                method=&#x27;trf&#x27;,
+                loss=&#x27;linear&#x27;,
+                ftol=1e-7, xtol=1e-7, max_nfev=150
+            )
+            final_exps = res_opt.x
+        except:
+            final_exps = best_exp
+            
+        final_coeffs = solve_inner(final_exps, return_coeffs=True)
+        
+        # Pack parameters: [c0, c1, a1, c2, a2, beta]
+        params = np.array([
+            final_coeffs[0], final_coeffs[1], final_exps[0],
+            final_coeffs[2], final_exps[1], final_exps[2]
+        ])
+        results.append(params)
+        
+    return np.array(results) if len(results) &gt; 1 else results[0]
+# EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#2</span>
               <span class="run-label">Run 1</span>
-              <span class="r2-badge" style="background-color: #228b22; color: white"> R² = 0.843993 </span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.958086 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -514,234 +543,178 @@ def fit_scaling_law(data_points, loss_values):
               </div>
               <pre><code class="language-python" id="code-1"># EVOLVE-BLOCK-START
 &quot;&quot;&quot;
-Scaling law discovery for MoE LLM finetuning.
-Model: L(N, E) = p0 + p1*N^(-p2) + p3*N^(-p5)*E^(-p4)
-Optimization Strategy:
-1. Feature Normalization: Inputs scaled to O(1) range.
-2. Hybrid Initialization: 
-   - Uses dense subset (E=1) to estimate baseline scaling parameters (bias, coeff, exp).
-   - Uses NNLS on a pre-defined grid of scaling exponents to find global optimal coefficients.
-3. Robust Regression: Uses `least_squares` with `soft_l1` loss to handle potential outliers.
-4. Physical Constraints: Bias bounded by min_loss, coefficients non-negative.
+Scaling law discovery for LLM finetuning scenarios
+Improved program with a structured scaling law for MoE models.
+Uses Grid Search coupled with Non-Negative Least Squares (NNLS) for robust initialization,
+followed by constrained non-linear optimization.
 &quot;&quot;&quot;
 import numpy as np
 from scipy.optimize import least_squares, nnls
+import itertools
 
 def scaling_law_func(data_points, params):
-    # data_points: (M, 2) array [num_experts, dense_parameter_count]
-    # params: (T, 6) or (6,) array [p0, p1, p2, p3, p4, p5]
+    &quot;&quot;&quot;
+    Predicts validation loss based on MoE parameters.
+    Model: L = bias + c1 * N^(-alpha1) + c2 * N^(-alpha2) * E^(-beta)
+    where N is normalized dense parameter count.
     
-    # 1. Input Processing
+    Parameters:
+    data_points: (N, 2) array [num_experts, dense_parameter_count]
+    params: (6,) or (T, 6) array [bias, c1, alpha1, c2, alpha2, beta]
+    &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points))
-    E = X[:, 0]
-    # Normalize N to avoiding large/small number issues
-    # Range of dense params is 1e8 to 8e8. 1e9 normalization puts it in [0.1, 0.8]
-    N = X[:, 1] / 1e9
-    
-    # 2. Parameter Processing
     params = np.asarray(params)
-    squeeze_output = False
+    
+    # Handle parameter shapes
     if params.ndim == 1:
         params = params[None, :]
-        squeeze_output = True
-        
-    # Unpack (T, 6) -&gt; (T,) arrays
-    # p0: Bias
-    # p1, p2: Dense Compute Term (Scale, Exp)
-    # p3, p4, p5: Expert Penalty Term (Scale, E-Exp, N-Exp)
-    p0 = params[:, 0]
-    p1 = params[:, 1]
-    p2 = params[:, 2]
-    p3 = params[:, 3]
-    p4 = params[:, 4]
-    p5 = params[:, 5]
     
-    # 3. Calculation
-    # Broadcasting: Features (M, 1) op Params (1, T) -&gt; (M, T)
+    # Extract features
+    E = X[:, 0]
+    N = X[:, 1]
     
-    # Bias
-    term1 = p0[None, :]
+    # Normalize N to improve numerical stability
+    # N is typically ~1e8 to 1e9. Scaling by 1e9 maps it to [0.1, 1.0]
+    N_norm = N / 1e9
     
-    # Dense scaling: p1 * N^-p2
-    term2 = p1[None, :] * (N[:, None] ** (-p2[None, :]))
+    # Unpack parameters (6 parameters)
+    # Use abs() to ensure physical validity (positive scales and decay rates)
+    bias   = np.abs(params[:, 0])
+    c1     = np.abs(params[:, 1])
+    alpha1 = np.abs(params[:, 2])
+    c2     = np.abs(params[:, 3])
+    alpha2 = np.abs(params[:, 4])
+    beta   = np.abs(params[:, 5])
     
-    # Expert scaling: p3 * N^-p5 * E^-p4
-    # Note: Using negative exponents in calculation for stability
-    term3 = p3[None, :] * (N[:, None] ** (-p5[None, :])) * (E[:, None] ** (-p4[None, :]))
+    # Calculate terms with broadcasting
+    # Term 1: Dense scaling component (Base model performance)
+    term1 = c1[:, None] * (N_norm[None, :] ** -alpha1[:, None])
     
-    pred = term1 + term2 + term3
+    # Term 2: MoE specific component (Gain from experts)
+    # c2 * N^-alpha2 * E^-beta
+    # Note: E is number of experts.
+    term2 = c2[:, None] * (N_norm[None, :] ** -alpha2[:, None]) * (E[None, :] ** -beta[:, None])
     
-    if squeeze_output:
-        return pred[:, 0]
-    return pred
+    # Combine
+    pred = bias[:, None] + term1 + term2
+    
+    # Return shape (Data, T) or (Data,)
+    pred = pred.T
+    return pred[:, 0] if pred.shape[1] == 1 else pred
+
 
 def fit_scaling_law(data_points, loss_values):
+    &quot;&quot;&quot;
+    Fits the scaling law parameters using a robust Grid Search + NNLS initialization
+    followed by Trust Region Reflective (TRF) non-linear least squares.
+    &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points))
     y = np.asarray(loss_values)
     
-    # Handle multiple targets
     if y.ndim == 1:
-        ys = y[:, None]
+        y2d = y[:, None]
     else:
-        ys = y
-    
-    num_targets = ys.shape[1]
+        y2d = y
+        
+    n_targets = y2d.shape[1]
     results = []
     
-    # Normalized features for initialization
-    E_vals = X[:, 0]
-    N_vals = X[:, 1] / 1e9
+    E = X[:, 0]
+    N = X[:, 1]
+    N_norm = N / 1e9
     
-    # Detect dense subset (E=1)
-    dense_mask = (E_vals == 1)
-    has_dense = np.sum(dense_mask) &gt;= 4
+    # --- Grid Search Configuration ---
+    # We search over the non-linear exponents (alpha1, alpha2, beta)
+    # and solve for linear parameters (bias, c1, c2) optimally using NNLS.
+    # This avoids local minima associated with poor initial guesses.
+    alpha_grid = [0.1, 0.4, 0.8, 1.2, 1.8]
+    beta_grid = [0.0, 0.2, 0.5, 0.8]
     
-    # Grid for NNLS initialization
-    # (p2_dense, p4_expert, p5_interaction)
-    # Rationale:
-    # p2 usually in [0.05, 1.0] for LLMs
-    # p4 usually small [0.0, 0.5] (diminishing returns of experts)
-    # p5 often close to p2 (interaction)
-    grid_exponents = [
-        # Standard balanced scaling
-        (0.3, 0.1, 0.3), (0.5, 0.1, 0.5), (0.7, 0.1, 0.7),
-        # Stronger expert returns (higher p4)
-        (0.3, 0.3, 0.3), (0.5, 0.3, 0.5),
-        # Interaction variations (p5 != p2)
-        (0.5, 0.1, 0.3), (0.5, 0.1, 0.7),
-        # Asymptotic checks
-        (1.0, 0.0, 1.0), (0.1, 0.1, 0.1)
-    ]
+    # Generate grid combinations
+    grid_points = list(itertools.product(alpha_grid, alpha_grid, beta_grid))
     
-    for i in range(num_targets):
-        target = ys[:, i]
-        min_y = np.min(target)
+    for i in range(n_targets):
+        y_curr = y2d[:, i]
+        min_loss = np.min(y_curr)
         
-        candidates = []
+        best_mse = np.inf
+        best_init = None # [bias, c1, alpha1, c2, alpha2, beta]
         
-        # Strategy 1: Dense-informed initialization
-        # If we have dense data, fit a simple power law to it first
-        if has_dense:
-            y_dense = target[dense_mask]
-            n_dense = N_vals[dense_mask]
+        # 1. Global Search via Grid + NNLS
+        # Construct design matrix columns that don&#x27;t depend on exponents
+        ones_col = np.ones_like(N_norm)
+        
+        for a1, a2, b in grid_points:
+            # Construct Design Matrix A: [1, N^-a1, N^-a2 * E^-b]
+            col2 = N_norm ** -a1
+            col3 = (N_norm ** -a2) * (E ** -b)
             
-            # Grid search for dense bias
-            # Fit: y = bias + a * n^-b
-            best_dense_err = np.inf
-            best_dense_params = None
+            A = np.vstack([ones_col, col2, col3]).T
             
-            for bias_ratio in [0.8, 0.9, 0.95, 0.99]:
-                bias_guess = min_y * bias_ratio
-                # Log-linear fit on residuals
-                y_resid = np.maximum(y_dense - bias_guess, 1e-6)
-                try:
-                    # log(y-b) = log(a) - b*log(n)
-                    slope, intercept = np.polyfit(np.log(n_dense), np.log(y_resid), 1)
-                    p2_est = -slope
-                    p1_est = np.exp(intercept)
-                    
-                    if p2_est &gt; 0:
-                        # Error check
-                        pred_d = bias_guess + p1_est * (n_dense**-p2_est)
-                        err = np.mean((pred_d - y_dense)**2)
-                        if err &lt; best_dense_err:
-                            best_dense_err = err
-                            # Split dense coeff p1_est between p1 and p3
-                            # Guess experts help moderately (p4=0.1)
-                            best_dense_params = [bias_guess, p1_est*0.5, p2_est, p1_est*0.5, 0.1, p2_est]
-                except:
-                    pass
-            
-            if best_dense_params is not None:
-                candidates.append(best_dense_params)
-                # Variation: Dense term dominates
-                p0, p1, p2, p3, p4, p5 = best_dense_params
-                candidates.append([p0, p1*1.8, p2, p3*0.2, p4, p5])
-
-        # Strategy 2: Global NNLS Grid Search
-        # y ~ p0 + p1*N^-p2 + p3*N^-p5*E^-p4
-        for (gp2, gp4, gp5) in grid_exponents:
-            feat_dense = N_vals ** -gp2
-            feat_expert = (N_vals ** -gp5) * (E_vals ** -gp4)
-            # Matrix A: [1, dense, expert]
-            A = np.vstack([np.ones_like(feat_dense), feat_dense, feat_expert]).T
-            
+            # Solve non-negative least squares: min ||Ax - y|| s.t. x &gt;= 0
             try:
-                coeffs, _ = nnls(A, target)
-                c0, c1, c3 = coeffs
+                x, rnorm = nnls(A, y_curr)
+                # nnls returns residual norm. MSE = rnorm^2 / N
+                mse = (rnorm**2) / len(y_curr)
                 
-                # Enforce physical constraint: Bias &lt; min_loss
-                if c0 &gt;= min_y:
-                    c0 = min_y * 0.99
-                    
-                candidates.append([c0, c1, gp2, c3, gp4, gp5])
-            except:
-                pass
-                
-        # Strategy 3: Generic Fallback
-        candidates.append([min_y * 0.8, 1.0, 0.5, 1.0, 0.1, 0.5])
-
-        # Optimize Best Candidates
-        def residuals_func(p):
-            return scaling_law_func(X, p) - target
-            
-        # Bounds: 
-        # p0 &lt; min_y (handled via ub)
-        # coeffs &gt;= 0
-        # exponents in [0, 10]
-        # p0 strictly bounded by min_y is crucial for physics
-        lb = [0, 0, 0, 0, 0, 0]
-        ub = [min_y - 1e-6, np.inf, 10.0, np.inf, 10.0, 10.0]
-        
-        best_res = None
-        best_cost = float(&#x27;inf&#x27;)
-        
-        # We sort candidates by initial MSE to prioritize good starts (speedup)
-        # but run top K to avoid local optima
-        def quick_mse(p):
-            return np.mean((scaling_law_func(X, p) - target)**2)
-            
-        candidates.sort(key=quick_mse)
-        
-        for guess in candidates[:4]: # Try top 4 guesses
-            try:
-                # Use soft_l1 loss for robustness against outliers
-                res = least_squares(
-                    residuals_func, 
-                    x0=guess, 
-                    bounds=(lb, ub),
-                    loss=&#x27;soft_l1&#x27;, 
-                    f_scale=0.05, # Scale of inlier residuals
-                    method=&#x27;trf&#x27;,
-                    max_nfev=500
-                )
-                
-                # Evaluate using Squared Error (standard metric)
-                cost = np.mean(res.fun**2)
-                
-                if cost &lt; best_cost:
-                    best_cost = cost
-                    best_res = res
+                if mse &lt; best_mse:
+                    best_mse = mse
+                    # Store parameters: [bias, c1, alpha1, c2, alpha2, beta]
+                    best_init = [x[0], x[1], a1, x[2], a2, b]
             except:
                 continue
         
-        if best_res is not None:
-            results.append(best_res.x)
-        else:
-            results.append(np.array([min_y*0.9, 0, 0, 0, 0, 0]))
-
-    return np.array(results)[0] if num_targets == 1 else np.array(results)
+        # Fallback if grid search fails (should not happen)
+        if best_init is None:
+            best_init = [min_loss * 0.9, 1.0, 0.5, 1.0, 0.5, 0.5]
+            
+        # 2. Refine with Non-Linear Least Squares
+        x0 = best_init
+        
+        def residuals_func(p):
+            # p is [bias, c1, alpha1, c2, alpha2, beta]
+            p_abs = np.abs(p)
+            preds = scaling_law_func(X, p_abs)
+            return preds - y_curr
+            
+        # Bounds:
+        # bias: [0, min_loss] - Strictly, irreducible loss must be &lt; observed loss.
+        # We allow a small margin for noise.
+        # Exponents: [0, 5.0] - Physical scaling laws are rarely steeper.
+        lower = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        # Relax bias bound slightly to handle potential outliers at the bottom
+        upper = [min_loss + 1e-3, np.inf, 5.0, np.inf, 5.0, 5.0]
+        
+        try:
+            res = least_squares(
+                residuals_func, 
+                x0, 
+                bounds=(lower, upper),
+                method=&#x27;trf&#x27;,
+                loss=&#x27;soft_l1&#x27;, # Robust to outliers
+                f_scale=0.05,   
+                ftol=1e-8,
+                xtol=1e-8,
+                gtol=1e-8,
+                max_nfev=2000
+            )
+            best_params = np.abs(res.x)
+        except:
+            best_params = np.abs(np.array(x0))
+        
+        results.append(best_params)
+        
+    return np.array(results) if n_targets &gt; 1 else results[0]
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#3</span>
               <span class="run-label">Run 4</span>
-              <span class="r2-badge" style="background-color: #228b22; color: white"> R² = 0.843992 </span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.958086 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -753,164 +726,204 @@ def fit_scaling_law(data_points, loss_values):
               </div>
               <pre><code class="language-python" id="code-2"># EVOLVE-BLOCK-START
 &quot;&quot;&quot;
-Scaling law discovery for LLM finetuning scenarios
-Implements an additive MoE scaling law: L = p0 + p1*N^(-p2) + p3*N^(-p5)*E^(-p4)
-Optimized using Robust Non-Linear Least Squares (Trust Region Reflective) with Soft-L1 loss.
-This approach is robust to outliers and bounds parameters to physically meaningful ranges.
+Scaling law discovery for LLM finetuning scenarios (MoE)
+Improved program using a smart initialization strategy based on 
+decoupled log-linear regression for dense and expert terms, 
+followed by robust non-linear least squares optimization.
 &quot;&quot;&quot;
 import numpy as np
 from scipy.optimize import least_squares
 
 def scaling_law_func(data_points, params):
-    # data_points: (M, 2) array [num_experts, dense_parameter_count]
-    # params: (T, 6) or (6,) array [p0, p1, p2, p3, p4, p5]
+    &quot;&quot;&quot;
+    Predicts validation loss based on MoE parameters.
+    Model: L = bias + c1 * N^(-alpha1) + c2 * N^(-alpha2) * E^(-beta)
+    where N is normalized dense parameter count (N/1e9).
     
+    Parameters shape: (6,) or (T, 6)
+    Data points shape: (N_samples, 2) -&gt; [num_experts, dense_params]
+    &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points))
-    # E: Experts [1, 64]
-    # N: Parameters [1e8, 8e8]. Normalize to ~[0.1, 0.8] for numerical stability
-    E = X[:, 0]
-    N = X[:, 1] / 1e9
-    
     params = np.asarray(params)
-    squeeze_output = False
+    
+    # Handle parameter shapes for broadcasting
     if params.ndim == 1:
         params = params[None, :]
-        squeeze_output = True
-        
-    # Unpack parameters (T, 6)
-    p0 = params[:, 0] # Bias
-    p1 = params[:, 1] # Dense scaling coeff
-    p2 = params[:, 2] # Dense scaling exp
-    p3 = params[:, 3] # Expert scaling coeff
-    p4 = params[:, 4] # Expert scaling exp (E)
-    p5 = params[:, 5] # Expert scaling exp (N)
     
-    # Model: L = Bias + DenseTerm + ExpertTerm
-    # DenseTerm: Base scaling with model size
-    # ExpertTerm: Scaling with size that diminishes with expert count
+    # Extract features
+    E = X[:, 0]
+    N = X[:, 1]
     
-    # Broadcasting: (M, 1) op (1, T) -&gt; (M, T)
-    term1 = p0[None, :]
-    term2 = p1[None, :] * (N[:, None] ** (-p2[None, :]))
-    term3 = p3[None, :] * (N[:, None] ** (-p5[None, :])) * (E[:, None] ** (-p4[None, :]))
+    # Normalize N to [0.1, 1.0] range (assuming N ~ 1e8 - 1e9)
+    # Using a fixed constant 1e9 for stability
+    N_norm = N / 1e9
     
-    pred = term1 + term2 + term3
+    # Unpack parameters (6 parameters)
+    # params: [bias, c1, alpha1, c2, alpha2, beta]
+    # We use absolute values to ensure physical validity during prediction
+    bias   = params[:, 0]
+    c1     = np.abs(params[:, 1])
+    alpha1 = np.abs(params[:, 2])
+    c2     = np.abs(params[:, 3])
+    alpha2 = np.abs(params[:, 4])
+    beta   = np.abs(params[:, 5])
     
-    if squeeze_output:
-        return pred[:, 0]
-    return pred
+    # Term 1: Dense scaling component
+    # Represents the asymptotic performance limit of the dense backbone
+    term1 = c1[:, None] * (N_norm[None, :] ** -alpha1[:, None])
+    
+    # Term 2: Expert scaling component
+    # Represents the additional reducible loss from experts
+    term2 = c2[:, None] * (N_norm[None, :] ** -alpha2[:, None]) * (E[None, :] ** -beta[:, None])
+    
+    # Combine terms
+    pred = bias[:, None] + term1 + term2
+    
+    # Return shape handling: (Data,) or (Data, T)
+    if pred.shape[0] == 1:
+        return pred.flatten()
+    return pred.T
 
 def fit_scaling_law(data_points, loss_values):
+    &quot;&quot;&quot;
+    Fits the scaling law parameters using a two-stage approach:
+    1. Heuristic initialization using log-linear regression on subsets.
+    2. Refinement using robust non-linear least squares (TRF).
+    &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points))
     y = np.asarray(loss_values)
-    
     if y.ndim == 1:
-        ys = y[:, None]
-    else:
-        ys = y
+        y = y[:, None]
         
-    M, T = ys.shape
-    results = []
-    
     E = X[:, 0]
     N = X[:, 1] / 1e9
+    n_targets = y.shape[1]
+    results = []
     
-    for i in range(T):
-        target = ys[:, i]
-        min_loss = np.min(target)
+    for i in range(n_targets):
+        y_curr = y[:, i]
+        min_loss = np.min(y_curr)
         
-        # Bounds for TRF:
-        # p0: [0, min_loss] -&gt; Bias cannot exceed minimum observed loss
-        # p1, p3: [0, inf] -&gt; Positive coefficients
-        # p2, p4, p5: [0, 8] -&gt; Exponents bounded for stability
-        lb = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-        ub = [min_loss, np.inf, 8.0, np.inf, 8.0, 8.0]
+        # --- Stage 1: Smart Initialization ---
+        # Initialize bias slightly below minimum loss
+        bias_init = max(0.0, min_loss - 0.1)
         
-        # Residual function for least_squares
-        def residuals(p):
-            p0, p1, p2, p3, p4, p5 = p
-            pred = p0 + p1 * (N ** -p2) + p3 * (N ** -p5) * (E ** -p4)
-            return pred - target
+        # A. Estimate Dense Parameters (c1, alpha1)
+        # Use data with minimum expert count as proxy for dense scaling
+        min_experts = np.min(E)
+        mask_dense = (E == min_experts)
+        # If too few points, relax condition to bottom quartile
+        if np.sum(mask_dense) &lt; 4:
+            mask_dense = E &lt;= np.percentile(E, 25)
+            
+        # Fit log(y - bias) = log(c1) - alpha1 * log(N)
+        try:
+            target_dense = y_curr[mask_dense] - bias_init
+            valid_idx = target_dense &gt; 1e-6
+            if np.sum(valid_idx) &gt;= 2:
+                log_y = np.log(target_dense[valid_idx])
+                log_N = np.log(N[mask_dense][valid_idx])
+                # Linear regression: [1, -logN] @ [log_c1, alpha1] = log_y
+                A = np.vstack([np.ones_like(log_N), -log_N]).T
+                sol = np.linalg.lstsq(A, log_y, rcond=None)[0]
+                c1_init = np.exp(sol[0])
+                alpha1_init = np.clip(sol[1], 0.1, 2.0)
+            else:
+                raise ValueError
+        except:
+            c1_init, alpha1_init = 1.0, 0.5
+            
+        # B. Estimate Expert Parameters (c2, alpha2, beta)
+        # Fit log(Residuals) = log(c2) - alpha2 * log(N) - beta * log(E)
+        try:
+            # Calculate residuals from dense part
+            pred_dense = bias_init + c1_init * (N ** -alpha1_init)
+            residuals = y_curr - pred_dense
+            
+            valid_res = residuals &gt; 1e-6
+            if np.sum(valid_res) &gt;= 4:
+                log_R = np.log(residuals[valid_res])
+                log_N = np.log(N[valid_res])
+                log_E = np.log(E[valid_res])
+                # Linear regression
+                A = np.vstack([np.ones_like(log_N), -log_N, -log_E]).T
+                sol = np.linalg.lstsq(A, log_R, rcond=None)[0]
+                c2_init = np.exp(sol[0])
+                alpha2_init = np.clip(sol[1], 0.1, 2.0)
+                beta_init = np.clip(sol[2], 0.0, 2.0)
+            else:
+                raise ValueError
+        except:
+            c2_init, alpha2_init, beta_init = 1.0, 0.5, 0.5
+            
+        # Construct smart guess
+        smart_guess = [bias_init, c1_init, alpha1_init, c2_init, alpha2_init, beta_init]
         
-        # Generate diverse initial guesses
-        guesses = []
+        # --- Stage 2: Robust Optimization ---
         
-        # 1. Heuristic from Dense Data (E=1)
-        # If we have dense points, fit a simple power law to get base params
-        mask_dense = (E &lt; 1.1)
-        if np.sum(mask_dense) &gt;= 3:
-            try:
-                y_d = target[mask_dense]
-                n_d = N[mask_dense]
-                # Est bias
-                bias_est = np.min(y_d) * 0.9
-                # Log-log fit: log(y - bias) = log(A) - B * log(N)
-                log_y = np.log(np.maximum(y_d - bias_est, 1e-6))
-                log_n = np.log(n_d)
-                
-                slope, intercept = np.polyfit(log_n, log_y, 1)
-                exp_est = np.clip(-slope, 0.0, 5.0)
-                coeff_est = np.exp(intercept)
-                
-                # Split the coefficient between base and expert terms
-                guesses.append([bias_est, coeff_est*0.5, exp_est, coeff_est*0.5, 0.5, exp_est])
-                # Also try assigning mostly to base
-                guesses.append([bias_est, coeff_est*0.8, exp_est, coeff_est*0.2, 0.5, exp_est])
-            except:
-                pass
+        # Define residual function
+        def residual_func(p):
+            # p: [bias, c1, alpha1, c2, alpha2, beta]
+            b, c1, a1, c2, a2, beta = p
+            pred = b + c1 * (N ** -a1) + c2 * (N ** -a2) * (E ** -beta)
+            return pred - y_curr
+            
+        # Bounds: bias &lt; min_loss, others &gt; 0
+        # We allow bias to go up to min_loss - epsilon
+        lower_bounds = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        upper_bounds = [min_loss - 1e-5, np.inf, 5.0, np.inf, 5.0, 5.0]
         
-        # 2. Generic Guesses (Robustness against different scaling regimes)
-        guesses.extend([
-            [min_loss * 0.8, 1.0, 0.5, 1.0, 0.5, 0.5],    # Balanced
-            [min_loss * 0.95, 0.2, 1.0, 0.2, 0.5, 1.0],   # Bias Heavy
-            [min_loss * 0.5, 2.0, 0.4, 0.1, 0.1, 0.4],    # Dense Heavy
-            [min_loss * 0.5, 0.1, 0.4, 2.0, 1.0, 0.4],    # Expert Heavy
-            [0.1, 1.0, 0.2, 1.0, 0.2, 0.2]                # Low Bias
-        ])
+        # List of guesses to try
+        guesses = [
+            smart_guess,
+            [min_loss * 0.9, 1.0, 0.5, 1.0, 0.5, 0.5], # Balanced
+            [min_loss * 0.5, 5.0, 1.0, 0.1, 1.0, 0.1], # Dense heavy
+            [min_loss * 0.8, 0.5, 0.3, 2.0, 0.3, 0.8], # Expert heavy
+        ]
         
-        best_x = None
+        best_res = None
         best_cost = np.inf
         
-        for g in guesses:
-            # Ensure guess is within bounds
-            g_clipped = np.clip(g, lb, ub)
-            
+        for guess in guesses:
             try:
-                # Use Trust Region Reflective algorithm for bound-constrained problems
-                # Use soft_l1 loss to be robust against outliers in the training data
+                # Clip guess to bounds
+                x0 = np.clip(guess, 
+                             [l + 1e-6 for l in lower_bounds], 
+                             [u - 1e-6 if u &lt; np.inf else 1e4 for u in upper_bounds])
+                
                 res = least_squares(
-                    residuals, 
-                    x0=g_clipped, 
-                    bounds=(lb, ub), 
+                    residual_func, 
+                    x0, 
+                    bounds=(lower_bounds, upper_bounds), 
                     method=&#x27;trf&#x27;, 
-                    loss=&#x27;soft_l1&#x27;, 
-                    f_scale=0.05, 
-                    max_nfev=1000
+                    loss=&#x27;soft_l1&#x27;, # Robust to outliers
+                    f_scale=0.05,   # Scale of inlier residuals
+                    max_nfev=500,
+                    ftol=1e-6
                 )
+                
                 if res.cost &lt; best_cost:
                     best_cost = res.cost
-                    best_x = res.x
+                    best_res = res.x
             except Exception:
                 continue
                 
-        if best_x is None:
-            # Fallback to constant predictor
-            best_x = np.array([min_loss, 0.0, 0.0, 0.0, 0.0, 0.0])
+        if best_res is None:
+            best_res = np.array(smart_guess)
             
-        results.append(best_x)
+        results.append(best_res)
         
-    return np.array(results)[0] if T == 1 else np.array(results)
+    return np.array(results) if n_targets &gt; 1 else results[0]
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#4</span>
-              <span class="run-label">Run 2</span>
-              <span class="r2-badge" style="background-color: #228b22; color: white"> R² = 0.841581 </span>
+              <span class="run-label">Run 5</span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.958086 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -922,194 +935,218 @@ def fit_scaling_law(data_points, loss_values):
               </div>
               <pre><code class="language-python" id="code-3"># EVOLVE-BLOCK-START
 &quot;&quot;&quot;
-Scaling law discovery for MoE LLMs
-Improved solution features:
-1.  Additive Decoupled Formulation: L = p0 + p1*N^-p2 + p3*N^-p5*E^-p4
-    - Physically grounded: Separates irreducible loss (p0), dense-reducible loss (p1 term), 
-      and expert-reducible loss (p3 term).
-    - Allows experts to scale differently with model size (p5) compared to the dense backbone (p2).
-2.  Robust Optimization via `scipy.optimize.least_squares`:
-    - Uses Trust Region Reflective algorithm which is more robust for bounded non-linear least squares 
-      than standard BFGS.
-    - Uses &#x27;soft_l1&#x27; loss to be robust against outliers in the scaling trends.
-3.  Hierarchical Initialization:
-    - First fits the Dense (E=1) subset to anchor the static backbone.
-    - Explores a grid of &quot;Expert Ratios&quot; (how much of the loss is expert-sensitive) to initialize 
-      the full model, avoiding local minima where experts are ignored.
+Scaling law discovery for LLM finetuning scenarios
+Improved program using robust non-linear least squares (TRF) with soft_l1 loss.
+Uses a decoupled additive scaling law model: L = bias + c1 * N^(-alpha1) + c2 * N^(-alpha2) * E^(-beta).
+Implements a systematic grid-based initialization strategy to find the best starting basin.
 &quot;&quot;&quot;
 import numpy as np
 from scipy.optimize import least_squares
 
 def scaling_law_func(data_points, params):
-    # data_points: (N_samples, 2) array [num_experts, dense_parameter_count]
-    # params: (N_params, 6) or (6,) array
+    &quot;&quot;&quot;
+    Predicts validation loss based on MoE parameters.
+    Model: L = bias + c1 * N^(-alpha1) + c2 * N^(-alpha2) * E^(-beta)
     
-    # Input Processing
-    X = np.asarray(data_points, dtype=np.float64)
-    if X.ndim == 1:
-        X = X[None, :]
-        
+    Inputs:
+        data_points: (N_samples, 2) array [num_experts, dense_parameter_count]
+        params: (6,) or (M, 6) array [bias, c1, alpha1, c2, alpha2, beta]
+    &quot;&quot;&quot;
+    X = np.atleast_2d(np.asarray(data_points))
+    params = np.asarray(params)
+    
+    # Handle batch of parameters
+    if params.ndim == 1:
+        params = params[None, :]
+    
+    # Features
+    # col 0: num_experts (E)
+    # col 1: dense_parameter_count (N)
     E = X[:, 0]
-    # Normalize N to [1.0, 8.0] range (1e8 to 8e8 params)
-    # This O(1) scaling is crucial for optimizer convergence
-    N = X[:, 1] / 1e8
+    N = X[:, 1]
     
-    # Parameter Broadcasting
-    P = np.asarray(params, dtype=np.float64)
-    squeeze_output = False
-    if P.ndim == 1:
-        P = P[None, :]
-        squeeze_output = True
-        
-    # Unpack Parameters
-    # Model: L = p0 + p1*N^-p2 + p3*N^-p5*E^-p4
-    # p0: Bias (Irreducible Loss)
-    # p1: Static Coefficient
-    # p2: Static Exponent (Scaling of non-expert part)
-    # p3: Dynamic Coefficient (Expert-reducible part)
-    # p4: Expert Decay Exponent (Diminishing returns of experts)
-    # p5: Dynamic Size Exponent (Interaction of Size and Expert gain)
+    # Normalize N for numerical stability
+    # N is typically 1e8 to 8e8. Normalizing by 1e9 puts it in [0.1, 0.8].
+    N_norm = N / 1e9
     
-    p0 = P[:, 0]
-    p1 = P[:, 1]
-    p2 = P[:, 2]
-    p3 = P[:, 3]
-    p4 = P[:, 4]
-    p5 = P[:, 5]
+    # Unpack parameters
+    # Use abs() to ensure the function is valid even if optimizer explores negatives
+    bias   = params[:, 0]
+    c1     = np.abs(params[:, 1])
+    alpha1 = np.abs(params[:, 2])
+    c2     = np.abs(params[:, 3])
+    alpha2 = np.abs(params[:, 4])
+    beta   = np.abs(params[:, 5])
     
-    # Safe Bases
-    N_safe = np.maximum(N, 1e-4)[:, None]
-    E_safe = np.maximum(E, 1e-4)[:, None]
+    # Term 1: Dense scaling component
+    # c1 * N^-alpha1
+    # Adding small epsilon to base for safety, though N_norm is usually &gt; 0.1
+    term1 = c1[:, None] * ((N_norm[None, :] + 1e-9) ** -alpha1[:, None])
     
-    # Static Term: p1 * N^-p2
-    term_static = p1[None, :] * (N_safe ** (-p2[None, :]))
+    # Term 2: Expert scaling component
+    # c2 * N^-alpha2 * E^-beta
+    term2 = c2[:, None] * ((N_norm[None, :] + 1e-9) ** -alpha2[:, None]) * (E[None, :] ** -beta[:, None])
     
-    # Dynamic Term: p3 * N^-p5 * E^-p4
-    term_dynamic = p3[None, :] * (N_safe ** (-p5[None, :])) * (E_safe ** (-p4[None, :]))
+    # Combine terms
+    pred = bias[:, None] + term1 + term2
     
-    # Total Loss
-    pred = p0[None, :] + term_static + term_dynamic
-    
-    if squeeze_output:
-        return pred[:, 0]
-    return pred
+    # Shape handling
+    pred = pred.T
+    return pred[:, 0] if pred.shape[1] == 1 else pred
 
 def fit_scaling_law(data_points, loss_values):
-    X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
-    Y = np.asarray(loss_values, dtype=np.float64)
-    if Y.ndim == 1:
-        Y = Y[:, None]
+    &quot;&quot;&quot;
+    Fits the scaling law parameters using Trust Region Reflective (TRF) algorithm.
+    Uses a systematic initialization strategy scanning bias and dense scaling.
+    &quot;&quot;&quot;
+    X = np.atleast_2d(np.asarray(data_points))
+    y = np.asarray(loss_values)
+    
+    if y.ndim == 1:
+        y2d = y[:, None]
+    else:
+        y2d = y
         
-    n_targets = Y.shape[1]
+    n_targets = y2d.shape[1]
     results = []
     
-    # Identify dense data for anchoring (E=1)
-    dense_mask = (X[:, 0] == 1)
-    has_dense = np.sum(dense_mask) &gt;= 3
+    # Pre-compute features for initialization
+    E = X[:, 0]
+    N_norm = X[:, 1] / 1e9
     
-    # Base bounds: All params &gt;= 0, exponents &lt;= 4.0
-    # p0 (bias) is handled per target
-    base_lower = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-    base_upper = [np.inf, np.inf, 4.0, np.inf, 4.0, 4.0]
-    
+    # Identify dense subset (min experts) for initialization
+    min_E = np.min(E)
+    mask_dense = (E == min_E)
+    if np.sum(mask_dense) &lt; 3:
+        # Fallback to low expert count
+        thresh = np.percentile(E, 25)
+        mask_dense = E &lt;= thresh
+        if np.sum(mask_dense) &lt; 3:
+            mask_dense = np.ones_like(E, dtype=bool)
+
     for i in range(n_targets):
-        y = Y[:, i]
-        y_min, y_max = np.min(y), np.max(y)
+        y_curr = y2d[:, i]
+        min_loss = np.min(y_curr)
         
-        # 1. Fit Dense Baseline (E=1) =&gt; L ~ a + b*N^-c
-        dense_params = None
-        if has_dense:
-            X_d = X[dense_mask, 1] / 1e8
-            y_d = y[dense_mask]
-            
-            # Objective for dense fit
-            def fun_dense(p):
-                # p = [a, b, c]
-                return (p[0] + p[1] * (X_d**-p[2])) - y_d
-            
-            best_d_cost = float(&#x27;inf&#x27;)
-            
-            # Grid search for exponent &#x27;c&#x27; to avoid local minima
-            for c_guess in [0.2, 0.5, 0.8, 1.2]:
-                # Heuristic init: bias ~ 0.9*min, scale ~ range
-                p_init = [np.min(y_d)*0.9, np.ptp(y_d), c_guess]
-                # Bound bias &lt; min(y_d)
-                d_bounds = ([0.0, 0.0, 0.0], [np.min(y_d)-1e-7, np.inf, 4.0])
-                
-                try:
-                    res = least_squares(fun_dense, p_init, bounds=d_bounds, loss=&#x27;soft_l1&#x27;)
-                    if res.cost &lt; best_d_cost:
-                        best_d_cost = res.cost
-                        dense_params = res.x
-                except:
-                    continue
+        candidates = []
         
-        # 2. Formulate Guesses for Full Model
-        guesses = []
-        if dense_params is not None:
-            a, b, c = dense_params
-            # Distribute dense scale &#x27;b&#x27; into static &#x27;p1&#x27; and dynamic &#x27;p3&#x27;
-            # Assume initially p2 = p5 = c (same scaling with size)
-            
-            # Hypothesis: Experts handle &#x27;phi&#x27; fraction of the reducible loss
-            for phi in [0.1, 0.3, 0.5, 0.7, 0.9]:
-                p1_g = b * (1.0 - phi)
-                p3_g = b * phi
-                
-                # Hypothesis: Expert returns decay with E at rate &#x27;p4&#x27;
-                for p4_g in [0.1, c, 0.8]:
-                    guesses.append([a, p1_g, c, p3_g, p4_g, c])
-            
-            # Hypothesis: Experts scale differently with N (p5 != p2)
-            guesses.append([a, b*0.5, c, b*0.5, c, c*1.2]) # Experts gain more at scale
-            guesses.append([a, b*0.5, c, b*0.5, c, c*0.8]) # Experts gain less at scale
-            
-        else:
-            # Fallback guesses if no dense data
-            guesses.append([y_min*0.8, y_max-y_min, 0.5, y_max-y_min, 0.5, 0.5])
-            guesses.append([0.0, y_max, 1.0, y_max, 1.0, 1.0])
-            
-        # 3. Optimize Full Model
-        def fun_full(p):
-            pred = scaling_law_func(X, p)
-            return pred - y
-            
-        best_p = None
-        best_cost = float(&#x27;inf&#x27;)
+        # --- Strategy 1: Grid search on Bias + Log-Linear fit ---
+        # We assume L ~ bias + c1*N^-a1 for dense data
+        bias_grid = [min_loss - eps for eps in [0.02, 0.05, 0.1, 0.2, 0.5]]
+        bias_grid = [b for b in bias_grid if b &gt; 0]
+        if not bias_grid: bias_grid = [max(0.0, min_loss - 0.1)]
         
-        # Constraint: p0 must be &lt; global min loss to be physical
-        curr_upper = list(base_upper)
-        curr_upper[0] = y_min - 1e-7
-        
-        for g in guesses:
+        for b_guess in bias_grid:
+            # 1. Fit dense term on subset
+            y_shift = y_curr[mask_dense] - b_guess
+            valid = y_shift &gt; 1e-5
+            
+            if np.sum(valid) &lt; 2: continue
+            
+            log_y = np.log(y_shift[valid])
+            log_N = np.log(N_norm[mask_dense][valid])
+            
+            # Linear fit: log_y = log_c1 - alpha1 * log_N
+            A = np.vstack([np.ones(len(log_y)), -log_N]).T
             try:
-                # Least Squares with Trust Region Reflective
-                res = least_squares(fun_full, g, bounds=(base_lower, curr_upper), 
-                                    loss=&#x27;soft_l1&#x27;, f_scale=0.1, max_nfev=1000)
+                sol, _, _, _ = np.linalg.lstsq(A, log_y, rcond=None)
+                c1_est = np.exp(sol[0])
+                a1_est = np.clip(sol[1], 0.01, 4.0)
+            except:
+                c1_est = 1.0
+                a1_est = 0.5
+            
+            # 2. Fit expert term on residuals of full dataset
+            # Residual R = y - (bias + c1*N^-a1)
+            # Model R ~ c2 * N^-a2 * E^-beta
+            term1 = c1_est * (N_norm ** -a1_est)
+            residuals = y_curr - b_guess - term1
+            
+            valid_res = residuals &gt; 1e-5
+            if np.sum(valid_res) &gt; 5:
+                log_R = np.log(residuals[valid_res])
+                log_N_res = np.log(N_norm[valid_res])
+                log_E_res = np.log(E[valid_res])
+                
+                # log R = log c2 - a2*log N - beta*log E
+                A2 = np.vstack([np.ones(len(log_R)), -log_N_res, -log_E_res]).T
+                try:
+                    sol2, _, _, _ = np.linalg.lstsq(A2, log_R, rcond=None)
+                    c2_est = np.exp(sol2[0])
+                    a2_est = np.clip(sol2[1], 0.01, 4.0)
+                    beta_est = np.clip(sol2[2], 0.0, 3.0)
+                    
+                    candidates.append([b_guess, c1_est, a1_est, c2_est, a2_est, beta_est])
+                except:
+                    candidates.append([b_guess, c1_est, a1_est, c1_est*0.2, a1_est, 0.5])
+            else:
+                 # If residuals are negative/small, maybe expert term is negligible or we overshot bias
+                 candidates.append([b_guess, c1_est, a1_est, 0.0, a1_est, 0.0])
+
+        # --- Strategy 2: Physics Priors / Fallbacks ---
+        candidates.append([min_loss * 0.9, 1.0, 0.5, 1.0, 0.5, 0.5])
+        candidates.append([min_loss * 0.5, 5.0, 1.0, 2.0, 1.0, 0.5])
+        
+        # Deduplicate
+        unique_candidates = []
+        seen = []
+        for c in candidates:
+            c_arr = np.array(c)
+            if not any(np.allclose(c_arr, s, rtol=0.1, atol=0.1) for s in seen):
+                unique_candidates.append(c)
+                seen.append(c_arr)
+        
+        # --- Optimization ---
+        def res_func(p):
+            return scaling_law_func(X, p) - y_curr
+            
+        # Bounds: bias [0, min_loss], others [0, inf], exponents [0, 6]
+        lb = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        ub = [min_loss, np.inf, 6.0, np.inf, 6.0, 6.0]
+        
+        best_params = None
+        best_cost = np.inf
+        
+        for guess in unique_candidates:
+            try:
+                # Clip guess to bounds (with small margin for bias)
+                p0 = np.clip(guess, lb, ub)
+                p0[0] = min(p0[0], min_loss - 1e-4) 
+                
+                res = least_squares(
+                    res_func, 
+                    p0, 
+                    bounds=(lb, ub),
+                    method=&#x27;trf&#x27;,
+                    loss=&#x27;soft_l1&#x27;, 
+                    f_scale=0.05, # Robustness scale
+                    max_nfev=500,
+                    xtol=1e-7,
+                    ftol=1e-7
+                )
+                
                 if res.cost &lt; best_cost:
                     best_cost = res.cost
-                    best_p = res.x
-            except:
+                    best_params = res.x
+            except Exception:
                 continue
-                
-        if best_p is None:
-            # Constant predictor fallback
-            best_p = np.array([y_min, 0.0, 0.0, 0.0, 0.0, 0.0])
-            
-        results.append(best_p)
         
-    return np.array(results)[0] if n_targets == 1 else np.array(results)
+        if best_params is None:
+            best_params = np.array([min_loss*0.9, 1.0, 0.5, 1.0, 0.5, 0.5])
+            
+        results.append(best_params)
+        
+    return np.array(results) if n_targets &gt; 1 else results[0]
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#5</span>
-              <span class="run-label">Run 5</span>
-              <span class="r2-badge" style="background-color: #228b22; color: white"> R² = 0.841581 </span>
+              <span class="run-label">Run 3</span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.957176 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -1119,214 +1156,195 @@ def fit_scaling_law(data_points, loss_values):
                 <span>Python</span>
                 <button class="copy-btn" onclick="copyCode(event, 'code-4')">Copy</button>
               </div>
-              <pre><code class="language-python" id="code-4">import numpy as np
-from scipy.optimize import least_squares
+              <pre><code class="language-python" id="code-4"># EVOLVE-BLOCK-START
+&quot;&quot;&quot;
+Scaling law discovery for LLM finetuning scenarios
+Improved program with Centered Variable Projection and Robust Fine-tuning
+&quot;&quot;&quot;
+import numpy as np
+from scipy.optimize import least_squares, nnls, differential_evolution
 
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    MoE Scaling Law Model:
-    L(N, E) = p0 + p1 * N^(-p2) + p3 * N^(-p5) * E^(-p4)
+    Predicts validation loss based on MoE parameters.
+    Model: L = bias + A * (N/1e9)^-alpha + B * (N/1e9)^-gamma * E^-beta
     
-    This functional form decomposes the loss into:
-    1. Irreducible Loss (p0): The asymptotic floor.
-    2. Dense Backbone Loss (p1 * N^-p2): The loss component limited by the active parameter count N.
-       This represents the &quot;infinite expert&quot; limit where routing is perfect/free.
-    3. Sparse Penalty/Gain (p3 * N^-p5 * E^-p4): A term that represents the additional loss 
-       incurred by having finite experts. 
-       - As E increases, this term vanishes (E^-p4), representing the gain from experts.
-       - p4 controls the saturation rate of expert utility.
-       - p5 allows the utility of experts to scale differently with model size N compared 
-         to the dense backbone (p2), capturing &quot;decoupled&quot; scaling dynamics.
+    params: [bias, A, alpha, B, gamma, beta]
     &quot;&quot;&quot;
-    # Ensure inputs are 2D arrays
     X = np.atleast_2d(np.asarray(data_points))
-    E = X[:, 0]
-    # Normalize N to a range close to [1, 10] for optimization stability.
-    # The raw data is typically 1e8 to 8e8.
-    N = X[:, 1] / 1e8
-    
     params = np.asarray(params)
-    squeeze_output = False
+    
+    # Handle parameter shapes for vectorized evaluation
     if params.ndim == 1:
         params = params[None, :]
-        squeeze_output = True
-        
-    # Unpack parameters (num_sets, 6)
-    p0 = params[:, 0]
-    p1 = params[:, 1]
-    p2 = params[:, 2]
-    p3 = params[:, 3]
-    p4 = params[:, 4]
-    p5 = params[:, 5]
     
-    # Broadcasting for vectorized evaluation
-    # N: (Samples, 1), Params: (1, Param_Sets)
-    N_bc = N[:, None]
-    E_bc = E[:, None]
+    # Extract features
+    E = X[:, 0]
+    N = X[:, 1]
     
-    # Term 1: Dense Backbone Scaling
-    # p1 * N^(-p2)
-    term1 = p1[None, :] * (N_bc ** -p2[None, :])
+    # Normalize N for numerical stability
+    # Using 1e9 as scaling factor implies N_norm is roughly in [0.1, 0.8]
+    N_norm = N / 1e9
     
-    # Term 2: Expert Scaling Penalty
-    # p3 * N^(-p5) * E^(-p4)
-    term2 = p3[None, :] * (N_bc ** -p5[None, :]) * (E_bc ** -p4[None, :])
+    # Unpack parameters (6 parameters)
+    # Use abs to ensure positivity and avoid numerical errors
+    bias  = np.abs(params[:, 0])
+    A     = np.abs(params[:, 1])
+    alpha = np.abs(params[:, 2])
+    B     = np.abs(params[:, 3])
+    gamma = np.abs(params[:, 4])
+    beta  = np.abs(params[:, 5])
     
-    # Total Loss
-    pred = p0[None, :] + term1 + term2
+    # Term 1: Dense scaling (A * N^-alpha)
+    term1 = A[:, None] * (N_norm[None, :] ** -alpha[:, None])
     
-    if squeeze_output:
-        return pred[:, 0]
-    return pred
+    # Term 2: Expert interaction (B * N^-gamma * E^-beta)
+    term2 = B[:, None] * (N_norm[None, :] ** -gamma[:, None]) * (E[None, :] ** -beta[:, None])
+    
+    # Total loss
+    pred = bias[:, None] + term1 + term2
+    
+    # Return shape (Data, T) or (Data,)
+    pred = pred.T
+    return pred[:, 0] if pred.shape[1] == 1 else pred
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Fits the MoE scaling law using a robust multi-stage initialization and refinement process.
+    Fits the scaling law parameters using Centered Variable Projection.
+    
+    Key Improvements:
+    1. Centering: Log-features are centered (mean subtracted) before fitting.
+       This orthogonalizes the linear coefficients (A, B) from the exponents,
+       making the optimization landscape much smoother and easier for DE.
+    2. Variable Projection: Uses DE to find global optimal exponents, solving
+       for linear params via NNLS.
+    3. Parameter Conversion: Converts centered parameters back to standard form
+       for the final robust fine-tuning stage.
     &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points))
     y = np.asarray(loss_values)
     
     if y.ndim == 1:
-        ys = y[:, None]
+        y2d = y[:, None]
     else:
-        ys = y
+        y2d = y
         
-    n_targets = ys.shape[1]
-    final_params = []
-    
-    # Pre-process features
     E = X[:, 0]
-    N_norm = X[:, 1] / 1e8
+    N_norm = X[:, 1] / 1e9
     
-    # Identify subsets for intelligent initialization
-    dense_mask = (E == 1)
-    has_dense = np.sum(dense_mask) &gt;= 3
+    # Pre-compute centered log features for stable optimization
+    # Adding epsilon to avoid log(0)
+    log_N = np.log(N_norm + 1e-10)
+    log_E = np.log(E + 1e-10)
     
-    for i in range(n_targets):
-        y_curr = ys[:, i]
+    mu_N = np.mean(log_N)
+    mu_E = np.mean(log_E)
+    
+    # Centered logs
+    lN_c = log_N - mu_N
+    lE_c = log_E - mu_E
+    
+    ones = np.ones_like(E)
+    
+    results = []
+    
+    for i in range(y2d.shape[1]):
+        y_curr = y2d[:, i]
         min_loss = np.min(y_curr)
         
-        # Constraints
-        # p0 &lt;= min_loss - epsilon (Loss cannot be lower than irreducible error)
-        # Exponents (p2, p4, p5) restricted to [0, 4.0] to prevent unphysical spikes.
-        # Coefficients (p1, p3) restricted to [0, inf).
-        lb = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-        ub = [min_loss - 1e-6, np.inf, 4.0, np.inf, 4.0, 4.0]
+        # --- Stage 1: DE with Centered Variable Projection ---
         
-        guesses = []
-        
-        # --- Strategy 1: Dense Anchor Initialization ---
-        # If Dense (E=1) data exists, the model simplifies to:
-        # L(N, 1) = p0 + p1*N^-p2 + p3*N^-p5 = p0 + (p1 + p3)*N^-p_approx
-        # We fit this 1D power law to get a strong prior on the overall scale.
-        p_dense = None
-        if has_dense:
-            def dense_resid(p):
-                # p = [bias, coeff, exp]
-                return (p[0] + p[1] * (N_norm[dense_mask] ** -p[2])) - y_curr[dense_mask]
+        def vp_objective(exps):
+            # exps: [alpha, gamma, beta]
+            alph, gam, bet = exps
+            
+            # Basis in centered space:
+            # bias + A_c * exp(-alpha * lN_c) + B_c * exp(-gamma * lN_c - beta * lE_c)
+            t1 = np.exp(-alph * lN_c)
+            t2 = np.exp(-gam * lN_c - bet * lE_c)
+            
+            M = np.stack([ones, t1, t2], axis=1)
             
             try:
-                # Robust fit on dense data
-                res_d = least_squares(dense_resid, [min_loss*0.8, 1.0, 0.5], 
-                                      bounds=([0, 0, 0], [min_loss, np.inf, 4.0]),
-                                      loss=&#x27;soft_l1&#x27;)
-                p_dense = res_d.x
+                # Solve NNLS for [bias, A_c, B_c]
+                # bias corresponds to column 0 (ones)
+                coeffs, rnorm = nnls(M, y_curr)
+                return rnorm
             except:
-                pass
+                return 1e9
+
+        # DE Bounds for exponents
+        # Expanded bounds to ensure we capture the full range of behaviors
+        bounds = [(0.0, 8.0), (0.0, 8.0), (0.0, 8.0)]
         
-        if p_dense is not None:
-            pd0, pd_coeff, pd_exp = p_dense
-            # Decompose the single dense coefficient into p1 (base) and p3 (expert penalty).
-            # We don&#x27;t know the split, so we generate multiple guesses.
-            
-            # Guess A: Balanced split
-            guesses.append([pd0, pd_coeff*0.5, pd_exp, pd_coeff*0.5, 0.5, pd_exp])
-            # Guess B: Mostly Dense (Experts are a minor correction)
-            guesses.append([pd0, pd_coeff*0.9, pd_exp, pd_coeff*0.1, 0.5, pd_exp])
-            # Guess C: Mostly Expert (Experts are the main driver)
-            guesses.append([pd0, pd_coeff*0.1, pd_exp, pd_coeff*0.9, 0.5, pd_exp])
-            # Guess D: Decoupled N-scaling (Expert penalty scales faster/slower)
-            guesses.append([pd0, pd_coeff*0.5, pd_exp, pd_coeff*0.5, 0.5, pd_exp * 1.5])
-            
+        # Run Global Optimization
+        # Increased maxiter and popsize for thoroughness given the fast evaluation
+        res_de = differential_evolution(
+            vp_objective, 
+            bounds, 
+            strategy=&#x27;best1bin&#x27;, 
+            maxiter=100, 
+            popsize=20, 
+            mutation=(0.5, 1.0), 
+            recombination=0.7,
+            tol=1e-5,
+            seed=42,
+            polish=True
+        )
         
-        # --- Strategy 2: Global Average Initialization ---
-        # Fit a simple power law to ALL data points, ignoring E.
-        # This provides a &quot;center of mass&quot; for the optimization.
+        # Reconstruct centered parameters
+        alph_opt, gam_opt, bet_opt = res_de.x
+        
+        t1 = np.exp(-alph_opt * lN_c)
+        t2 = np.exp(-gam_opt * lN_c - bet_opt * lE_c)
+        M = np.stack([ones, t1, t2], axis=1)
+        coeffs, _ = nnls(M, y_curr)
+        bias_c, A_c, B_c = coeffs
+        
+        # Convert centered parameters to standard form
+        # Standard form: bias + A * N_norm^-alpha + ...
+        # A = A_c * exp(alpha * mu_N)
+        # B = B_c * exp(gamma * mu_N + beta * mu_E)
+        
+        A_init = A_c * np.exp(alph_opt * mu_N)
+        B_init = B_c * np.exp(gam_opt * mu_N + bet_opt * mu_E)
+        
+        # Initial guess: [bias, A, alpha, B, gamma, beta]
+        init_params = [bias_c, A_init, alph_opt, B_init, gam_opt, bet_opt]
+
+        # --- Stage 2: Robust Fine-tuning ---
+        
+        def residual_func(p):
+            return scaling_law_func(X, p) - y_curr
+            
+        # Ensure bias is within valid range for initialization
+        if init_params[0] &gt;= min_loss:
+            init_params[0] = min_loss - 1e-4
+            
+        # Bounds: [bias, A, alpha, B, gamma, beta]
+        # Bias must be &lt; min_loss (physically, it&#x27;s the irreducible loss)
+        lower_bounds = [0, 0, 0, 0, 0, 0]
+        upper_bounds = [min_loss, np.inf, 10.0, np.inf, 10.0, 10.0]
+        
         try:
-            def global_resid(p):
-                return (p[0] + p[1] * (N_norm ** -p[2])) - y_curr
-            res_g = least_squares(global_resid, [min_loss*0.5, 1.0, 0.5],
-                                  bounds=([0, 0, 0], [min_loss, np.inf, 4.0]))
-            pg0, pg_coeff, pg_exp = res_g.x
-            guesses.append([pg0, pg_coeff*0.5, pg_exp, pg_coeff*0.5, 0.5, pg_exp])
-        except:
-            pass
+            res_robust = least_squares(
+                residual_func, 
+                x0=init_params, 
+                bounds=(lower_bounds, upper_bounds),
+                loss=&#x27;soft_l1&#x27;, 
+                f_scale=0.01, # Tight inlier definition
+                max_nfev=2000,
+                ftol=1e-10,
+                xtol=1e-10
+            )
+            final_params = res_robust.x
+        except Exception:
+            final_params = np.array(init_params)
             
-        # --- Strategy 3: Generic Fallbacks ---
-        guesses.append([min_loss*0.9, 1.0, 0.5, 1.0, 0.5, 0.5])
-        guesses.append([0.0, 2.0, 1.0, 2.0, 0.5, 1.0])
+        results.append(final_params)
         
-        # --- Optimization Loop ---
-        best_res = None
-        best_cost = float(&#x27;inf&#x27;)
-        
-        def full_residuals(p):
-            # Evaluate model: p0 + p1*N^-p2 + p3*N^-p5*E^-p4
-            t1 = p[1] * (N_norm ** -p[2])
-            t2 = p[3] * (N_norm ** -p[5]) * (E ** -p[4])
-            return (p[0] + t1 + t2) - y_curr
-            
-        for g in guesses:
-            try:
-                # Clip guess to bounds to prevent immediate failure
-                g = np.clip(g, lb, ub)
-                # soft_l1 loss is crucial here to handle noise and potential outliers
-                res = least_squares(full_residuals, g, bounds=(lb, ub),
-                                    method=&#x27;trf&#x27;, loss=&#x27;soft_l1&#x27;, f_scale=0.1, max_nfev=500)
-                if res.cost &lt; best_cost:
-                    best_cost = res.cost
-                    best_res = res
-            except:
-                continue
-        
-        # --- Refinement Phase ---
-        # If we found a good solution, try to refine it by testing variations.
-        # This helps escape shallow local minima common in exponential fitting.
-        if best_res is not None:
-            p_best = best_res.x
-            variations = [p_best]
-            
-            # Variant 1: &quot;Coupled Scaling&quot; Hypothesis
-            # Force expert N-scaling (p5) to match dense N-scaling (p2).
-            # This is a physically likely mode.
-            p_coupled = p_best.copy()
-            p_coupled[5] = p_coupled[2]
-            variations.append(p_coupled)
-            
-            # Variant 2: Perturb coefficients
-            p_pert = p_best.copy()
-            p_pert[1] *= 1.1; p_pert[3] *= 0.9 # Shift weight slightly
-            variations.append(p_pert)
-            
-            for v in variations:
-                try:
-                    v = np.clip(v, lb, ub)
-                    # Run a shorter, tighter optimization
-                    res = least_squares(full_residuals, v, bounds=(lb, ub),
-                                        method=&#x27;trf&#x27;, loss=&#x27;soft_l1&#x27;, f_scale=0.1, max_nfev=300)
-                    if res.cost &lt; best_cost:
-                        best_cost = res.cost
-                        best_res = res
-                except:
-                    continue
-        
-        if best_res is not None:
-            final_params.append(best_res.x)
-        else:
-            # Safe fallback if everything fails
-            final_params.append([min_loss, 0, 0, 0, 0, 0])
-            
-    return np.array(final_params) if n_targets &gt; 1 else np.array(final_params[0])</code></pre>
+    return np.array(results) if len(results) &gt; 1 else results[0]
+# EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>

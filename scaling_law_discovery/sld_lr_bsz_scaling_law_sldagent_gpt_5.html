@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>SLD - LR & Batch Size Scaling Law - SLDAgent + GPT-5</title>
+    <title>SLD - LR-BSZ Scaling Law - SLDAgent + GPT-5</title>
     <link rel="icon" type="image/png" href="assets/sld_logo.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -285,10 +285,10 @@
     <div class="bg-pattern"></div>
 
     <div class="container">
-      <a href="sld_index.html" class="back-link"> ← Back to Leaderboard </a>
+      <a href="index.html" class="back-link"> ← Back to Leaderboard </a>
 
       <div class="header">
-        <h1>LR & Batch Size Scaling Law</h1>
+        <h1>LR-BSZ Scaling Law</h1>
         <div class="meta-row">
           <div class="meta-item">
             <span class="meta-label">Agent:</span>
@@ -300,15 +300,15 @@
           </div>
           <div class="meta-item">
             <span class="meta-label">Best R²:</span>
-            <span class="r2-badge" style="background-color: #228b22; color: white"> 0.888267 </span>
+            <span class="r2-badge" style="background-color: #006400; color: white"> 0.983442 </span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Mean R²:</span>
-            <span class="meta-value">0.690027</span>
+            <span class="meta-value">0.954795</span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Min R²:</span>
-            <span class="meta-value">0.428723</span>
+            <span class="meta-value">0.910510</span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Runs:</span>
@@ -320,12 +320,13 @@
       <h2 class="section-title">All Runs (sorted by R²)</h2>
 
       <div class="runs-container">
+
         <div class="run-card best-run">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge best-badge">Best</span>
               <span class="run-label">Run 1</span>
-              <span class="r2-badge" style="background-color: #228b22; color: white"> R² = 0.888267 </span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.983442 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -338,123 +339,81 @@
               <pre><code class="language-python" id="code-0"># EVOLVE-BLOCK-START
 import numpy as np
 
-def _phi(X):
-    X = np.atleast_2d(np.asarray(X, float))
-    lr, bsz, D, P = X[:,0], X[:,1], X[:,2], X[:,3]
-    xlr = np.log(lr/3e-3)
-    xbs = np.log(bsz/256.0)
-    xD  = np.log(D/1e10)
-    xP  = np.log(P/3e8)
-    zlr = xlr - 0.5*xbs          # batch-normalized LR
-    xR  = xD - xP                 # data-to-param balance
-    xT  = xD - xbs                # effective steps ~ log(D/bsz)
-    xs  = xD + xP                 # compute proxy ~ log(D*P)
-    sLR = 1.0/(1.0 + np.exp(xlr)) # smooth LR saturation
-    sNS = 1.0/(1.0 + np.exp(zlr)) # smooth noise-scale saturation
-    return np.stack([
-        np.ones_like(xlr),        # 0 bias
-        xlr, xbs, xD, xP,         # 1..4 linear
-        zlr, xR, xT,              # 5..7 derived linear
-        xlr**2, xbs**2, zlr**2, xD**2, xP**2,     # 8..12 quadratics
-        xlr*xbs, xlr*xD, xlr*xP, xbs*xD, xbs*xP, xD*xP,  # 13..18 interactions
-        xs, xs**2,                # 19..20 compute coupling
-        np.exp(-xD), np.exp(-xP), # 21..22 marginal decays
-        np.exp(-xs), np.exp(-0.5*xs), # 23..24 compute decays
-        np.exp(-0.5*xbs), np.exp(-xT), # 25..26 noise and steps decays
-        np.exp(-np.abs(xR)),      # 27 balance regularizer
-        np.exp(-(zlr**2)),        # 28 LR valley (batch-normalized)
-        sLR, sNS                  # 29..30 saturations
-    ], axis=1)
+# Log-polynomial + rational diminishing-returns + steps features; weighted ridge fit
+def _design_matrix(X):
+    X = np.atleast_2d(np.asarray(X, dtype=float))
+    eps = 1e-12
+    Xc = np.clip(X, eps, None)
+    L = np.log10(Xc)
+    lr_log, bsz_log, data_log, params_log = L.T
+    D0, P0, B0 = 1.0e10, 3.0e8, 256.0
+    S0 = D0 / B0
+    D, P, B = Xc[:, 2], Xc[:, 3], Xc[:, 1]
+    S = D / np.maximum(B, eps)
+    ones = np.ones(X.shape[0], float)
+    feats = [
+        ones,
+        lr_log, bsz_log, data_log, params_log,
+        lr_log**2, bsz_log**2, data_log**2, params_log**2,
+        lr_log*bsz_log, lr_log*data_log, lr_log*params_log,
+        bsz_log*data_log, bsz_log*params_log, data_log*params_log,
+        lr_log**3,
+        (D/D0)**-0.5, (D/D0)**(-1.0/3.0),
+        (P/P0)**-0.5, (P/P0)**(-1.0/3.0),
+        (B/B0)**-0.5,
+        np.log10(np.maximum(S/S0, eps)),
+        np.log10(np.maximum(S/S0, eps))**2,
+        (S/S0)**-0.5,
+    ]
+    return np.column_stack(feats)
 
 def scaling_law_func(data_points, params):
-    Phi = _phi(data_points)
-    p = np.asarray(params, float)
+    Phi = _design_matrix(data_points)
+    p = np.asarray(params, dtype=float)
     if p.ndim == 1: p = p[None, :]
-    K = Phi.shape[1]
-    if p.shape[1] &lt; K: p = np.pad(p, ((0,0),(0,K-p.shape[1])))
-    elif p.shape[1] &gt; K: p = p[:, :K]
     y = Phi @ p.T
-    return y[:,0] if y.shape[1] == 1 else y
+    return y[:, 0] if y.shape[1] == 1 else y
 
 def fit_scaling_law(data_points, loss_values):
-    Phi = _phi(data_points)
-    y = np.asarray(loss_values, float).ravel()
-    N, K = Phi.shape
+    Phi = _design_matrix(data_points)
+    y = np.asarray(loss_values, dtype=float)
+    Y = y[:, None] if y.ndim == 1 else y
+    N, M = Phi.shape
+    T = Y.shape[1]
 
-    # Standardize non-bias columns for conditioning
-    M = np.zeros(K); S = np.ones(K)
-    if N &gt; 0:
-        M[1:] = Phi[:,1:].mean(0)
-        S[1:] = Phi[:,1:].std(0); S[S&lt;=1e-12] = 1.0
-    Xs = np.empty_like(Phi); Xs[:,0] = 1.0; Xs[:,1:] = (Phi[:,1:] - M[1:]) / S[1:]
+    s = Phi.std(axis=0)
+    s[0] = 1.0
+    s[s &lt; 1e-12] = 1.0
+    Z = Phi / s
 
-    # Group-wise penalties
-    pen = np.ones(K)
-    pen[0]    = 0.0                    # bias
-    pen[1:5]  = 0.7                    # basic linear
-    pen[5:8]  = 1.1                    # derived linear
-    pen[8:13] = 2.2                    # quadratics
-    pen[13:19]= 1.6                    # interactions
-    pen[19:21]= 1.1                    # compute coupling
-    pen[21]   = 0.9                    # exp(-xD)
-    pen[22]   = 0.9                    # exp(-xP)
-    pen[23:25]= 1.0                    # compute decays
-    pen[25]   = 1.0                    # exp(-0.5*xbs)
-    pen[26]   = 0.9                    # exp(-xT)
-    pen[27]   = 1.1                    # balance regularizer
-    pen[28]   = 1.4                    # LR valley
-    pen[29:31]= 1.2                    # saturations
+    w = np.ones(M, dtype=float)
+    w[0] = 0.0
+    w[1:5] = 1.0
+    w[5:9] = 5.0
+    w[9:15] = 5.0
+    w[15] = 8.0
+    w[16:21] = 10.0
+    w[21:24] = 6.0
+    lam = 1e-2
 
-    # Robust weighted ridge with GCV lambda selection
-    w = np.ones(N, float)
-    lam_grid = np.logspace(-7, 0, 9)
-    I = np.eye(K)
-
-    def solve_wridge(lam):
-        sw = np.sqrt(w)[:, None]
-        Xw = Xs * sw; yw = y[:, None] * sw
-        A = Xw.T @ Xw
-        B = Xw.T @ yw
-        Areg = A + np.diag(lam * pen) + 1e-12 * I
-        W = np.linalg.solve(Areg, B)
-        H = np.linalg.solve(Areg, A)
-        return W, float(np.trace(H))
-
-    W_best = None
-    for _ in range(3):
-        best_gcv, best_W = np.inf, None
-        for lam in lam_grid:
-            W, trH = solve_wridge(lam)
-            r = y - (Xs @ W).ravel()
-            sse = float(r @ r)
-            denom = N - trH
-            if denom &lt;= 1e-12: continue
-            gcv = sse / (denom * denom)
-            if gcv &lt; best_gcv: best_gcv, best_W = gcv, W
-        W_best = best_W if best_W is not None else solve_wridge(lam_grid[-1])[0]
-        r = y - (Xs @ W_best).ravel()
-        s = 1.4826 * np.median(np.abs(r)) if r.size else 0.0
-        if s &lt;= 1e-12: break
-        c = 2.0 * s
-        w = 1.0 / np.maximum(1.0, np.abs(r) / c)
-
-    # De-standardize coefficients
-    W = W_best.ravel()
-    pout = np.empty(K)
-    pout[1:] = W[1:] / S[1:]
-    pout[0]  = W[0] - np.sum(W[1:] * (M[1:] / S[1:]))
-    return pout
+    A = Z.T @ Z + lam * np.diag(w)
+    B = Z.T @ Y
+    try:
+        P_s = np.linalg.solve(A, B)
+    except np.linalg.LinAlgError:
+        P_s = np.linalg.pinv(A) @ B
+    P = (P_s.T / s).astype(float)
+    return P[0] if T == 1 else P
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#2</span>
-              <span class="run-label">Run 3</span>
-              <span class="r2-badge" style="background-color: #228b22; color: white"> R² = 0.851819 </span>
+              <span class="run-label">Run 2</span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.982606 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -467,103 +426,116 @@ def fit_scaling_law(data_points, loss_values):
               <pre><code class="language-python" id="code-1"># EVOLVE-BLOCK-START
 import numpy as np
 
-_c_lr = np.log10(3e-3)
-_c_b  = 8.0
-_c_D  = 10.5
-_c_P  = 8.7
+_A = np.array([1e-3, 256.0, 1e10, 1e8], float)
+_UMIN, _UMAX = -9.0, 7.0
 
-def _phi(data_points):
-    X = np.atleast_2d(np.asarray(data_points))
-    lr, bsz, D, P = X[:,0], X[:,1], X[:,2], X[:,3]
-    z_l = np.log10(lr) - _c_lr
-    z_b = np.log2(bsz) - _c_b
-    z_d = np.log10(D) - _c_D
-    z_p = np.log10(P) - _c_P
-
-    z_c = z_d + z_p
-    r_dp = z_d - z_p
-    diff_lb = z_l - 0.5*z_b
-    z_ns = 2.0*z_l - z_b
-    z_step = z_l + z_b - z_d
-
-    b_pow  = np.exp2(-0.5*z_b)
-    D_pow  = np.power(10.0, -0.5*z_d)
-    P_pow  = np.power(10.0, -1.0/3.0*z_p)
-    CP_pow = np.power(10.0, -0.25*(z_d+z_p))
-    bD_pow = b_pow * D_pow
-
-    t_l = np.tanh(0.7*z_l)
-    t_c = np.tanh(0.5*z_c)
-    t_r = np.tanh(0.7*r_dp)
-    t_s = np.tanh(0.6*z_step)
-    g_l = np.exp(-(z_l/1.2)**2)
-    g_c = np.exp(-(z_c/1.5)**2)
-
+def _phi(X):
+    X = np.atleast_2d(np.asarray(X, float))
+    z = np.log(X / _A)
+    z1, z2, z3, z4 = z.T
     return np.column_stack([
-        np.ones_like(z_l),
-        z_l, z_b, z_d, z_p,
-        z_l**2, z_b**2, z_d**2, z_p**2,
-        z_l*z_b, z_l*z_d, z_l*z_p, z_b*z_d, z_b*z_p, z_d*z_p,
-        b_pow, D_pow, P_pow, CP_pow, bD_pow,
-        diff_lb, diff_lb**2, r_dp, r_dp**2,
-        z_ns, z_ns**2, t_s,
-        t_l, t_c, g_l, g_c
+        z1, z2, z3, z4,
+        0.5*z1**2, 0.5*z2**2, 0.5*z3**2, 0.5*z4**2,
+        z1*z2, z1*z3, z1*z4, z2*z3, z2*z4, z3*z4
     ])
 
 def scaling_law_func(data_points, params):
     Phi = _phi(data_points)
-    B = np.asarray(params)
-    out = Phi @ (B if B.ndim==1 else B.T)
-    return out if B.ndim==1 else (out[:,0] if out.shape[1]==1 else out)
+    P = Phi.shape[1]
+    W = np.asarray(params, float)
+    if W.ndim == 1:
+        L0, A = W[0], W[1]
+        w = W[2:2+P]
+        u = Phi @ w
+        e = np.exp(np.clip(u, _UMIN, _UMAX))
+        return L0 + A * e
+    else:
+        L0, A = W[:, 0], W[:, 1]
+        w = W[:, 2:2+P]
+        u = Phi @ w.T
+        e = np.exp(np.clip(u, _UMIN, _UMAX))
+        return L0[None, :] + A[None, :] * e
 
 def fit_scaling_law(data_points, loss_values):
     Phi = _phi(data_points)
-    y = np.asarray(loss_values)
-    Y = y.reshape(-1,1) if y.ndim==1 else y
-    N, K = Phi.shape
+    y = np.asarray(loss_values, float).ravel()
+    N, P = Phi.shape
+    A0 = Phi.T @ Phi
+    lam_grid = np.array([1e-4, 5e-4, 1e-3, 5e-3, 1e-2, 5e-2, 1e-1])
+    ymin = float(np.min(y))
+    lo = ymin - 0.9
+    hi = ymin - 0.03
+    if not (lo &lt; hi):
+        lo = ymin - 0.2
+        hi = ymin - 1e-3
+    L0_grid = np.linspace(lo, hi, 25)
+    best = (np.inf, hi, 1.0, np.zeros(P), lam_grid[0])
 
-    mu = Phi[:,1:].mean(axis=0)
-    sd = Phi[:,1:].std(axis=0) + 1e-8
-    Xs = np.column_stack([np.ones((N,1)), (Phi[:,1:] - mu) / sd])
+    def solve_w(L0, lam):
+        r = y - L0
+        r = np.where(r &gt; 1e-8, r, 1e-8)
+        t = np.log(r)
+        M = A0.copy()
+        M.flat[::P+1] += lam
+        bt = Phi.T @ t
+        try:
+            w = np.linalg.solve(M, bt)
+        except np.linalg.LinAlgError:
+            w, *_ = np.linalg.lstsq(np.vstack([Phi, np.sqrt(lam)*np.eye(P)]),
+                                    np.concatenate([t, np.zeros(P)]), rcond=None)
+        u = Phi @ w
+        e = np.exp(np.clip(u, _UMIN, _UMAX))
+        A = (e @ r) / max(e @ e, 1e-12)
+        A = float(max(A, 1e-8))
+        yhat = L0 + A * e
+        mse = ((yhat - y)**2).mean()
+        return mse, w, A
 
-    U, S, Vt = np.linalg.svd(Xs, full_matrices=False)
-    V = Vt.T
-    UTY = U.T @ Y
-    lam_grid = np.logspace(-5, 0, 10)
+    # coarse search over L0 and ridge strength
+    for L0 in L0_grid:
+        for lam in lam_grid:
+            mse, w, A = solve_w(L0, lam)
+            if mse &lt; best[0]:
+                best = (mse, L0, A, w, lam)
 
-    best_gcv = np.inf
-    best_B = None
-    for lam in lam_grid:
-        w = (S / (S*S + lam))[:,None]
-        B = V @ (w * UTY)
-        R = Y - Xs @ B
-        rss = np.sum(R*R)
-        trH = np.sum((S*S) / (S*S + lam))
-        gcv = rss / max((N - trH)**2, 1e-12)
-        if gcv &lt; best_gcv:
-            best_gcv = gcv
-            best_B = B
+    mse_b, L0_b, A_b, w_b, lam_b = best
 
-    B = best_B.T
-    if B.ndim == 1:
-        b_non = B[1:] / sd
-        b0 = B[0] - (mu * b_non).sum()
-        return np.concatenate([[b0], b_non])
+    # refine L0 with golden-section search
+    gl, gh = max(lo, L0_b - 0.3), min(hi, L0_b + 0.15)
+    if gl &gt;= gh:
+        gl, gh = lo, hi
+    phi = (np.sqrt(5) - 1) / 2
+    c = gh - phi * (gh - gl)
+    d = gl + phi * (gh - gl)
+    mc, wc, Ac = solve_w(c, lam_b)
+    md, wd, Ad = solve_w(d, lam_b)
+    for _ in range(14):
+        if mc &lt; md:
+            gh, md, wd, Ad = d, mc, wc, Ac
+            d = c
+            c = gh - phi * (gh - gl)
+            mc, wc, Ac = solve_w(c, lam_b)
+        else:
+            gl, mc, wc, Ac = c, md, wd, Ad
+            c = d
+            d = gl + phi * (gh - gl)
+            md, wd, Ad = solve_w(d, lam_b)
+    if mc &lt; md:
+        L0_b, w_b, A_b = c, wc, Ac
     else:
-        bnon = (B[:,1:] / sd[None,:])
-        b0 = B[:,0] - (mu[None,:] * bnon).sum(axis=1)
-        return np.column_stack([b0, bnon])
+        L0_b, w_b, A_b = d, wd, Ad
+
+    return np.concatenate([[L0_b, A_b], w_b])
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#3</span>
-              <span class="run-label">Run 2</span>
-              <span class="r2-badge" style="background-color: #daa520; color: white"> R² = 0.776002 </span>
+              <span class="run-label">Run 4</span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.982010 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -577,142 +549,131 @@ def fit_scaling_law(data_points, loss_values):
 import numpy as np
 from scipy.optimize import minimize
 
-# Constant reference scales (not data-dependent)
-_LR_REF   = 1e-3
-_BSZ_REF  = 256.0
-_DATA_REF = 1e10
-_PARAM_REF= 3e8
-
-def _softplus(x):
-    return np.log1p(np.exp(-np.abs(x))) + np.maximum(x, 0.0)
-
-def _sp_inv(y, eps=1e-8):
-    y = np.maximum(y, eps)
-    return np.log(np.expm1(y))
-
-def _predict_single(X, p):
-    # p: length-16 raw parameter vector
-    lr, bsz, data, npar = X[:,0], X[:,1], X[:,2], X[:,3]
-    llr = np.log(lr)
-    dlb = np.log(bsz)  - np.log(_BSZ_REF)
-    dld = np.log(data) - np.log(_DATA_REF)
-    dln = np.log(npar) - np.log(_PARAM_REF)
-
-    # Steps term: ds = log(steps/steps_ref) = (dld - dlb)
-    ds = dld - dlb
-    # Effective steps per parameter: subtract tau * dln (tokens-per-parameter balance)
-    tau = _softplus(p[15])  # positive, interpretable scale
-    ds_eff = ds - tau * dln
-
-    L0   = p[0]
-    A_n  = _softplus(p[1]);  a_n  = _softplus(p[2])   # model-size improvement
-    A_s  = _softplus(p[3]);  a_s  = _softplus(p[4])   # effective steps improvement
-
-    C2   = _softplus(p[5]);  C4   = _softplus(p[6])   # LR penalty coefficients
-
-    # Optimum LR linear in logs of config
-    k0, k_b, k_d, k_n = p[7], p[8], p[9], p[10]
-    llr_opt = np.log(_LR_REF) + (k0 + k_b*dlb + k_d*dld + k_n*dln)
-
-    # LR well width scales with config (captures sharpness changes)
-    w_b, w_d, w_n = p[11], p[12], p[13]
-    z = (w_b*dlb + w_d*dld + w_n*dln)   # log-width
-    dlr_scaled = (llr - llr_opt) * np.exp(-z)
-    term_lr = C2 * (dlr_scaled**2) + C4 * (dlr_scaled**4)
-
-    # Small residual slope to absorb mild trend (kept tiny via regularization)
-    r_res = p[14]
-    term_res = r_res * (0.5*dld - 0.5*dln)
-
-    term_n  = A_n * np.exp(-a_n * dln)
-    term_s  = A_s * np.exp(-a_s * ds_eff)
-
-    return L0 + term_n + term_s + term_lr + term_res
+def _sp(z):
+    z = np.asarray(z, dtype=float)
+    return np.log1p(np.exp(-np.abs(z))) + np.maximum(z, 0.0)
 
 def scaling_law_func(data_points, params):
-    X = np.atleast_2d(np.asarray(data_points))
-    p = np.asarray(params)
-    if p.ndim == 1:
-        return _predict_single(X, p)
-    preds = [_predict_single(X, p[i]) for i in range(p.shape[0])]
-    return np.column_stack(preds)
+    X = np.atleast_2d(np.asarray(data_points, dtype=float))
+    assert X.shape[1] == 4, &quot;data_points must have 4 columns: [lr, bsz, data_size, non_embedding_param_size]&quot;
+    lr, bsz, D, P = [X[:, i:i+1] for i in range(4)]
+    eps = 1e-12
+    P0, D0 = 1e8, 1e10
+
+    p = np.asarray(params, dtype=float).ravel()
+    assert p.size &gt;= 17, &quot;params must have length &gt;= 17&quot;
+    p = p[:17]
+    (Linf, A_P, aP, A_PD, aPD, A_S, aS,
+     lr0, C_lr, kpos, kneg, v_b, v_P,
+     B_b, g_b, logb0, cP) = p
+
+    # enforce positivity where needed
+    A_P=_sp(A_P); aP=_sp(aP)
+    A_PD=_sp(A_PD); aPD=_sp(aPD)
+    A_S=_sp(A_S); aS=_sp(aS)
+    C_lr=_sp(C_lr); kpos=_sp(kpos); kneg=_sp(kneg)
+    B_b=_sp(B_b); g_b=_sp(g_b)
+
+    llr = np.log(np.clip(lr, eps, None))
+    lb  = np.log(np.clip(bsz, eps, None))
+    lnP = np.log(np.clip(P/P0, eps, None))
+    lnD = np.log(np.clip(D/D0, eps, None))
+    lDP = lnD - lnP
+    lS  = lnD - lb  # effective steps ~ D/bsz
+
+    # scale-improvement terms
+    term_P  = A_P  * np.exp(-aP  * lnP)   # (P/P0)^(-aP)
+    term_PD = A_PD * np.exp(-aPD * lDP)   # (D/P)^(-aPD)
+    term_S  = A_S  * np.exp(-aS  * lS)    # (D/bsz)^(-aS)
+
+    # LR penalty: asymmetric softplus around optimum depending on b and P
+    mu_lr = lr0 + v_b * lb + v_P * lnP
+    z = llr - mu_lr
+    lr_pen = C_lr * (_sp(kpos * z) + _sp(kneg * (-z)) - np.log(4.0))
+
+    # Batch-size insufficiency penalty with P-dependent critical batch
+    lbcrit = logb0 + cP * lnP
+    bpen = B_b * (_sp(g_b * (lbcrit - lb)) - np.log(2.0))
+
+    pred = Linf + term_P + term_PD + term_S + lr_pen + bpen
+    return pred.ravel()
 
 def fit_scaling_law(data_points, loss_values):
-    X = np.atleast_2d(np.asarray(data_points))
-    y = np.asarray(loss_values)
-    y2d = y[:, None] if y.ndim == 1 else y
-    T = y2d.shape[1]
+    X = np.atleast_2d(np.asarray(data_points, dtype=float))
+    y = np.asarray(loss_values, dtype=float).ravel()
+    assert X.shape[1] == 4, &quot;data_points must have 4 columns&quot;
+    N = X.shape[0]
+    eps = 1e-12
+    llr = np.log(np.clip(X[:,0], eps, None))
+    lb  = np.log(np.clip(X[:,1], eps, None))
+    lnP = np.log(np.clip(X[:,3]/1e8, eps, None))
 
-    def init_params(y_col):
-        y_lo = float(np.percentile(y_col, 20))
-        y_hi = float(np.percentile(y_col, 80))
-        span = max(0.1, y_hi - y_lo)
-        p0 = np.zeros(16, dtype=float)
-        p0[0] = y_lo
-        # amplitudes/exponents (raw -&gt; softplus)
-        p0[1] = _sp_inv(0.35 * span)   # A_n
-        p0[2] = _sp_inv(0.30)          # a_n
-        p0[3] = _sp_inv(0.55 * span)   # A_s
-        p0[4] = _sp_inv(0.40)          # a_s
-        p0[5] = _sp_inv(0.03)          # C2
-        p0[6] = _sp_inv(1e-4)          # C4
-        # lr-opt priors (unconstrained)
-        p0[7]  = 0.0    # k0
-        p0[8]  = 0.5    # k_b: lr* increases with batch
-        p0[9]  = 0.0    # k_d: weak effect
-        p0[10] = -0.15  # k_n: larger model -&gt; slightly lower lr*
-        # width scaling (start neutral)
-        p0[11] = 0.0; p0[12] = 0.0; p0[13] = 0.0
-        # residual
-        p0[14] = 0.0
-        # tau (tokens-per-parameter weight)
-        p0[15] = _sp_inv(0.8)
-        return p0
+    # Regress log-lr on [1, lb, lnP] to seed lr0, v_b, v_P
+    M = np.column_stack([np.ones(N), lb, lnP])
+    try:
+        coef, _, _, _ = np.linalg.lstsq(M, llr, rcond=None)
+    except np.linalg.LinAlgError:
+        coef = np.array([np.mean(llr), 0.2, 0.1], dtype=float)
+    lr0_init, vb_init, vP_init = map(float, coef)
 
-    def log_cosh(r, delta=0.25):
-        return np.log(np.cosh(r / delta)) * (delta**2)
+    Linf_init  = float(np.percentile(y, 5))
+    logb0_init = float(np.median(lb))
 
-    # small prior on lr-opt coefficients toward reasonable values
-    k_prior = np.array([0.0, 0.5, 0.0, -0.15])
+    p0 = np.array([
+        Linf_init,   # Linf
+        0.6, 0.10,   # A_P, aP
+        0.3, 0.12,   # A_PD, aPD
+        0.2, 0.10,   # A_S, aS
+        lr0_init,    # lr0
+        0.15, 2.0, 2.5,   # C_lr, kpos, kneg
+        vb_init, vP_init, # v_b, v_P
+        0.12, 0.60,  # B_b, g_b
+        logb0_init,  # logb0
+        0.30         # cP
+    ], dtype=float)
 
-    def obj(p, Xi, yi):
-        pred = scaling_law_func(Xi, p)
-        loss = np.mean(log_cosh(pred - yi, 0.25))
-        # mild L2 on all; stronger on residual/width/tau to avoid drift; prior on k&#x27;s
-        reg = 1e-8*np.dot(p, p)
-        reg += 2e-6*(p[14]**2) + 5e-7*(p[11]**2 + p[12]**2 + p[13]**2)
-        reg += 1e-4*np.sum((p[7:11] - k_prior)**2)
-        # keep tau near ~0.8 softly
-        reg += 5e-5*( _softplus(p[15]) - 0.8 )**2
-        return loss + reg
+    def huber(r, d=0.15):
+        a = np.abs(r)
+        return np.where(a &lt;= d, 0.5 * r*r, d * (a - 0.5 * d))
 
-    params_out = np.zeros((T, 16), dtype=float)
-    for t in range(T):
-        yi = y2d[:, t]
-        base = init_params(yi)
-        inits = [base]
-        rng = np.random.default_rng(2025 + t)
-        for s in (0.15, 0.35, 0.6):
-            inits.append(base + s * rng.standard_normal(base.shape))
-        best_p, best_val = base, np.inf
-        for p0 in inits:
-            res = minimize(lambda v: obj(v, X, yi), p0, method=&#x27;L-BFGS-B&#x27;, options={&#x27;maxiter&#x27;: 700})
-            if res.fun &lt; best_val and np.all(np.isfinite(res.x)):
-                best_val, best_p = res.fun, res.x
-        params_out[t] = best_p
+    def obj(p):
+        pred = scaling_law_func(X, p)
+        return np.mean(huber(pred - y)) + 1e-6 * np.sum(p*p)
 
-    return params_out[0] if T == 1 else params_out
+    best_p = p0.copy()
+    best_f = obj(best_p)
+
+    rng = np.random.RandomState(42)
+    starts = [p0]
+    ql = np.quantile(llr, [0.25, 0.5, 0.75])
+    qb = np.quantile(lb,  [0.25, 0.5, 0.75])
+    for l0 in ql:
+        for b0 in qb:
+            pp = p0.copy()
+            pp[7]  = l0   # lr0
+            pp[15] = b0   # logb0
+            starts.append(pp)
+    for _ in range(8):
+        noise = rng.normal(scale=0.2, size=p0.size)
+        noise[[0,7,15]] *= 0.1
+        starts.append(p0 + noise)
+
+    for start in starts:
+        res = minimize(obj, start, method=&quot;L-BFGS-B&quot;, options={&quot;maxiter&quot;: 450, &quot;ftol&quot;: 1e-12})
+        if res.success and res.fun &lt; best_f:
+            best_f, best_p = res.fun, res.x
+
+    return best_p
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#4</span>
               <span class="run-label">Run 5</span>
-              <span class="r2-badge" style="background-color: #daa520; color: white"> R² = 0.505322 </span>
+              <span class="r2-badge" style="background-color: #228B22; color: white"> R² = 0.915408 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -726,141 +687,85 @@ def fit_scaling_law(data_points, loss_values):
 import numpy as np
 from scipy.optimize import minimize
 
-# Model:
-# loss = L0
-#      + A*exp(-a*(logP - LOGP0)) + B*exp(-b*(logD - LOGD0)) + C*exp(-c*(((logD-logP) - (LOGD0-LOGP0))))
-#      + [d_lr, d_b] @ [[k_lr, 0.5*gamma],[0.5*gamma, k_b]] @ [d_lr, d_b]
-# where:
-# d_lr = log(lr) - (u0 + u1*logP + u2*logD + u3*(logD - logP))
-# d_b  = log(bsz) - (v0 + v1*logP + v2*logD + v3*(logD - logP))
-# k_lr = exp(logk_lr + s_lr*s), k_b = exp(logk_b + s_b*s), s = ((logD-LOGD0) - (logP-LOGP0))
-# gamma = 2*sqrt(k_lr*k_b)*tanh(g_raw) ensures PSD.
-# Fixed anchors LOGP0, LOGD0 improve conditioning.
-
-_LOGP0 = np.log(1e8)
-_LOGD0 = np.log(1e10)
-
 def _softplus(x):
-    return np.log1p(np.exp(-np.abs(x))) + np.maximum(x, 0.0)
-
-def _predict_core(X, p):
-    X = np.asarray(X, dtype=float)
-    lr, bsz, D, P = X.T
-    llr = np.log(lr); lb = np.log(bsz); lD = np.log(D); lP = np.log(P)
-    dP = lP - _LOGP0
-    dD = lD - _LOGD0
-    s = dD - dP
-    p = np.asarray(p, dtype=float).ravel()
-    # params: [L0,
-    #          logA, a_raw,
-    #          logB, b_raw,
-    #          logC, c_raw,
-    #          logk_lr, u0, u1, u2, u3,
-    #          logk_b,  v0, v1, v2, v3,
-    #          g_raw, s_lr, s_b]
-    L0 = p[0]
-    A = np.exp(p[1]); a = _softplus(p[2])
-    B = np.exp(p[3]); b = _softplus(p[4])
-    C = np.exp(p[5]); c = _softplus(p[6])
-    logk_lr,u0,u1,u2,u3 = p[7],p[8],p[9],p[10],p[11]
-    logk_b, v0,v1,v2,v3 = p[12],p[13],p[14],p[15],p[16]
-    g_raw, s_lr, s_b = p[17], p[18], p[19]
-
-    c_lr = u0 + u1*lP + u2*lD + u3*(lD - lP)
-    c_b  = v0 + v1*lP + v2*lD + v3*(lD - lP)
-    d_lr = llr - c_lr
-    d_b  = lb  - c_b
-
-    k_lr = np.exp(logk_lr + s_lr*s)
-    k_b  = np.exp(logk_b  + s_b *s)
-    gamma = 2.0*np.sqrt(k_lr*k_b)*np.tanh(g_raw)
-
-    base = L0 + A*np.exp(-a*dP) + B*np.exp(-b*dD) + C*np.exp(-c*(dD - dP))
-    quad = k_lr*(d_lr**2) + k_b*(d_b**2) + gamma*(d_lr*d_b)
-    return base + quad
+    return np.log1p(np.exp(x))
 
 def scaling_law_func(data_points, params):
-    p = np.asarray(params, dtype=float)
-    if p.ndim == 1:
-        return _predict_core(data_points, p)
-    return np.column_stack([_predict_core(data_points, pi) for pi in p])
+    X = np.atleast_2d(np.asarray(data_points, dtype=float))
+    P = np.asarray(params, dtype=float)
+    if P.ndim == 1: P = P[None, :]
+    T, K = P.shape
+    if K != 10:
+        raise ValueError(&quot;params must have length 10: [c,sP,sD,sB,sLR,q_raw,a0,a1,a2,a3]&quot;)
+    z = np.log(X + 1e-12)
+    lr, b, d, m = z[:, 0], z[:, 1], z[:, 2], z[:, 3]
+    out = np.empty((X.shape[0], T))
+    for t in range(T):
+        c, sP, sD, sB, sLR, q_r, a0, a1, a2, a3 = P[t]
+        q = _softplus(q_r) + 1e-12          # positive curvature
+        lr_opt = a0 + a1 * b + a2 * m + a3 * d
+        out[:, t] = c + sP * m + sD * d + sB * b + sLR * lr + q * (lr - lr_opt) ** 2
+    return out[:, 0] if out.shape[1] == 1 else out
 
 def fit_scaling_law(data_points, loss_values):
-    X = np.asarray(data_points, dtype=float)
-    y = np.asarray(loss_values, dtype=float).ravel()
-    llr = np.log(X[:,0]); lb = np.log(X[:,1]); lD = np.log(X[:,2]); lP = np.log(X[:,3])
+    X = np.atleast_2d(np.asarray(data_points, dtype=float))
+    y = np.asarray(loss_values, dtype=float)
+    z = np.log(X + 1e-12)
+    lr, b, d, m = z[:, 0], z[:, 1], z[:, 2], z[:, 3]
+    Y = y[:, None] if y.ndim == 1 else y
+    T, K = Y.shape[1], 10
 
-    # Weighted least squares to initialize lr/b centers emphasizing better runs
-    y_min = float(np.min(y)); y_std = float(np.std(y) + 1e-6)
-    w = np.exp(-(y - y_min)/(0.6*y_std + 1e-6)); sw = np.sqrt(w)
-    A = np.column_stack([np.ones_like(lP), lP, lD, (lD - lP)])
-    def _wls(A, b, sw):
-        Aw = A * sw[:,None]; bw = b * sw
-        theta, *_ = np.linalg.lstsq(Aw, bw, rcond=None)
-        return theta
-    u0,u1,u2,u3 = _wls(A, llr, sw)
-    v0,v1,v2,v3 = _wls(A, lb,  sw)
+    c0 = float(np.clip(np.median(Y), 1.5, 5.0))
+    a0_init = float(np.mean(lr) - 0.5 * np.mean(b))
+    init_row = np.array([c0, -0.06, -0.08, -0.01, 0.0, -1.0, a0_init, 0.5, -0.2, -0.1], dtype=float)
+    init = np.tile(init_row, (T, 1))
 
-    # Base level and amplitudes
-    L0 = float(np.percentile(y, 10))
-    A0 = max(np.median(y) - L0, 0.1)
-    B0 = A0; C0 = 0.5*A0
-    inv_sp = lambda s: np.log(np.expm1(max(float(s),1e-12)))
+    bounds_row = [
+        (1.5, 5.0),   # c
+        (-1.0, 0.0),  # sP
+        (-1.0, 0.0),  # sD
+        (-0.5, 0.5),  # sB
+        (-0.5, 0.5),  # sLR
+        (-6.0, 6.0),  # q_raw
+        (-12.0, 0.0), # a0
+        (0.0, 2.0),   # a1
+        (-2.0, 2.0),  # a2
+        (-2.0, 2.0),  # a3
+    ]
+    bounds = bounds_row * T
+    lam = 1e-6
+    delta = 0.08  # Huber threshold for robustness
 
-    theta0 = np.array([
-        L0, np.log(A0), inv_sp(0.3),
-        np.log(B0), inv_sp(0.3),
-        np.log(C0), inv_sp(0.3),
-        np.log(0.04), float(u0), float(u1), float(u2), float(u3),
-        np.log(0.04), float(v0), float(v1), float(v2), float(v3),
-        0.0, 0.0, 0.0
-    ], dtype=float)
-
-    def huber(res, delta=0.18):
-        a = np.abs(res)
-        return np.where(a &lt;= delta, 0.5*res*res, delta*(a - 0.5*delta))
-
-    def objective(p):
+    def obj(flat):
+        p = flat.reshape(T, K)
         pred = scaling_law_func(X, p)
-        res = pred - y
-        a = _softplus(p[2]); b = _softplus(p[4]); c = _softplus(p[6])
-        # Regularization: mild Tikhonov + priors on exponents + discourage strong coupling/slopes
-        reg = 1e-6*np.sum(p*p)
-        reg += 7e-7*(p[9]**2 + p[10]**2 + p[14]**2 + p[15]**2)  # slopes on lP,lD
-        reg += 6e-7*(p[11]**2 + p[16]**2)  # ratio coefficients u3,v3
-        reg += 6e-7*((a-0.35)**2 + (b-0.35)**2 + (c-0.35)**2)
-        reg += 5e-7*(p[17]**2) + 6e-7*(p[18]**2 + p[19]**2)     # coupling, curvature slopes
-        return np.mean(huber(res)) + reg
+        E = (pred[:, None] if T == 1 else pred) - Y
+        huber = delta**2 * (np.sqrt(1.0 + (E / delta)**2) - 1.0)
+        return float(np.mean(huber) + lam * np.mean(p**2))
 
-    best = None; best_val = np.inf
+    best_x, best_f = init.ravel(), np.inf
     rng = np.random.default_rng(0)
-    scales = np.array([
-        0.10, 0.26, 0.22,
-        0.26, 0.22,
-        0.26, 0.22,
-        0.24, 0.16, 0.06, 0.06, 0.06,
-        0.24, 0.16, 0.06, 0.06, 0.06,
-        0.18, 0.06, 0.06
-    ])
-    for _ in range(10):
-        start = theta0 + rng.normal(scale=scales)
-        res = minimize(objective, start, method=&#x27;L-BFGS-B&#x27;, options={&#x27;maxiter&#x27;: 850})
-        cand = res.x if res.success else start
-        val = objective(cand)
-        if val &lt; best_val:
-            best_val, best = val, cand
-    return best
+    starts = [init,
+              init + rng.normal(0.0, 0.15, init.shape),
+              init + rng.normal(0.0, 0.3, init.shape)]
+    for x0 in starts:
+        res = minimize(obj, x0.ravel(), method=&#x27;L-BFGS-B&#x27;, bounds=bounds,
+                       options={&#x27;maxiter&#x27;: 1200, &#x27;ftol&#x27;: 1e-9})
+        if res.fun &lt; best_f:
+            best_f, best_x = res.fun, res.x
+
+    p_opt = best_x.reshape(T, K)
+    return p_opt[0] if T == 1 else p_opt
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#5</span>
-              <span class="run-label">Run 4</span>
-              <span class="r2-badge" style="background-color: #d2691e; color: white"> R² = 0.428723 </span>
+              <span class="run-label">Run 3</span>
+              <span class="r2-badge" style="background-color: #228B22; color: white"> R² = 0.910510 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -874,164 +779,142 @@ def fit_scaling_law(data_points, loss_values):
 import numpy as np
 from scipy.optimize import minimize
 
+# Fixed anchors for nondimensionalization (data-independent)
+_DR, _PR, _BR = 1.0e10, 3.0e8, 256.0
+_UR = _DR / _BR  # reference number of updates
+
 def _sp(x):
-    x = np.asarray(x, dtype=float)
-    return np.log1p(np.exp(-np.abs(x))) + np.maximum(x, 0.0)
+    x = np.asarray(x, float)
+    return np.where(x &gt; 20.0, x, np.log1p(np.exp(x)))
 
-def _spinv(y):
-    y = np.asarray(y, dtype=float)
-    return np.where(y &gt; 20.0, y, np.log(np.expm1(np.clip(y, 1e-12, None))))
+def _spi(v):
+    v = np.maximum(v, 1e-12)
+    return np.log(np.expm1(v))
 
-def _safe_logs(X):
-    X = np.asarray(X, dtype=float)
-    eps = 1e-30
-    return (np.log(np.clip(X[:, 0], eps, None)),
-            np.log(np.clip(X[:, 1], eps, None)),
-            np.log(np.clip(X[:, 2], eps, None)),
-            np.log(np.clip(X[:, 3], eps, None)))
+def _pred(X, th):
+    lr = np.clip(X[:,0], 1e-12, None)
+    b  = np.clip(X[:,1], 1.0, None)
+    D  = np.clip(X[:,2], 1.0, None)
+    P  = np.clip(X[:,3], 1.0, None)
+
+    # Parameters (16):
+    # 0 L0
+    # 1 aD_r, 2 beta_r
+    # 3 aP_r, 4 alpha_r
+    # 5 aB_r, 6 eta_r
+    # 7 q2_r, 8 log_lr0, 9 s_b
+    # 10 aC_r, 11 b2_r, 12 phi_r
+    # 13 s_pd, 14 s_u
+    # 15 q4_r
+    L0    = float(th[0])
+    aD    = _sp(th[1]);  beta  = _sp(th[2])
+    aP    = _sp(th[3]);  alpha = _sp(th[4])
+    aB    = _sp(th[5]);  eta   = _sp(th[6])
+    q2    = _sp(th[7]);  l0    = float(th[8]); sb = float(th[9])
+    aC    = _sp(th[10]); b2    = _sp(th[11]);  phi = _sp(th[12])
+    spd   = float(th[13]); su = float(th[14])
+    q4    = _sp(th[15])
+
+    # Core power-law terms
+    tD = aD * (_DR / D) ** beta
+    tP = aP * (_PR / P) ** alpha
+    tB = aB * (_BR / b) ** eta
+
+    # Data adequacy coupling: required tokens ∝ P^phi
+    Dreq = _DR * (P / _PR) ** phi
+    tC   = aC * (Dreq / D) ** b2
+
+    # LR sweet spot with dependence on batch, P/D, and update count U = D/B
+    ln_lr = np.log(lr)
+    ln_b  = np.log(b / _BR + 1e-12)
+    ln_pd = np.log(P / _PR) - np.log(D / _DR)
+    ln_u  = np.log((D / _DR) / (b / _BR) + 1e-12)  # log(U/_UR) up to a constant
+    center = l0 + sb * ln_b + spd * ln_pd + su * ln_u
+    d = ln_lr - center
+    lrp = q2 * d * d + q4 * d ** 4
+
+    return L0 + tD + tP + tB + tC + lrp
 
 def scaling_law_func(data_points, params):
-    X = np.atleast_2d(np.asarray(data_points, dtype=float))
-    zlr, zb, zD, zP = _safe_logs(X)
-
-    p = np.asarray(params, dtype=float)
+    X = np.atleast_2d(np.asarray(data_points, float))
+    p = np.asarray(params, float)
     if p.ndim == 1:
-        p = p[None, :]
-    T, K = p.shape
-
-    if K == 9:
-        coeffs, exps, bias = p[:, :4], p[:, 4:8], p[:, 8]
-        pred = (coeffs[None, :, :] * (X[:, None, :] ** exps[None, :, :])).sum(axis=2) + bias[None, :]
-        return pred[:, 0] if pred.shape[1] == 1 else pred
-
-    Kexp = 15
-    if K &lt; Kexp:
-        p = np.concatenate([p, np.zeros((T, Kexp - K), dtype=p.dtype)], axis=1)
-    elif K &gt; Kexp:
-        p = p[:, :Kexp]
-
-    L_inf = p[:, 0]
-    aP, alpha = _sp(p[:, 1]), _sp(p[:, 2])
-    aD, beta  = _sp(p[:, 3]), _sp(p[:, 4])
-    aB, gamma = p[:, 5], _sp(p[:, 6])
-    aPD, eta  = p[:, 7], _sp(p[:, 8])
-    u_lo, u_hi = _sp(p[:, 9]), _sp(p[:, 10])
-    l0, lB, lP, lD = p[:, 11], p[:, 12], p[:, 13], p[:, 14]
-
-    impP  = aP[None, :] * np.exp(np.clip(-alpha[None, :] * zP[:, None], -60.0, 60.0))
-    impD  = aD[None, :] * np.exp(np.clip(-beta[None, :]  * zD[:, None], -60.0, 60.0))
-    impB  = aB[None, :] * np.exp(np.clip(-gamma[None, :] * zb[:, None], -60.0, 60.0))
-    impPD = aPD[None, :] * np.exp(np.clip(-eta[None, :] * (zP[:, None] + zD[:, None]), -60.0, 60.0))
-
-    mu_l = (l0[None, :] + lB[None, :] * zb[:, None]
-            + lP[None, :] * zP[:, None] + lD[None, :] * zD[:, None])
-
-    diff = zlr[:, None] - mu_l
-    pen = u_lo[None, :] * np.square(np.clip(-diff, 0.0, None)) + \
-          u_hi[None, :] * np.square(np.clip(diff, 0.0, None))
-
-    pred = L_inf[None, :] + impP + impD + impB + impPD + pen
-    return pred[:, 0] if pred.shape[1] == 1 else pred
+        return _pred(X, p)
+    return np.column_stack([_pred(X, p[i]) for i in range(p.shape[0])])
 
 def fit_scaling_law(data_points, loss_values):
-    X = np.atleast_2d(np.asarray(data_points, dtype=float))
-    y = np.asarray(loss_values, dtype=float)
-    if y.ndim == 1:
-        y = y[:, None]
-    N, T = y.shape
+    X = np.atleast_2d(np.asarray(data_points, float))
+    y = np.asarray(loss_values, float)
+    Y = y[:, None] if y.ndim == 1 else y
+    T = Y.shape[1]
 
-    zlr, zb, zD, zP = _safe_logs(X)
+    ln_lr = np.log(np.clip(X[:,0], 1e-12, None))
 
-    def huber(r, d=0.2):
-        a = np.abs(r)
-        return np.where(a &lt;= d, 0.5 * r * r, d * (a - 0.5 * d))
+    def init_vec(yt):
+        m = float(np.median(yt))
+        span = float(np.clip(np.percentile(yt, 90) - np.percentile(yt, 10), 0.1, 5.0))
+        # Scales
+        aD0 = aP0 = aC0 = 0.30 * span
+        aB0 = 0.10 * span
+        # Exponents/prior slopes
+        beta0 = alpha0 = 0.25
+        eta0  = 0.50
+        b20   = 0.25
+        phi0  = 0.50
+        # LR curvature and center slopes
+        q20   = 0.10 * span
+        q40   = 0.01 * span
+        l0    = float(np.median(ln_lr))
+        sb0   = 0.50
+        spd0  = 0.05
+        su0   = 0.10
+        return np.array([
+            m,
+            _spi(aD0), _spi(beta0),
+            _spi(aP0), _spi(alpha0),
+            _spi(aB0), _spi(eta0),
+            _spi(q20), l0, sb0,
+            _spi(aC0), _spi(b20), _spi(phi0),
+            spd0, su0,
+            _spi(q40)
+        ], float)
 
-    params_all = []
+    def obj(th, yt, delta):
+        r = scaling_law_func(X, th) - yt
+        s = r / delta
+        phuber = delta * delta * (np.sqrt(1.0 + s * s) - 1.0)
+        beta=_sp(th[2]); alpha=_sp(th[4]); eta=_sp(th[6]); b2=_sp(th[11]); phi=_sp(th[12])
+        q2=_sp(th[7]); q4=_sp(th[15])
+        # Regularization: priors for exponents/slopes, small quartic
+        reg = 1e-6 * np.sum(th[1:]**2)
+        reg += 5e-5 * ((beta-0.25)**2 + (alpha-0.25)**2 + (eta-0.50)**2 + (b2-0.25)**2 + (phi-0.50)**2)
+        reg += 2e-5 * (q2**2) + 1e-4 * (q4**2)
+        reg += 1e-4 * (th[0]**2 + th[8]**2) + 5e-5 * (th[9]**2 + th[13]**2 + th[14]**2)
+        return float(np.mean(phuber) + reg)
+
+    out = np.zeros((T, 16), float)
     rng = np.random.default_rng(123)
-    y_med = np.median(y, axis=0)
-    y_rng = np.maximum(np.ptp(y, axis=0), 0.15)
-
-    Z = np.column_stack([np.ones(N), zb, zP, zD])
-
     for t in range(T):
-        yt = y[:, t]
-        y_min = np.min(yt)
-        w = np.exp(-2.0 * (yt - y_min))
-        W = np.diag(w)
-        lam = 1e-3
-        try:
-            A = Z.T @ W @ Z + lam * np.eye(Z.shape[1])
-            b = Z.T @ W @ zlr
-            ls = np.linalg.solve(A, b)
-        except np.linalg.LinAlgError:
-            ls = np.array([np.mean(zlr), 0.05, 0.0, 0.0])
-        l0_i, lB_i, lP_i, lD_i = float(ls[0]), float(ls[1]), float(ls[2]), float(ls[3])
-
-        def _corr(a, b):
-            a = a - np.mean(a); b = b - np.mean(b)
-            da = np.linalg.norm(a); db = np.linalg.norm(b)
-            return float((a @ b) / (da * db + 1e-12))
-
-        corr_b = _corr(yt, zb)
-        corr_pd = _corr(yt, zP + zD)
-
-        th0 = np.zeros(15, dtype=float)
-        th0[0]  = float(y_med[t] - 0.2)
-        th0[1]  = float(_spinv(0.4 * y_rng[t]))
-        th0[2]  = float(_spinv(0.25))
-        th0[3]  = float(_spinv(0.4 * y_rng[t]))
-        th0[4]  = float(_spinv(0.25))
-        th0[5]  = float(0.25 * y_rng[t] * (-1.0 if corr_b &gt; 0 else 1.0))
-        th0[6]  = float(_spinv(0.10))
-        th0[7]  = float(0.20 * y_rng[t] * (-1.0 if corr_pd &gt; 0 else 1.0))
-        th0[8]  = float(_spinv(0.20))
-        th0[9]  = float(_spinv(0.15))
-        th0[10] = float(_spinv(0.30))
-        th0[11] = l0_i
-        th0[12] = lB_i
-        th0[13] = lP_i
-        th0[14] = lD_i
-
-        def obj(th):
-            pred = scaling_law_func(X, th)
-            r = pred - yt
-            loss = np.mean(huber(r, 0.2))
-            exp_regs = _sp(th[[2, 4, 6, 8]])
-            reg = (2e-4 * np.sum((exp_regs - 0.25) ** 2) +
-                   2e-4 * np.sum(th[[11, 12, 13, 14]] ** 2) +
-                   5e-6 * np.sum(th ** 2) +
-                   2e-4 * (th[0] - float(y_med[t])) ** 2)
-            return loss + reg
-
-        bounds = [ (1.3, 5.0),
-                   (None, None), (None, None),
-                   (None, None), (None, None),
-                   (None, None), (None, None),
-                   (None, None), (None, None),
-                   (None, None), (None, None),
-                   (-10.0, 10.0), (-3.0, 3.0), (-3.0, 3.0), (-3.0, 3.0) ]
-
-        best, bestv = th0, obj(th0)
-        starts = [
-            th0,
-            th0 + rng.normal(0.0, 0.15, size=th0.shape),
-            th0 + rng.normal(0.0, 0.30, size=th0.shape),
-            np.array(th0, copy=True)
-        ]
-        starts[3][11] += 0.3
-
-        for st in starts:
-            res = minimize(obj, st, method=&#x27;L-BFGS-B&#x27;,
-                           bounds=bounds, options={&#x27;maxiter&#x27;: 800, &#x27;ftol&#x27;: 1e-10})
-            th = res.x if res.success else st
-            val = obj(th)
-            if val &lt; bestv:
-                best, bestv = th, val
-
-        params_all.append(best)
-
-    params_all = np.vstack(params_all)
-    return params_all[0] if params_all.shape[0] == 1 else params_all
+        yt = Y[:, t]
+        base = init_vec(yt)
+        delta = max(0.1, 0.25 * float(np.std(yt)))
+        best, bestv = base.copy(), np.inf
+        for _ in range(10):
+            n = np.zeros_like(base)
+            n[0] = rng.normal(0, 0.15)            # L0
+            n[1:8] = rng.normal(0, 0.25, 7)       # positive raw params
+            n[8] = rng.normal(0, 0.4)             # log_lr0
+            n[9] = rng.normal(0, 0.2)             # s_b
+            n[10:13] = rng.normal(0, 0.25, 3)     # aC, b2, phi
+            n[13] = rng.normal(0, 0.15)           # s_pd
+            n[14] = rng.normal(0, 0.15)           # s_u
+            n[15] = rng.normal(0, 0.2)            # q4
+            x0 = base + n
+            res = minimize(lambda th: obj(th, yt, delta), x0, method=&#x27;L-BFGS-B&#x27;, options={&#x27;maxiter&#x27;: 1000})
+            if res.success and res.fun &lt; bestv:
+                bestv, best = res.fun, res.x
+        out[t] = best
+    return out[0] if T == 1 else out
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>

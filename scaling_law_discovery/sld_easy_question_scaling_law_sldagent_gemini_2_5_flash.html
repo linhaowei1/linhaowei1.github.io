@@ -285,7 +285,7 @@
     <div class="bg-pattern"></div>
 
     <div class="container">
-      <a href="sld_index.html" class="back-link"> ← Back to Leaderboard </a>
+      <a href="index.html" class="back-link"> ← Back to Leaderboard </a>
 
       <div class="header">
         <h1>U-shaped Scaling Law</h1>
@@ -300,15 +300,15 @@
           </div>
           <div class="meta-item">
             <span class="meta-label">Best R²:</span>
-            <span class="r2-badge" style="background-color: #d2691e; color: white"> 0.360919 </span>
+            <span class="r2-badge" style="background-color: #228B22; color: white"> 0.925978 </span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Mean R²:</span>
-            <span class="meta-value">0.317830</span>
+            <span class="meta-value">0.925247</span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Min R²:</span>
-            <span class="meta-value">0.265633</span>
+            <span class="meta-value">0.924689</span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Runs:</span>
@@ -320,12 +320,13 @@
       <h2 class="section-title">All Runs (sorted by R²)</h2>
 
       <div class="runs-container">
+
         <div class="run-card best-run">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge best-badge">Best</span>
-              <span class="run-label">Run 2</span>
-              <span class="r2-badge" style="background-color: #d2691e; color: white"> R² = 0.360919 </span>
+              <span class="run-label">Run 5</span>
+              <span class="r2-badge" style="background-color: #228B22; color: white"> R² = 0.925978 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -337,148 +338,294 @@
               </div>
               <pre><code class="language-python" id="code-0"># EVOLVE-BLOCK-START
 &quot;&quot;&quot;
-Scaling law discovery for LLM finetuning scenarios
-Evolved to capture U-shaped/double descent patterns with an exponential sum model.
-Focus on refined parameter bounds and initial guesses for numerical stability and better fit.
+Scaling law discovery for LLM finetuning scenarios.
+This evolution refines the U-shaped scaling law function by using a Lorentzian-like
+peak on a *linear* baseline (5 parameters). This model form, compared to a Gaussian,
+often provides better stability and fit for limited data due to its heavier tails,
+which can capture the broader influence of the &quot;badness&quot; region more effectively.
+It significantly improves the robust optimization algorithm by using L-BFGS-B with
+enhanced initial parameter guesses, comprehensive dynamic bounds, and multiple
+initializations (including specific heuristics and random sampling) to better
+explore the non-convex objective function and capture the U-shaped or double descent pattern.
+A robust fallback mechanism ensures a result is always returned, even in challenging data scenarios.
+
+Key improvements in this version:
+- Further widened bounds for &#x27;A&#x27; (amplitude) and &#x27;w&#x27; (width) parameters to capture a broader range of U-shapes.
+- Increased number of multiple initializations to enhance the optimizer&#x27;s ability to find a global optimum in a non-convex landscape.
+- More systematic generation of initial parameter guesses for &#x27;A&#x27;, &#x27;x0&#x27;, and &#x27;w&#x27;, combining linear/logarithmic spacing, random sampling, and strategic points to ensure comprehensive coverage of the parameter space.
+- Enhanced numerical stability by explicitly nudging &#x27;w&#x27; away from its lower bound if initial guesses are too close.
 &quot;&quot;&quot;
 import numpy as np
 from scipy.optimize import minimize
+from scipy.stats import linregress
 
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    Predicts brier_score (negative, more negative = better) based on log_flops.
-    Models a U-shaped (convex) pattern for the negative brier score,
-    characteristic of performance initially worsening with scale before improving again
-    (i.e., brier score first becomes less negative, then more negative).
+    Models a U-shaped relationship (performance worsens then improves) using a
+    Lorentzian-like peak on a linear baseline. This allows brier_score (negative,
+    more negative is better) to increase (worsening) then decrease (improve).
 
-    The model used is: y = p0 * exp(p1 * x) + p2 * exp(p3 * x) + p4 + p5 * x
-    (a sum of two exponentials, a bias, and a linear term)
+    The model uses 5 parameters to adhere to the constraint and prioritize simplicity.
 
     Parameters:
-    - data_points: (N,1) array with columns [log_flops].
-                   log_flops: log10(FLOPs in 1E21 units).
-    - params: Array of 6 parameters [p0, p1, p2, p3, p4, p5].
-              If params is (T, P), it iterates through T sets of parameters.
+    data_points (np.ndarray): (N,1) array with columns [log_flops].
+    params (list or np.ndarray): Array of 5 parameters [A, x0, w, B, C].
+        A: Amplitude of the &quot;badness&quot; peak. A positive &#x27;A&#x27; value will push
+           the brier_score towards zero (worsening performance).
+        x0: log_flops value at the center of the peak, representing the scale
+            where performance is maximally hindered or worst.
+        w: Width parameter of the peak. Controls how broad the &quot;badness&quot; region is.
+           Must be positive.
+        B: Slope of the underlying linear trend. Captures the overall long-term
+           scaling behavior.
+        C: Intercept of the underlying linear trend.
 
     Returns:
-    - Predicted brier_score values (negative). If T=1, returns (N,) array, else (N, T) array.
+    np.ndarray: Predicted brier_score values (negative).
     &quot;&quot;&quot;
-    X = np.asarray(data_points).flatten() # Ensure 1D log_flops array (N,)
+    x = np.atleast_1d(np.asarray(data_points)).flatten() # Ensure x is 1D
 
-    params = np.asarray(params)
-    if params.ndim == 1:
-        params = params[None, :] # Ensure params is (1, P) if single set of params
-    T, P = params.shape # T: number of tasks, P: number of parameters
+    # Unpack parameters: A, x0, w, B, C (5 parameters)
+    A, x0, w, B, C = params
 
-    # Initialize prediction array
-    pred = np.zeros((len(X), T))
-
-    for t_idx in range(T):
-        # Unpack the 6 parameters for the current task
-        p0, p1, p2, p3, p4, p5 = params[t_idx, :]
-        
-        # Calculate the prediction using the evolved scaling law function
-        # This form (sum of two exponentials + linear + bias) can effectively model
-        # a U-shaped (convex) curve. With appropriate negative bias (p4), this forms
-        # a valley in the negative Brier score space.
-        pred[:, t_idx] = p0 * np.exp(p1 * X) + p2 * np.exp(p3 * X) + p4 + p5 * X
+    # Ensure &#x27;w&#x27; is not too small to prevent division by zero or numerical instability.
+    # A small positive value is used if w is non-positive or too close to zero.
+    w_safe = np.maximum(w, 1e-9)
     
-    # Return predictions based on the original structure (N,T) or (N,) if T=1
-    return pred[:, 0] if T == 1 else pred
+    # Lorentzian-like peak for &quot;badness&quot; + linear baseline
+    # A positive A term creates a bump, pushing negative brier_scores towards zero (worsening).
+    # B*x + C models the overall long-term scaling trend.
+    pred = A / (1 + ((x - x0) / w_safe)**2) + B * x + C
 
+    return pred
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Optimizes the parameters for the scaling_law_func to best fit the provided data.
-    Uses L-BFGS-B for bounded optimization, providing robustness for exponential terms
-    and guiding the search towards the desired U-shaped (valley) pattern for negative Brier scores.
+    Fits the U-shaped scaling law function to data using L-BFGS-B with
+    robust initial parameter guesses, comprehensive bounds, and multiple
+    initializations to better explore the parameter space for a global minimum,
+    especially for non-convex objective functions.
 
     Parameters:
-    - data_points: (N,1) array with columns [log_flops].
-    - loss_values: Array of corresponding brier_score values (negative). Can be (N,) or (N, T).
+    data_points (np.ndarray): (N,1) array with columns [log_flops].
+    loss_values (np.ndarray): Array of corresponding brier_score values.
 
     Returns:
-    - Optimized parameters (a 1D array of 6 parameters for a single task, or (T, 6) for multiple tasks).
+    np.ndarray: Optimized parameters [A, x0, w, B, C].
     &quot;&quot;&quot;
-    X = np.asarray(data_points) # (N, F) where F=1
-    y = np.asarray(loss_values) # (N,) or (N, T)
+    x = np.atleast_1d(np.asarray(data_points)).flatten()
+    y = np.atleast_1d(np.asarray(loss_values)).flatten()
 
-    N, F = X.shape
-    
-    # Standardize y to (N, T) format for consistent processing
-    if y.ndim == 1:
-        y2d = y[:, None] # (N, 1)
-    else:
-        y2d = y          # (N, T)
-    T = y2d.shape[1]     # Number of tasks
+    # Handle edge case: very few data points, especially for linregress
+    # Return a sensible default to avoid errors and ensure a result is always provided.
+    if len(x) &lt; 2:
+        mean_x_safe = np.mean(x) if x.size &gt; 0 else 0.0
+        mean_y_safe = np.mean(y) if y.size &gt; 0 else 0.0
+        return np.array([0.01, mean_x_safe, 1.0, 0.0, mean_y_safe])
 
-    P = 6 # Number of parameters for the chosen function: [p0, p1, p2, p3, p4, p5]
-
-    # Initial guess for parameters.
-    # To model a &quot;U-shape&quot; or &quot;valley&quot; for negative Brier scores (initially less negative,
-    # then more negative, then less negative again):
-    # - p0, p2: Positive coefficients to create the upward-sloping arms of the U-shape.
-    # - p1: A positive exponent for exponential growth (right arm).
-    # - p3: A negative exponent for exponential decay (left arm).
-    # - p4: A negative bias term, initialized to the mean of the observed scores,
-    #       to shift the U-shape downwards so its minimum is negative.
-    # - p5: A small linear term for asymmetry.
-    mean_y = np.mean(y)
-    
-    # Adjusted initial guesses for p0, p2 to be slightly larger than 0.05,
-    # to allow for a more pronounced U-shape if needed, within the new tighter bounds.
-    # Increased p0, p2 initial guess from 0.05 to 0.1 for potentially stronger initial exponential influence.
-    init_params_for_one_task = np.array([0.1, 1.0, 0.1, -1.0, mean_y, 0.0]) # Coefficients for exponentials, exponents, bias, linear.
-    
-    # Replicate initial parameters for each task
-    init = np.tile(init_params_for_one_task, (T, 1))
-
-    # Bounds for parameters for robust optimization with L-BFGS-B.
-    # These bounds encourage the desired U-shape (valley) for negative brier scores,
-    # prevent numerical instability, and keep parameters within reasonable ranges.
-    # Increased upper bounds for p0 and p2 from 0.5 to 2.0 to allow for deeper U-shapes.
-    # Also extended bounds for exponents (p1, p3) and linear term (p5) to allow more flexibility.
-    bounds_for_one_task = [
-        (0.0, 2.0),     # p0 (coefficient for right arm): Expect positive, wider upper bound.
-        (0.0, 10.0),    # p1 (exponent for right arm): Must be positive, wider upper bound for steeper growth.
-        (0.0, 2.0),     # p2 (coefficient for left arm): Expect positive, wider upper bound.
-        (-10.0, 0.0),   # p3 (exponent for left arm): Must be negative, wider lower bound for steeper decay.
-        (-1.0, 0.0),    # p4 (bias): Brier scores are negative, so bias ensures the U-minimum is negative.
-        (-2.0, 2.0)     # p5 (linear term coefficient): Allows for a larger linear tilt if needed.
-    ]
-    # For minimize, bounds must be a list of P*T tuples.
-    bounds = bounds_for_one_task * T
-
-    def objective(flat_params):
-        &quot;&quot;&quot;
-        Objective function for minimization (calculates Mean Squared Error).
-        &quot;&quot;&quot;
-        params = flat_params.reshape(T, P)
-        pred = scaling_law_func(X, params) # (N, T) predictions
-        mse = np.mean((pred - y2d) ** 2)
+    # Objective function to minimize (Mean Squared Error)
+    def objective(params):
+        pred = scaling_law_func(x, params)
+        mse = np.mean((pred - y) ** 2)
         return mse
 
-    # Perform optimization using L-BFGS-B, which handles bounds effectively.
-    # Added ftol and gtol for potentially earlier convergence if oscillations occur and increased maxiter.
-    result = minimize(objective, init.ravel(), method=&#x27;L-BFGS-B&#x27;, bounds=bounds,
-                      options={&#x27;ftol&#x27;: 1e-7, &#x27;gtol&#x27;: 1e-5, &#x27;maxiter&#x27;: 1500}) # Increased maxiter for more thorough search
+    best_mse = np.inf
+    best_params = None
 
-    # Return optimized parameters. If optimization fails, return initial guess.
-    params_opt = result.x.reshape(T, P) if result.success else init
+    # --- Initial Parameter Guesses and Bounds Setup ---
+    # 1. Linear regression for initial B (slope) and C (intercept)
+    if np.std(x) &lt; 1e-9: # x values are essentially constant
+        slope = 0.0
+        intercept = np.mean(y)
+    else:
+        slope, intercept, _, _, _ = linregress(x, y)
+    B_base = slope
+    C_base = intercept
 
-    # Match the expected return format: (P,) for T=1, or (T, P) for T&gt;1
-    return params_opt[0] if T == 1 else params_opt
+    # 2. x0_range: Range for the center of the peak
+    x_min, x_max = np.min(x), np.max(x)
+    data_range = x_max - x_min
+    
+    # Robust calculation of x0 bounds and w bounds, handling small or zero data_range
+    if data_range &lt; 1e-6: # If x values are almost constant
+        x0_bound_low = x_min - 1.0
+        x0_bound_high = x_max + 1.0
+        w_min_bound = 0.05 # Default for very narrow range
+        w_max_bound = 10.0 # Default for very narrow range
+    else:
+        x0_bound_low = x_min - data_range * 0.2 # Wider range for x0
+        x0_bound_high = x_max + data_range * 0.2
+        # Refined w bounds for better exploration: allow for sharper and broader peaks
+        # Allowing for very sharp peaks (small w) and very broad ones (large w)
+        w_min_bound = max(1e-5, data_range / 100.0) 
+        w_max_bound = max(5.0, data_range * 5.0, 15.0) # Increased cap for w_max
+    
+    x0_range_bounds = (x0_bound_low, x0_bound_high)
+
+    # 3. A_base: Amplitude of the &quot;badness&quot; peak (must be positive)
+    linear_pred = B_base * x + C_base
+    residuals_from_baseline = y - linear_pred
+    A_base = np.max(residuals_from_baseline) if np.max(residuals_from_baseline) &gt; 0 else 0.01
+
+    # Cap A_base to a reasonable value and ensure a minimum positive amplitude
+    y_range = np.max(y) - np.min(y)
+    # Refined A_max_bound - allows for larger peaks relative to the observed y-range
+    A_max_bound = max(y_range * 3.0, 1.0) 
+    A_base = min(A_base, A_max_bound * 0.75) if y_range &gt; 0 else A_base
+    if A_base &lt; 0.001: A_base = 0.001 # Ensure a minimum positive amplitude
+
+    # Define common bounds for all optimizations
+    bounds = [
+        (1e-6, A_max_bound),   # A (amplitude) must be positive and within a reasonable max.
+        x0_range_bounds,       # x0 (center) constrained within a reasonable range around data.
+        (w_min_bound, w_max_bound), # w (width) bounded by reasonable values.
+        (None, None),          # B (slope) - no strong prior constraints.
+        (None, None)           # C (intercept) - no strong prior constraints.
+    ]
+    
+    # --- Multiple Initializations Loop ---
+    num_inits = 70 # Increased number of different starting points for better exploration
+
+    # Heuristic for initial x0: point of max residual from linear fit
+    x0_peak_init_heuristic = np.mean(x) # Default if no clear peak
+    if x.size &gt; 1 and np.max(residuals_from_baseline) &gt; 1e-6:
+        x0_peak_init_heuristic = x[np.argmax(residuals_from_baseline)]
+
+    # Generate varied initial guesses for A, x0, w.
+    A_inits = np.unique(np.concatenate([
+        np.linspace(max(1e-6, A_base * 0.05), A_max_bound, num_inits // 4),
+        np.random.uniform(max(1e-6, A_base * 0.05), A_max_bound, num_inits // 4),
+        [A_base, max(1e-6, A_base * 0.5), A_max_bound * 0.1, A_max_bound * 0.5, A_max_bound] # Strategic points
+    ]))
+    A_inits = A_inits[A_inits &gt;= 1e-6] # Ensure A is positive
+    A_inits = A_inits[:num_inits] # Trim if too many unique values
+
+    x0_inits = np.unique(np.concatenate([
+        np.linspace(x0_bound_low, x0_bound_high, num_inits // 4),
+        np.random.uniform(x0_bound_low, x0_bound_high, num_inits // 4),
+        [x0_peak_init_heuristic, np.mean(x), x_min, x_max, (x_min + x_max) / 2.0] # Strategic points
+    ]))
+    x0_inits = x0_inits[:num_inits]
+
+    # Use logspace for w_inits to cover a broader range effectively
+    # Handle cases where log_w_min &gt;= log_w_max (e.g., if w_min_bound is very large, or w_max_bound is small)
+    log_w_min = np.log10(w_min_bound) if w_min_bound &gt; 0 else -10.0 # Default to a very small log value if w_min_bound is zero or less
+    log_w_max = np.log10(w_max_bound) if w_max_bound &gt; 0 else 10.0 # Default to a very large log value
+    
+    # Ensure log_w_min &lt; log_w_max for logspace to work
+    if log_w_min &gt;= log_w_max: # If bounds are problematic, create a sensible default range
+        log_w_min = np.log10(max(1e-6, w_min_bound))
+        log_w_max = np.log10(max(1e-6, w_max_bound))
+        if log_w_min &gt;= log_w_max: # If still an issue, make a tiny range
+            log_w_max = log_w_min + 1.0 # Create a small range for logspace
+
+    w_inits = np.unique(np.concatenate([
+        np.logspace(log_w_min, log_w_max, num_inits // 4),
+        10**np.random.uniform(log_w_min, log_w_max, num_inits // 4),
+        [w_min_bound, w_max_bound, (w_min_bound + w_max_bound) / 2.0, data_range / 2.0] # Strategic points, ensure data_range/2 is in range
+    ]))
+    w_inits = w_inits[w_inits &gt;= 1e-9] # Ensure w is positive
+    w_inits = w_inits[:num_inits]
+
+
+    # Iterate through initial parameter combinations
+    # Using a nested loop with modulo to cycle through combinations, ensuring all initial points are used
+    # and we get num_inits total attempts.
+    num_A = len(A_inits)
+    num_x0 = len(x0_inits)
+    num_w = len(w_inits)
+
+    actual_inits_to_try = num_inits # Use num_inits as the target for actual optimization runs
+
+    for i in range(actual_inits_to_try):
+        current_A_init = A_inits[i % num_A]
+        current_x0_init = x0_inits[i % num_x0]
+        current_w_init = w_inits[i % num_w]
+
+        initial_params = [current_A_init, current_x0_init, current_w_init, B_base, C_base]
+        
+        # Ensure initial_params respect bounds before optimization to prevent ValueErrors
+        initial_params_clamped = []
+        for j, (lower, upper) in enumerate(bounds):
+            clamped_val = initial_params[j]
+            if lower is not None:
+                clamped_val = max(clamped_val, lower)
+            if upper is not None:
+                clamped_val = min(clamped_val, upper)
+            initial_params_clamped.append(clamped_val)
+        
+        # Nudge &#x27;w&#x27; slightly above its minimum bound if it&#x27;s right on it, to avoid numerical instability
+        if initial_params_clamped[2] &lt;= bounds[2][0]: # Check for &lt;= to catch values exactly at the bound
+            initial_params_clamped[2] = bounds[2][0] + 1e-9 
+
+        try:
+            result = minimize(objective, initial_params_clamped, method=&#x27;L-BFGS-B&#x27;, bounds=bounds,
+                              options={&#x27;maxiter&#x27;: 5000, &#x27;ftol&#x27;: 1e-9, &#x27;gtol&#x27;: 1e-9, &#x27;disp&#x27;: False})
+            
+            # Check for successful convergence and finite parameters
+            if result.success and np.all(np.isfinite(result.x)) and result.fun &lt; best_mse:
+                best_mse = result.fun
+                best_params = result.x
+        except ValueError:
+            # Catch potential errors from numerical issues during optimization (e.g., bounds violation if not clamped properly)
+            continue
+        except Exception:
+            # Catch other potential exceptions during optimization (e.g., singular matrix)
+            continue
+
+    # Fallback: If no successful optimization found after multiple attempts,
+    # perform one final robust optimization with a central initial guess.
+    if best_params is None:
+        # For debugging: print(f&quot;Warning: Multiple initializations failed. Attempting robust fallback.&quot;)
+        fallback_A_init = A_base
+        fallback_x0_init = x0_peak_init_heuristic
+        
+        # Use log-midpoint for fallback_w_init if log_w_min &lt; log_w_max, otherwise use linear midpoint
+        if log_w_min &lt; log_w_max:
+            fallback_w_init = 10**((log_w_min + log_w_max) / 2.0)
+        else: 
+            fallback_w_init = (w_min_bound + w_max_bound) / 2.0
+
+        initial_params_fallback = [fallback_A_init, fallback_x0_init, fallback_w_init, B_base, C_base]
+        
+        # Ensure fallback parameters respect bounds
+        initial_params_clamped_fallback = []
+        for j, (lower, upper) in enumerate(bounds):
+            clamped_val = initial_params_fallback[j]
+            if lower is not None:
+                clamped_val = max(clamped_val, lower)
+            if upper is not None:
+                clamped_val = min(clamped_val, upper)
+            initial_params_clamped_fallback.append(clamped_val)
+        
+        # Nudge &#x27;w&#x27; slightly above its minimum bound for fallback as well
+        if initial_params_clamped_fallback[2] &lt;= bounds[2][0]:
+            initial_params_clamped_fallback[2] = bounds[2][0] + 1e-9
+
+        result_fallback = minimize(objective, initial_params_clamped_fallback, method=&#x27;L-BFGS-B&#x27;, bounds=bounds,
+                                   options={&#x27;maxiter&#x27;: 5000, &#x27;ftol&#x27;: 1e-9, &#x27;gtol&#x27;: 1e-9, &#x27;disp&#x27;: False})
+        
+        if result_fallback.success and np.all(np.isfinite(result_fallback.x)):
+            best_params = result_fallback.x
+        else:
+            # As a last resort, if even the fallback fails, return a completely default set.
+            # For debugging: print(f&quot;Warning: Fallback optimization failed. Message: {result_fallback.message}. Returning clamped initial parameters.&quot;)
+            best_params = np.array(initial_params_clamped_fallback)
+            # Ensure these default parameters are also finite and reasonable.
+            if not np.all(np.isfinite(best_params)):
+                best_params = np.array([0.01, 0.0, 1.0, 0.0, 0.0]) # Absolute default if clamping somehow failed
+
+    return best_params
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#2</span>
-              <span class="run-label">Run 5</span>
-              <span class="r2-badge" style="background-color: #d2691e; color: white"> R² = 0.354773 </span>
+              <span class="run-label">Run 2</span>
+              <span class="r2-badge" style="background-color: #228B22; color: white"> R² = 0.925499 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -489,178 +636,174 @@ def fit_scaling_law(data_points, loss_values):
                 <button class="copy-btn" onclick="copyCode(event, 'code-1')">Copy</button>
               </div>
               <pre><code class="language-python" id="code-1"># EVOLVE-BLOCK-START
+&quot;&quot;&quot;
+Scaling law discovery for LLM finetuning scenarios.
+This evolution refines the U-shaped scaling law function&#x27;s parameter initialization
+and optimization settings to improve robustness and fit accuracy for the
+characteristic U-shaped (double descent) pattern in brier_score (negative, more negative = better).
+The functional form remains a Lorentzian-like peak on a linear baseline, using 5 parameters.
+The improvements focus on:
+1. Re-introducing numerical stability in the scaling law function.
+2. Improving initial parameter guesses for peak parameters (amplitude, center, width)
+   by leveraging residuals from an initial linear fit, which has proven more effective.
+3. Refining parameter bounds, especially for peak width, to enhance stability.
+4. Enhancing optimization robustness through internal parameter clipping and post-optimization
+   bound enforcement.
+&quot;&quot;&quot;
 import numpy as np
 from scipy.optimize import minimize
+from scipy.stats import linregress
 
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    Predicts brier_score (negative, more negative = better) based on log_flops.
-    Models an inverted U-shaped pattern in the brier score (a peak), which corresponds
-    to performance initially worsening with scale before improving again.
-
-    The model used is: y = p0 * exp(-((x - p1) / p2)**2) + p3 * x**2 + p4 * x + p5
-    (a Gaussian term for the peak/trough, plus a quadratic function for the overall trend and bias)
+    Models a U-shaped relationship (performance worsens then improves) using a
+    Lorentzian-like peak on a linear baseline. This allows brier_score (negative,
+    more negative is better) to increase (worsen) then decrease (improve).
 
     Parameters:
-    - data_points: (N,1) array with columns [log_flops].
-                   log_flops: log10(FLOPs in 1E21 units).
-    - params: Array of 6 parameters [p0, p1, p2, p3, p4, p5].
-              If params is (T, P), it iterates through T sets of parameters.
+    data_points (np.ndarray): (N,1) array with columns [log_flops].
+    params (list or np.ndarray): Array of 5 parameters [A, x0, w, B, C].
+        A: Amplitude of the &quot;badness&quot; peak (positive for brier_score to go up).
+        x0: log_flops value at the center of the peak (worst performance).
+        w: Width parameter of the peak (positive).
+        B: Slope of the underlying linear trend.
+        C: Intercept of the underlying linear trend.
 
     Returns:
-    - Predicted brier_score values (negative). If T=1, returns (N,) array, else (N, T) array.
+    np.ndarray: Predicted brier_score values.
     &quot;&quot;&quot;
-    X = np.asarray(data_points).flatten() # Ensure 1D log_flops array (N,)
+    x = np.asarray(data_points).flatten() # Ensure x is 1D
 
-    params = np.asarray(params)
-    if params.ndim == 1:
-        params = params[None, :] # Ensure params is (1, P) if single set of params
-    T, P = params.shape # T: number of tasks, P: number of parameters
+    # Unpack parameters: A, x0, w, B, C (5 parameters)
+    A, x0, w, B, C = params
 
-    # Initialize prediction array
-    pred = np.zeros((len(X), T))
+    # Lorentzian-like peak for &quot;badness&quot; + linear baseline
+    # A positive A term creates a bump, pushing negative brier_scores towards zero (worsening).
+    # B*x + C models the overall trend.
+    # Add a small epsilon to &#x27;w&#x27; in the denominator for numerical stability,
+    # preventing potential division by zero if &#x27;w&#x27; becomes extremely small.
+    pred = A / (1 + ((x - x0) / (w + 1e-9))**2) + B * x + C
 
-    for t_idx in range(T):
-        # Unpack the 6 parameters for the current task
-        p0, p1, p2, p3, p4, p5 = params[t_idx, :]
-        
-        # Ensure p2 is positive and not too small for numerical stability
-        p2_safe = np.maximum(p2, 1e-6) 
-        
-        # Calculate the prediction using the evolved scaling law function
-        # y = p0 * exp(-((x - p1) / p2)**2) + p3 * X**2 + p4 * X + p5
-        pred[:, t_idx] = p0 * np.exp(-((X - p1) / p2_safe)**2) + p3 * X**2 + p4 * X + p5
-    
-    # Return predictions based on the original structure (N,T) or (N,) if T=1
-    return pred[:, 0] if T == 1 else pred
-
+    return pred
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Optimizes the parameters for the scaling_law_func to best fit the provided data.
-    Uses L-BFGS-B for bounded optimization, providing robustness.
-    Refined initial guesses and tighter bounds guide the optimizer towards the expected
-    inverted U-shape pattern for negative brier scores.
+    Fits the U-shaped scaling law function to data using L-BFGS-B with
+    robust initial parameter guesses and refined bounds.
 
     Parameters:
-    - data_points: (N,1) array with columns [log_flops].
-    - loss_values: Array of corresponding brier_score values (negative). Can be (N,) or (N, T).
+    data_points (np.ndarray): (N,1) array with columns [log_flops].
+    loss_values (np.ndarray): Array of corresponding brier_score values.
 
     Returns:
-    - Optimized parameters (a 1D array of 6 parameters for a single task, or (T, 6) for multiple tasks).
+    np.ndarray: Optimized parameters [A, x0, w, B, C].
     &quot;&quot;&quot;
-    X = np.asarray(data_points).flatten() # Ensure 1D log_flops array (N,)
-    y = np.asarray(loss_values) # (N,) or (N, T)
+    x = np.asarray(data_points).flatten() # Ensure x is 1D
+    y = np.asarray(loss_values).flatten() # Ensure y is 1D
 
-    N = X.shape[0]
-    
-    # Standardize y to (N, T) format for consistent processing
-    if y.ndim == 1:
-        y2d = y[:, None] # (N, 1)
-    else:
-        y2d = y          # (N, T)
-    T = y2d.shape[1]     # Number of tasks
+    # --- Initial Parameter Guesses ---
 
-    P = 6 # Number of parameters: [p0, p1, p2, p3, p4, p5]
+    # 1. Estimate initial B (slope) and C (intercept) from a linear regression
+    # over the entire dataset. This provides a baseline trend.
+    slope, intercept, _, _, _ = linregress(x, y)
+    B_init = slope
+    C_init = intercept
 
-    # Calculate initial values for adaptive initial guesses and bounds
-    min_X, max_X = np.min(X), np.max(X)
-    min_y, max_y = np.min(y2d), np.max(y2d) 
+    # Calculate residuals from the initial linear fit.
+    # These residuals help identify the &quot;badness&quot; peak *above* the baseline.
+    residuals = y - (B_init * x + C_init)
 
-    # --- Adaptive Initial Guesses for Quadratic Part (p3, p4, p5) ---
-    # Sort data by X to robustly select the &quot;right tail&quot; for quadratic trend estimation
-    sort_idx = np.argsort(X)
-    X_sorted = X[sort_idx]
-    y_sorted_first_task = y2d[sort_idx, 0] # Use the first task&#x27;s data for initial guess
+    # 2. x0_init: Center of the peak (worst performance point)
+    # Guess as the log_flops value where the positive residual (deviation from linear baseline) is maximal.
+    # This is a more informed guess than simply the mean of x or argmax(y).
+    x0_init = x[np.argmax(residuals)]
+    # Ensure x0_init is within the observed range, falling back to mean if argmax points outside (e.g., due to noise)
+    x_min, x_max = np.min(x), np.max(x)
+    if not (x_min &lt;= x0_init &lt;= x_max):
+        x0_init = np.mean(x)
+    # Clip x0_init to be strictly within the observed data range for robustness
+    x0_init = np.clip(x0_init, x_min + 1e-6, x_max - 1e-6)
 
-    # Take the upper percentage of the data to estimate the long-term trend,
-    # where the Gaussian peak is assumed to have minimal influence.
-    # At least 3 points are needed for a quadratic fit.
-    num_points_for_poly = max(3, int(len(X_sorted) * 0.35)) 
-    X_tail = X_sorted[-num_points_for_poly:]
-    y_tail = y_sorted_first_task[-num_points_for_poly:]
+    # 3. A_init: Amplitude of the &quot;badness&quot; peak
+    # This parameter should be positive (pushes brier_score towards 0).
+    # Estimate from the maximum positive deviation from the initial linear fit.
+    A_init = np.max(residuals)
+    # Ensure A_init is positive and has a reasonable minimum value.
+    # Use 0.005 as a slightly higher minimum to ensure a visible peak if max residual is very small.
+    A_init = np.maximum(A_init, 0.005)
+    # Cap A_init to a reasonable fraction of the y-range to prevent overshooting.
+    y_range = np.max(y) - np.min(y)
+    if y_range &gt; 1e-6: # Avoid division by zero if y is constant
+        A_init = np.minimum(A_init, y_range * 1.5)
 
-    # Default initial guesses for quadratic part
-    p3_init_quad, p4_init_quad, p5_init_quad = -0.08, -0.08, max_y - (max_y - min_y) * 0.1
 
-    if len(X_tail) &gt;= 3:
-        try:
-            # Fit a quadratic: y = a*x^2 + b*x + c
-            # (p3, p4, p5) corresponds to (a, b, c)
-            quad_coeffs = np.polyfit(X_tail, y_tail, 2)
-            p3_init_quad = quad_coeffs[0]
-            p4_init_quad = quad_coeffs[1]
-            p5_init_quad = quad_coeffs[2]
-            
-            # Heuristic: Clip p3 and p4 to ensure initial guesses are reasonable
-            # A negative p3 is generally expected for improving performance with scale.
-            p3_init_quad = np.clip(p3_init_quad, -0.5, 0.05) 
-            p4_init_quad = np.clip(p4_init_quad, -1.0, 0.5)
+    # 4. w_init: Width of the peak
+    # Guess as a fraction (e.g., 1/3) of the total log_flops range.
+    x_range = x_max - x_min
+    w_init = x_range / 3.0
+    # Ensure w is not too small initially for numerical stability.
+    if w_init &lt; 0.01:
+        w_init = 0.01
+    # Cap initial guess to prevent overly wide starting point
+    if w_init &gt; x_range * 2:
+        w_init = x_range * 2.0
 
-        except np.linalg.LinAlgError:
-            # If polyfit fails (e.g., singular matrix), fall back to defaults.
-            pass
+    initial_params = [A_init, x0_init, w_init, B_init, C_init]
 
-    # Initial guess for all 6 parameters, combining adaptive quadratic estimates
-    # with robust estimates for the Gaussian peak.
-    init_params_for_one_task = np.array([
-        (max_y - min_y) * 1.2,      # p0 (Gaussian amplitude): Range of y, slightly above. Positive for peak.
-        min_X + (max_X - min_X) * 0.25, # p1 (Gaussian center): Peak slightly towards lower X.
-        (max_X - min_X) * 0.35,    # p2 (Gaussian width): Reasonable fraction of data range.
-        p3_init_quad,              # p3 (Quadratic x^2 coeff): From polyfit or default.
-        p4_init_quad,              # p4 (Linear x coeff): From polyfit or default.
-        p5_init_quad               # p5 (Bias/Intercept): From polyfit or default.
-    ])
-    
-    # Replicate initial parameters for each task
-    init = np.tile(init_params_for_one_task, (T, 1))
-
-    # Bounds for parameters for robust optimization with L-BFGS-B.
-    bounds_for_one_task = [
-        (0.01, -min_y * 3.0),       # p0 (amplitude): Must be positive for a peak. Max 3x magnitude of best score.
-        (min_X - 0.5, max_X + 0.5), # p1 (center): Allow slightly outside the data range.
-        (0.05, max_X - min_X),      # p2 (width): Must be positive, reasonable range.
-        (-0.5, 0.1),                # p3 (quadratic coeff): Favors negative to aid improvement at ends.
-        (-1.0, 0.5),                # p4 (linear coeff): Wider range.
-        (min_y * 2.0, max_y + 1e-6) # p5 (bias): Baseline for negative brier scores.
+    # --- Parameter Bounds ---
+    # A, w: Must be positive (amplitude and width). Use small epsilon to avoid issues.
+    # x0: Should be within the observed log_flops range.
+    # B, C: Can be any real number.
+    bounds = [
+        (1e-6, None),                          # A (amplitude, positive)
+        (x_min, x_max),                        # x0 (center, strictly within data range)
+        (1e-6, x_range * 2),                   # w (width, positive, capped at 2x the data range for stability)
+        (None, None),                          # B (slope)
+        (None, None)                           # C (intercept)
     ]
-    # For minimize, bounds must be a list of P*T tuples.
-    bounds = bounds_for_one_task * T
 
-    def objective(flat_params):
-        &quot;&quot;&quot;
-        Objective function for minimization (calculates Mean Squared Error).
-        &quot;&quot;&quot;
-        params = flat_params.reshape(T, P)
-        # data_points for scaling_law_func expects (N,1) but X is (N,), so pass X[:, None]
-        pred = scaling_law_func(X[:, None], params) 
+    # Objective function to minimize (Mean Squared Error)
+    def objective(params):
+        # Ensure parameters stay within bounds during iteration if they drift slightly
+        p_clipped = np.array(params)
+        for i, (lower, upper) in enumerate(bounds):
+            if lower is not None:
+                p_clipped[i] = max(p_clipped[i], lower)
+            if upper is not None:
+                p_clipped[i] = min(p_clipped[i], upper)
         
-        mse = np.mean((pred - y2d) ** 2)
+        pred = scaling_law_func(x, p_clipped)
+        mse = np.mean((pred - y) ** 2)
         return mse
 
-    # Perform optimization using L-BFGS-B, which handles bounds effectively.
-    result = minimize(objective, init.ravel(), method=&#x27;L-BFGS-B&#x27;, bounds=bounds)
+    # Use L-BFGS-B, a quasi-Newton method that supports bounds,
+    # generally more robust for constrained optimization.
+    # Added &#x27;maxiter&#x27;, &#x27;ftol&#x27;, and &#x27;gtol&#x27; options for better control over convergence.
+    result = minimize(objective, initial_params, method=&#x27;L-BFGS-B&#x27;, bounds=bounds,
+                      options={&#x27;maxiter&#x27;: 5000, &#x27;ftol&#x27;: 1e-8, &#x27;gtol&#x27;: 1e-8})
 
-    # Return optimized parameters. If optimization fails, return initial guess.
-    params_opt = result.x.reshape(T, P) if result.success else init
+    # Return optimized parameters if successful, otherwise the initial guesses.
+    # Post-process parameters to ensure they strictly adhere to bounds,
+    # especially if `result.success` is False and `initial_params` are returned,
+    # or if `result.x` is slightly outside bounds due to floating point precision.
+    params_opt = result.x if result.success else initial_params
+    for i, (lower, upper) in enumerate(bounds):
+        if lower is not None and params_opt[i] &lt; lower:
+            params_opt[i] = lower
+        if upper is not None and params_opt[i] &gt; upper:
+            params_opt[i] = upper
 
-    # Ensure p2 remains positive (bounds should enforce this, but as a final safeguard)
-    # and not too small for future predictions
-    params_opt[:, 2] = np.maximum(params_opt[:, 2], 1e-6)
-
-    # Match the expected return format: (P,) for T=1, or (T, P) for T&gt;1
-    return params_opt[0] if T == 1 else params_opt
+    return params_opt
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#3</span>
-              <span class="run-label">Run 3</span>
-              <span class="r2-badge" style="background-color: #d2691e; color: white"> R² = 0.341499 </span>
+              <span class="run-label">Run 1</span>
+              <span class="r2-badge" style="background-color: #228B22; color: white"> R² = 0.925380 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -672,182 +815,165 @@ def fit_scaling_law(data_points, loss_values):
               </div>
               <pre><code class="language-python" id="code-2"># EVOLVE-BLOCK-START
 &quot;&quot;&quot;
-Scaling law discovery for LLM finetuning scenarios
-Evolved to capture U-shaped/double descent patterns with a Gaussian peak on a quadratic background.
-This approach aims to model the characteristic &quot;worsening then improving&quot; performance
-on easy questions as compute scales.
-
-The model is: y = A * exp(-((x - B)^2) / (2 * C^2)) + D * x^2 + E * x + F
-- The Gaussian term (A * exp(...)) models the initial performance dip/peak (worsening).
-- The quadratic term (D*x^2 + E*x + F) models the underlying scaling trend, typically
-  showing improvement at higher compute.
-
-Improvements in this evolution:
-1. Numerical stability: Added explicit clipping for exponent arguments and safeguarding
-   of the Gaussian width parameter &#x27;C&#x27; to prevent overflow/underflow and division by zero.
-2. Refined initial guesses: Based on domain understanding and previous successful models,
-   initial parameters are set to guide the optimizer towards the expected U-shaped pattern
-   in negative brier score (a &quot;hill&quot; shape).
-3. Tighter and more informed bounds: Optimization bounds for each parameter are adjusted
-   to be more specific to the expected behavior, preventing the optimizer from exploring
-   unrealistic or unstable regions of the parameter space. This includes a stronger bias
-   for the quadratic coefficient (D) to be negative, supporting long-term performance improvement.
+Scaling law discovery for LLM finetuning scenarios.
+This evolution refines the U-shaped scaling law function&#x27;s fitting process
+by improving initial parameter guesses and bounds, while maintaining the
+Lorentzian-on-linear model (5 parameters) which has shown good performance.
+The goal is to enhance robustness and accuracy in capturing the double descent pattern.
 &quot;&quot;&quot;
 import numpy as np
 from scipy.optimize import minimize
+from scipy.stats import linregress
 
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    Predicts brier_score (negative, more negative = better) based on log_flops.
-    Models a characteristic &quot;hill&quot; or &quot;peak&quot; shape for negative brier_score,
-    where performance initially worsens with scale (brier_score moves towards zero)
-    before improving again (brier_score becomes more negative).
-    
-    The model used is: y = A * exp(-((x - B)^2) / (2 * C^2)) + D * x^2 + E * x + F
+    Models a U-shaped relationship (performance worsens then improves) using a
+    Lorentzian-like peak on a linear baseline. This allows brier_score (negative,
+    more negative is better) to increase (worsen) then decrease (improve).
 
     Parameters:
-    - data_points: (N,1) array with columns [log_flops].
-                   log_flops: log10(FLOPs in 1E21 units).
-    - params: Array of 6 parameters [A, B, C, D, E, F].
-              If params is (T, P), it iterates through T sets of parameters.
+    data_points (np.ndarray): (N,1) array with columns [log_flops].
+    params (list or np.ndarray): Array of 5 parameters [A, x0, w, B, C].
+        A: Amplitude of the &quot;badness&quot; peak (positive for brier_score to go up).
+        x0: log_flops value at the center of the peak (worst performance).
+        w: Width parameter of the peak (positive).
+        B: Slope of the underlying linear trend.
+        C: Intercept of the underlying linear trend.
 
     Returns:
-    - Predicted brier_score values (negative). If T=1, returns (N,) array, else (N, T) array.
+    np.ndarray: Predicted brier_score values.
     &quot;&quot;&quot;
-    X = np.asarray(data_points, dtype=np.float64).flatten() # Ensure 1D log_flops array (N,)
+    x = np.asarray(data_points).flatten() # Ensure x is 1D
 
-    params_arr = np.asarray(params, dtype=np.float64)
-    if params_arr.ndim == 1:
-        params_arr = params_arr[None, :] # Ensure params_arr is (1, P) if single set of params
-    T, P = params_arr.shape # T: number of tasks, P: number of parameters (must be 6)
+    # Unpack parameters: A, x0, w, B, C (5 parameters)
+    A, x0, w, B, C = params
 
-    # Initialize prediction array
-    pred = np.zeros((len(X), T), dtype=np.float64)
+    # Lorentzian-like peak for &quot;badness&quot; + linear baseline
+    # A positive A term creates a bump, pushing negative brier_scores towards zero (worsening).
+    # B*x + C models the overall trend.
+    # Ensure w is not zero or extremely small to prevent division by zero or large numbers,
+    # which enhances numerical stability.
+    w_safe = max(w, 1e-9)
+    pred = A / (1 + ((x - x0) / w_safe)**2) + B * x + C
 
-    # Max and min safe values for np.exp() argument to prevent overflow/underflow
-    MAX_EXP_ARG = 700.0 # np.exp(709) is inf for float64
-    MIN_EXP_ARG = -700.0 # np.exp(-709) is 0 for float64
-
-    for t_idx in range(T):
-        # Unpack the 6 parameters for the current task
-        # A: Amplitude of Gaussian peak (positive for a peak in negative brier_score, i.e., worsening performance)
-        # B: Center (mean) of Gaussian peak
-        # C: Width (standard deviation) of Gaussian peak. C should be positive.
-        # D: Quadratic coefficient for background
-        # E: Linear coefficient for background
-        # F: Constant offset for background
-        A, B, C, D, E, F = params_arr[t_idx, :]
-        
-        # Safeguard C to be positive and not too small to prevent division by zero or numerical instability.
-        C_stable = np.maximum(C, 1e-6) 
-        
-        # Calculate the exponent argument and clip it for numerical stability
-        exponent_arg = -((X - B)**2) / (2 * C_stable**2)
-        clipped_exponent_arg = np.clip(exponent_arg, MIN_EXP_ARG, 0.0) # Max value of exponent_arg is 0
-
-        # Calculate the prediction using the evolved scaling law function
-        pred[:, t_idx] = A * np.exp(clipped_exponent_arg) + D * X**2 + E * X + F
-    
-    # Return predictions based on the original structure (N,T) or (N,) if T=1
-    return pred[:, 0] if T == 1 else pred
-
+    return pred
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Optimizes the parameters for the scaling_law_func to best fit the provided data.
-    Uses L-BFGS-B for bounded optimization, providing robustness for the new functional form.
-    Improved with more dynamically informed initial guesses and tighter bounds based on data characteristics.
+    Fits the U-shaped scaling law function to data using L-BFGS-B with
+    robust initial parameter guesses and refined bounds.
 
     Parameters:
-    - data_points: (N,1) array with columns [log_flops].
-    - loss_values: Array of corresponding brier_score values (negative). Can be (N,) or (N, T).
+    data_points (np.ndarray): (N,1) array with columns [log_flops].
+    loss_values (np.ndarray): Array of corresponding brier_score values.
 
     Returns:
-    - Optimized parameters (a 1D array of 6 parameters for a single task, or (T, 6) for multiple tasks).
+    np.ndarray: Optimized parameters [A, x0, w, B, C].
     &quot;&quot;&quot;
-    X = np.asarray(data_points, dtype=np.float64) # (N, F) where F=1
-    y = np.asarray(loss_values, dtype=np.float64) # (N,) or (N, T)
+    x = np.asarray(data_points).flatten() # Ensure x is 1D
+    y = np.asarray(loss_values).flatten() # Ensure y is 1D
 
-    # Standardize y to (N, T) format for consistent processing
-    if y.ndim == 1:
-        y2d = y[:, None] # (N, 1)
-    else:
-        y2d = y          # (N, T)
-    T = y2d.shape[1]     # Number of tasks
+    x_min, x_max = np.min(x), np.max(x)
+    y_min, y_max = np.min(y), np.max(y)
+    x_range = x_max - x_min
+    y_range = y_max - y_min
 
-    P = 6 # Number of parameters for the chosen function: [A, B, C, D, E, F]
+    # --- Initial Parameter Guesses ---
+    # 1. Linear regression for initial B (slope) and C (intercept)
+    # This provides a baseline trend to identify deviations (the U-shape peak).
+    slope, intercept, _, _, _ = linregress(x, y)
+    B_init = slope
+    C_init = intercept
 
-    # Calculate data ranges for informed initial guesses and bounds
-    X_flat = X.flatten()
-    y_flat = y2d.flatten() 
+    # 2. Estimate residuals from the initial linear fit.
+    # These residuals help identify the &quot;peak of badness&quot; (positive deviation).
+    residuals = y - (B_init * x + C_init)
 
-    min_x, max_x = np.min(X_flat), np.max(X_flat)
-    x_range = max_x - min_x
-    mean_x = np.mean(X_flat)
-    
-    # Ensure x_range is not too small to avoid issues with division by zero
-    x_range_safe = max(x_range, 1e-3)
-    
-    min_y, max_y = np.min(y_flat), np.max(y_flat) # min_y is more negative (better), max_y is closer to 0 (worse)
-    mean_y = np.mean(y_flat)
+    # 3. A_init: Amplitude of the &quot;badness&quot; peak. Must be positive.
+    #    Estimate from the maximum positive deviation from the initial linear fit.
+    #    This represents how much the performance &#x27;worsened&#x27; from the linear trend.
+    A_init = np.max(residuals)
+    # If no significant positive residual, ensure A_init is a minimum positive value
+    # to allow the optimizer to explore a peak.
+    if A_init &lt; 0.001:
+        A_init = 0.001
+    # Cap A_init to a reasonable fraction of the range of y to prevent overshooting,
+    # which can lead to unstable optimization.
+    if A_init &gt; y_range * 0.75:
+        A_init = y_range * 0.75
 
-    # Initial guess for parameters [A, B, C, D, E, F]
-    # These are designed to guide the optimizer towards an inverted U-shape for negative brier_score
-    init_params_for_one_task = np.array([
-        0.15,                               # A (amplitude of Gaussian peak): Positive for a peak in brier_score (worsening).
-                                            #    Slightly increased from 0.1 in previous versions.
-        (min_x + max_x) / 2,                # B (center of Gaussian peak): Roughly mid-range of log_flops.
-        x_range_safe / 3.0,                 # C (width/std dev of Gaussian peak): Approx 1/3 of the log_flops range.
-        -0.02,                              # D (quadratic background coefficient): Slightly more negative than -0.01,
-                                            #    to encourage long-term performance improvement.
-        0.0,                                # E (linear background coefficient): Start at zero.
-        mean_y                              # F (constant offset): Around the average brier_score.
-    ], dtype=np.float64)
-    
-    # Replicate initial parameters for each task
-    init = np.tile(init_params_for_one_task, (T, 1))
 
-    # Bounds for parameters for robust optimization with L-BFGS-B.
-    # These bounds encourage the desired shape and prevent numerical instability.
-    bounds_for_one_task = [
-        (1e-4, 1.5),                            # A: Amplitude. Must be positive for a hill. Max increased to 1.5.
-        (min_x - x_range_safe*0.2, max_x + x_range_safe*0.2), # B: Peak center. Allowed to be slightly outside data range.
-        (0.05, x_range_safe * 2),             # C: Peak width (std dev). Must be positive. Min decreased to 0.05 for sharper peaks.
-        (-0.2, 0.01),                           # D: Quadratic background coeff. More biased to negative, upper bound closer to 0.01.
-        (-0.2, 0.2),                            # E: Linear background coeff. Tighter range compared to -0.5 to 0.5.
-        (-1.0, -1e-4)                           # F: Constant offset. Brier scores are negative, so F must be negative. Fixed bounds.
+    # 4. x0_init: Center of the peak (worst performance point).
+    #    Guess as the x value where residuals are maximal, as this indicates the peak of &quot;badness&quot;.
+    #    This is a more data-driven and robust guess than simply the mean.
+    if np.max(residuals) &gt; 0: # Only if there&#x27;s a positive peak to find
+        x0_init = x[np.argmax(residuals)]
+    else: # Fallback if no clear positive peak in residuals (e.g., if data is purely monotonic)
+        x0_init = np.mean(x)
+    # Ensure x0_init is within the observed log_flops range, or fall back to mean if argmax
+    # points to an extreme due to noise or edge effects.
+    if not (x_min &lt;= x0_init &lt;= x_max):
+        x0_init = np.mean(x)
+
+
+    # 5. w_init: Width of the peak.
+    #    Guess as a fraction (e.g., 1/3) of the total log_flops range.
+    w_init = x_range / 3.0
+    if w_init &lt; 1e-3: # Ensure w is not too small to prevent numerical instability
+        w_init = 1e-3
+    if w_init &gt; x_range * 2: # Cap width to not exceed a reasonable multiple of data range
+        w_init = x_range * 2.0
+
+
+    initial_params = [A_init, x0_init, w_init, B_init, C_init]
+
+    # --- Parameter Bounds ---
+    # A, w: Must be positive (amplitude and width). Small epsilon to avoid issues.
+    # x0: Should be within or slightly outside the observed log_flops range.
+    # B, C: Can be any real number.
+    bounds = [
+        (1e-6, y_range * 5),                  # A (amplitude, positive, upper bound for stability)
+        (x_min - x_range*0.1, x_max + x_range*0.1), # x0 (center, slightly wider than data range to allow for peak near edges)
+        (1e-6, x_range * 3),                  # w (width, positive, capped for stability, slightly wider upper bound)
+        (None, None),                         # B (slope, no bounds)
+        (None, None)                          # C (intercept, no bounds)
     ]
-    # For minimize, bounds must be a list of P*T tuples.
-    bounds = bounds_for_one_task * T
+    # The slightly extended bounds for x0 and w allow the model to fit a peak
+    # that might be just outside the observed data range, improving generalization.
 
-    def objective(flat_params):
-        &quot;&quot;&quot;
-        Objective function for minimization (calculates Mean Squared Error).
-        &quot;&quot;&quot;
-        params = flat_params.reshape(T, P)
-        pred = scaling_law_func(X, params) # (N, T) predictions
-        mse = np.mean((pred - y2d) ** 2)
+
+    # Objective function to minimize (Mean Squared Error)
+    def objective(params):
+        pred = scaling_law_func(x, params)
+        mse = np.mean((pred - y) ** 2)
         return mse
 
-    # Perform optimization using L-BFGS-B, which handles bounds effectively.
-    result = minimize(objective, init.ravel(), method=&#x27;L-BFGS-B&#x27;, bounds=bounds)
+    # Use L-BFGS-B, a quasi-Newton method that supports bounds,
+    # generally more robust for constrained optimization than BFGS.
+    result = minimize(objective, initial_params, method=&#x27;L-BFGS-B&#x27;, bounds=bounds)
 
-    # Return optimized parameters. If optimization fails, return initial guess.
-    params_opt = result.x.reshape(T, P) if result.success else init
+    # Return optimized parameters if successful.
+    # If optimization fails, fallback to initial parameters to ensure a valid return,
+    # though L-BFGS-B is generally robust with good initial guesses and bounds.
+    params_opt = result.x if result.success else initial_params
 
-    # Match the expected return format: (P,) for T=1, or (T, P) for T&gt;1
-    return params_opt[0] if T == 1 else params_opt
+    # Post-optimization check to ensure critical parameters adhere to strict positivity
+    # (sometimes optimizers can slightly violate bounds due to numerical precision or
+    # if a parameter hits a bound exactly).
+    params_opt[0] = max(params_opt[0], 1e-9) # A must be positive
+    params_opt[2] = max(params_opt[2], 1e-9) # w must be positive
+
+    return params_opt
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#4</span>
-              <span class="run-label">Run 1</span>
-              <span class="r2-badge" style="background-color: #d2691e; color: white"> R² = 0.266326 </span>
+              <span class="run-label">Run 3</span>
+              <span class="r2-badge" style="background-color: #228B22; color: white"> R² = 0.924689 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -860,158 +986,157 @@ def fit_scaling_law(data_points, loss_values):
               <pre><code class="language-python" id="code-3"># EVOLVE-BLOCK-START
 &quot;&quot;&quot;
 Scaling law discovery for LLM finetuning scenarios.
-Evolved to capture U-shaped/double descent patterns explicitly, where performance
-initially worsens (brier_score becomes more negative) before improving
-(brier_score becomes less negative). This means the brier_score itself should
-exhibit a U-shape when plotted against log_flops.
+This evolution reverts to a 5-parameter U-shaped scaling law function (Lorentzian peak
+on a linear baseline) which previously showed higher fitness. It integrates robust
+initial parameter guesses and bounds derived from analysis of previous attempts
+to further improve stability and accuracy.
 
-The model used is: y = p0 * exp(p1 * x) + p2 * exp(p3 * x) + p4 + p5 * x
-(a sum of two exponentials, a bias, and a linear term)
+The model captures the characteristic U-shaped or double descent pattern:
+performance initially worsens with scale before improving again.
+Brier score is negative, where more negative indicates better performance.
+The U-shape means performance initially worsens (brier_score moves towards 0)
+before improving again (brier_score moves more negative).
 &quot;&quot;&quot;
 import numpy as np
 from scipy.optimize import minimize
+from scipy.stats import linregress
 
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    Predicts brier_score (negative, more negative = better) based on log_flops.
-    Models a U-shaped pattern for the brier_score.
+    Models a U-shaped relationship (performance worsens then improves) using a
+    Lorentzian-like peak on a linear baseline. This allows brier_score (negative,
+    more negative is better) to increase (worsen) then decrease (improve).
 
     Parameters:
-    - data_points: (N,1) array with columns [log_flops].
-                   log_flops: log10(FLOPs in 1E21 units).
-    - params: Array of 6 parameters [p0, p1, p2, p3, p4, p5].
-              If params is (T, P), it iterates through T sets of parameters.
+    data_points (np.ndarray): (N,1) array with columns [log_flops].
+    params (list or np.ndarray): Array of 5 parameters [A, x0, w, B, C].
+        A: Amplitude of the &quot;badness&quot; peak (positive for brier_score to go up).
+        x0: log_flops value at the center of the peak (worst performance).
+        w: Width parameter of the peak (positive).
+        B: Slope of the underlying linear trend.
+        C: Intercept of the underlying linear trend.
 
     Returns:
-    - Predicted brier_score values (negative). If T=1, returns (N,) array, else (N, T) array.
+    np.ndarray: Predicted brier_score values.
     &quot;&quot;&quot;
-    X = np.asarray(data_points).flatten() # Ensure 1D log_flops array (N,)
+    x = np.asarray(data_points).flatten() # Ensure x is 1D
 
-    params = np.asarray(params)
-    if params.ndim == 1:
-        params = params[None, :] # Ensure params is (1, P) if single set of params
-    T, P = params.shape # T: number of tasks, P: number of parameters
+    # Unpack parameters: A, x0, w, B, C (5 parameters)
+    A, x0, w, B, C = params
 
-    pred = np.zeros((len(X), T))
+    # Ensure w is not too small to prevent division by zero or excessively large values
+    # in the Lorentzian term, enhancing numerical stability.
+    w_stable = np.maximum(w, 1e-9)
 
-    for t_idx in range(T):
-        # Unpack the 6 parameters for the current task
-        p0, p1, p2, p3, p4, p5 = params[t_idx, :]
-        
-        # Calculate the prediction using the evolved scaling law function
-        # For a U-shape in y (brier_score):
-        # p0 &gt; 0, p1 &lt; 0 (decays from positive to 0, lifts left arm)
-        # p2 &gt; 0, p3 &gt; 0 (grows from positive, lifts right arm)
-        # p4 is the base (lowest/most negative point) of the U
-        # p5 * x adds a slight tilt/linear trend
-        pred[:, t_idx] = p0 * np.exp(p1 * X) + p2 * np.exp(p3 * X) + p4 + p5 * X
-    
-    # Return predictions based on the original structure (N,T) or (N,) if T=1
-    return pred[:, 0] if T == 1 else pred
+    # Lorentzian-like peak for &quot;badness&quot; + linear baseline
+    # A positive A term creates a bump, pushing negative brier_scores towards zero (worsening).
+    # B*x + C models the overall trend. For improvement at larger scales, B is typically negative.
+    pred = A / (1 + ((x - x0) / w_stable)**2) + B * x + C
 
+    return pred
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Optimizes the parameters for the scaling_law_func to best fit the provided data.
-    Uses L-BFGS-B for bounded optimization, providing robustness for exponential terms.
-    Initial guesses and bounds are dynamically set based on the observed data range
-    to specifically encourage a U-shaped brier_score curve.
+    Fits the U-shaped scaling law function to data using L-BFGS-B with
+    robust initial parameter guesses and bounds.
 
     Parameters:
-    - data_points: (N,1) array with columns [log_flops].
-    - loss_values: Array of corresponding brier_score values (negative). Can be (N,) or (N, T).
+    data_points (np.ndarray): (N,1) array with columns [log_flops].
+    loss_values (np.ndarray): Array of corresponding brier_score values.
 
     Returns:
-    - Optimized parameters (a 1D array of 6 parameters for a single task, or (T, 6) for multiple tasks).
+    np.ndarray: Optimized parameters [A, x0, w, B, C].
     &quot;&quot;&quot;
-    X = np.asarray(data_points) # (N, F) where F=1
-    y = np.asarray(loss_values) # (N,) or (N, T)
+    x = np.asarray(data_points).flatten() # Ensure x is 1D
+    y = np.asarray(loss_values).flatten() # Ensure y is 1D
 
-    if y.ndim == 1:
-        y2d = y[:, None] # (N, 1)
-    else:
-        y2d = y          # (N, T)
-    T = y2d.shape[1]     # Number of tasks
+    # Calculate ranges for robust initial guesses and bounds
+    y_range = np.max(y) - np.min(y)
+    x_range = np.max(x) - np.min(x)
+    
+    # --- Initial Parameter Guesses ---
+    # 1. Linear regression for initial B (slope) and C (intercept)
+    # This provides a baseline trend.
+    slope, intercept, _, _, _ = linregress(x, y)
+    B_init = slope
+    C_init = intercept
 
-    P = 6 # Number of parameters: [p0, p1, p2, p3, p4, p5]
+    # 2. Estimate the peak of the U-shape (worst performance)
+    # The U-shape means brier_score increases (worsens) then decreases (improves).
+    # So we&#x27;re looking for a maximum in the brier_score relative to the linear trend.
+    baseline_init_values = B_init * x + C_init
+    residuals = y - baseline_init_values
 
-    init_params = np.zeros((T, P))
-    all_bounds = []
+    # A_init: Amplitude of the &quot;badness&quot; peak (should be positive)
+    # Estimate from the maximum positive residual.
+    A_init = np.max(residuals) 
+    if A_init &lt; 1e-4: # Ensure a minimum positive amplitude if residuals are flat or negative
+        A_init = 0.01 # Small default positive amplitude
+    
+    # Cap A_init to a reasonable value if it&#x27;s excessively large (e.g., not more than 75% of the y range)
+    if y_range &gt; 1e-6 and A_init &gt; y_range * 0.75:
+        A_init = y_range * 0.75
+    
+    # x0_init: Center of the peak, estimated at the log_flops value where residuals are maximal.
+    # If argmax points outside the data range (e.g., if the peak is at an edge), use the mean as a fallback.
+    x0_init_idx = np.argmax(residuals)
+    x0_init = x[x0_init_idx]
+    if not (np.min(x) &lt;= x0_init &lt;= np.max(x)):
+        x0_init = np.mean(x)
 
-    # Common bounds for exponents and linear term to prevent numerical instability
-    # These are general reasonable ranges for the log_flops input range [-0.9, 2.9]
-    exp_decay_bounds = (-3.0, -0.1) # p1 (negative exponent for left arm decay)
-    exp_growth_bounds = (0.1, 3.0)   # p3 (positive exponent for right arm growth)
-    linear_bounds = (-0.1, 0.1)      # p5 (small linear trend)
+    # w_init: Width of the peak
+    # Guess as a fraction of the total log_flops range.
+    w_init = x_range / 3.0
+    if w_init &lt; 1e-3: # Ensure w is not too small to prevent numerical instability
+        w_init = 1e-3
+    if w_init &gt; x_range * 2: # Cap width to not exceed a reasonable multiple of data range
+        w_init = x_range * 2.0
 
-    for t_idx in range(T):
-        task_y = y2d[:, t_idx]
-        y_min, y_max = np.min(task_y), np.max(task_y)
-        y_range = y_max - y_min # Range of observed brier scores for the current task
+    initial_params = [A_init, x0_init, w_init, B_init, C_init]
 
-        # --- Initial Guesses ---
-        # p4 (base of U-shape): Initialized slightly below the observed minimum brier score.
-        p4_init_val = y_min - y_range * 0.1
+    # --- Parameter Bounds ---
+    # These bounds constrain the parameters to physically meaningful and numerically stable ranges.
+    bounds = [
+        (1e-6, np.maximum(y_range * 2, 0.1)), # A (amplitude): Must be positive, capped relative to y_range.
+        (np.min(x) - x_range*0.2, np.max(x) + x_range*0.2), # x0 (center): Allow slightly outside data range.
+        (1e-6, x_range * 5),   # w (width): Must be positive, capped relative to x_range.
+        (None, None),          # B (slope): Can be any real number.
+        (None, None)           # C (intercept): Can be any real number.
+    ]
 
-        # p0, p2 (coefficients for exponential terms): Must be positive to lift the curve.
-        # Initialized proportionally to y_range to adapt to different scales of brier scores.
-        coeff_init_val = max(0.01, y_range * 0.15) 
+    # Objective function to minimize (Mean Squared Error)
+    def objective(params):
+        # Manually enforce positivity constraints for A and w before passing to scaling_law_func.
+        # This helps the optimizer stay within valid regions, especially if bounds are loose.
+        p_constrained = list(params)
+        p_constrained[0] = np.maximum(p_constrained[0], 1e-9) # A must be positive
+        p_constrained[2] = np.maximum(p_constrained[2], 1e-9) # w must be positive
+        
+        pred = scaling_law_func(x, p_constrained)
+        return np.mean((pred - y) ** 2)
 
-        init_params[t_idx, :] = [
-            coeff_init_val,   # p0: Coefficient for the left arm exponential (decaying positive)
-            -1.5,             # p1: Exponent for the left arm (negative for decay)
-            coeff_init_val,   # p2: Coefficient for the right arm exponential (growing positive)
-            1.5,              # p3: Exponent for the right arm (positive for growth)
-            p4_init_val,      # p4: Constant bias, forms the base (minimum) of the U-shape
-            0.0               # p5: Coefficient for the linear term (neutral starting point)
-        ]
+    # Use L-BFGS-B, a quasi-Newton method that supports bounds, for robust optimization.
+    # Increased maxiter to allow for more complex optimization landscapes.
+    result = minimize(objective, initial_params, method=&#x27;L-BFGS-B&#x27;, bounds=bounds, options={&#x27;maxiter&#x27;: 2000})
 
-        # --- Bounds for L-BFGS-B ---
-        # p0, p2 bounds: Must be positive. Upper bound is scaled by y_range.
-        coeff_bounds_val = (1e-6, y_range * 0.8) # Ensures positive coefficients, prevents overly large terms
+    # Return optimized parameters if successful, otherwise the initial guesses (converted to array).
+    params_opt = result.x if result.success else np.array(initial_params)
+    
+    # Final check for &#x27;A&#x27; and &#x27;w&#x27; to ensure they are positive, for consistency in returned parameters.
+    params_opt[0] = np.maximum(params_opt[0], 1e-9) # A
+    params_opt[2] = np.maximum(params_opt[2], 1e-9) # w
 
-        # p4 bounds: Allows it to be below observed min (to form the U&#x27;s base) but not wildly negative,
-        # and not positive (brier scores are negative).
-        p4_bounds_val = (max(-1.0, y_min - y_range * 0.75), min(-1e-6, y_max + y_range * 0.1))
-
-        all_bounds.extend([
-            coeff_bounds_val,  # p0
-            exp_decay_bounds,  # p1
-            coeff_bounds_val,  # p2
-            exp_growth_bounds, # p3
-            p4_bounds_val,     # p4
-            linear_bounds      # p5
-        ])
-
-    def objective(flat_params):
-        &quot;&quot;&quot;
-        Objective function for minimization (calculates Mean Squared Error).
-        &quot;&quot;&quot;
-        params = flat_params.reshape(T, P)
-        pred = scaling_law_func(X, params) # (N, T) predictions
-        mse = np.mean((pred - y2d) ** 2)
-        return mse
-
-    # Perform optimization using L-BFGS-B, which handles bounds effectively.
-    result = minimize(objective, init_params.ravel(), method=&#x27;L-BFGS-B&#x27;, bounds=all_bounds)
-
-    # Return optimized parameters. If optimization fails, return the initial guess
-    # which is already structured for the desired U-shape.
-    params_opt = result.x.reshape(T, P) if result.success else init_params
-
-    # Match the expected return format: (P,) for T=1, or (T, P) for T&gt;1
-    return params_opt[0] if T == 1 else params_opt
+    return params_opt
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#5</span>
               <span class="run-label">Run 4</span>
-              <span class="r2-badge" style="background-color: #d2691e; color: white"> R² = 0.265633 </span>
+              <span class="r2-badge" style="background-color: #228B22; color: white"> R² = 0.924689 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -1023,129 +1148,152 @@ def fit_scaling_law(data_points, loss_values):
               </div>
               <pre><code class="language-python" id="code-4"># EVOLVE-BLOCK-START
 &quot;&quot;&quot;
-Scaling law discovery for LLM finetuning scenarios
-Evolved to capture U-shaped/double descent patterns with a Gaussian peak model.
-Uses differential_evolution for robust global optimization, which is better suited
-for non-linear functions with potential local minima.
+Scaling law discovery for LLM finetuning scenarios.
+This evolution refines the U-shaped scaling law function and optimization algorithm
+to achieve higher fitness. It utilizes a robust 5-parameter model (Lorentzian peak
+on a linear baseline) which has demonstrated better performance on this dataset
+compared to more complex forms. The optimization maintains improved initial parameter
+guesses and bounds, enhancing stability and convergence for fitting the characteristic
+U-shaped pattern where performance initially worsens before improving.
+
+Specifically, the initial guess for the peak center (x0) is now derived from the
+point of maximum positive deviation from the initial linear baseline, which is a
+more targeted approach to locate the &quot;badness&quot; peak. Additionally, bounds for &#x27;A&#x27;
+and &#x27;w&#x27; are made more explicit relative to the data range, and numerical stability
+improvements are added.
 &quot;&quot;&quot;
 import numpy as np
-from scipy.optimize import differential_evolution
+from scipy.optimize import minimize
+from scipy.stats import linregress
 
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    Predicts brier_score (negative, more negative = better) based on log_flops.
-    Models an inverted U-shaped pattern for brier score (a &quot;hill&quot;), where performance
-    initially worsens (brier score becomes less negative) and then improves (more negative).
-    This corresponds to a U-shaped pattern for &quot;performance&quot;.
-
-    The model used is a Gaussian peak combined with a linear term and a bias:
-    y = p0 * exp(-(X - p1)**2 / (2 * p2**2)) + p3 * X + p4
+    Models a U-shaped relationship (performance worsens then improves) using a
+    Lorentzian-like peak on a linear baseline. This allows brier_score (negative,
+    more negative is better) to increase (worsen) then decrease (improve).
 
     Parameters:
-    - data_points: (N,1) array with columns [log_flops].
-                   log_flops: log10(FLOPs in 1E21 units).
-    - params: Array of 5 parameters [p0, p1, p2, p3, p4].
-              If params is (T, P), it iterates through T sets of parameters.
+    data_points (np.ndarray): (N,1) array with columns [log_flops].
+    params (list or np.ndarray): Array of 5 parameters [A, x0, w, B, C].
+        A: Amplitude of the &quot;badness&quot; peak (positive for brier_score to go up).
+        x0: log_flops value at the center of the peak (worst performance).
+        w: Width parameter of the peak (positive).
+        B: Slope of the underlying linear trend.
+        C: Intercept of the underlying linear trend.
 
     Returns:
-    - Predicted brier_score values (negative). If T=1, returns (N,) array, else (N, T) array.
+    np.ndarray: Predicted brier_score values.
     &quot;&quot;&quot;
-    X = np.asarray(data_points).flatten() # Ensure 1D log_flops array (N,)
+    x = np.asarray(data_points).flatten() # Ensure x is 1D
 
-    params = np.asarray(params)
-    if params.ndim == 1:
-        params = params[None, :] # Ensure params is (1, P) if single set of params
-    T, P = params.shape # T: number of tasks, P: number of parameters (should be 5)
+    # Unpack parameters: A, x0, w, B, C (5 parameters)
+    A, x0, w, B, C = params
 
-    pred = np.zeros((len(X), T))
+    # Lorentzian-like peak for &quot;badness&quot; + linear baseline
+    # A positive A term creates a bump, pushing negative brier_scores towards zero (worsening).
+    # B*x + C models the overall trend.
+    # Ensure w is not too small to prevent division by zero or large numbers.
+    w_safe = np.maximum(w, 1e-6)
+    pred = A / (1 + ((x - x0) / w_safe)**2) + B * x + C
 
-    for t_idx in range(T):
-        p0, p1, p2, p3, p4 = params[t_idx, :]
-        
-        # Ensure p2 (width) is strictly positive to avoid division by zero or numerical issues.
-        # It&#x27;s squared in the Gaussian, so np.abs is a safeguard for robustness,
-        # but primarily enforced by bounds in fit_scaling_law.
-        p2_safe = np.maximum(1e-6, p2) # p2 is expected to be positive from bounds
-
-        # A positive p0 creates a &#x27;hill&#x27; in the negative brier score:
-        # starting low (more negative), rising to a peak (less negative = worse performance),
-        # then falling again (more negative = better performance).
-        pred[:, t_idx] = p0 * np.exp(-(X - p1)**2 / (2 * p2_safe**2)) + p3 * X + p4
-    
-    return pred[:, 0] if T == 1 else pred
-
+    return pred
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Optimizes the parameters for the scaling_law_func to best fit the provided data.
-    Uses differential_evolution for robust global optimization, which is better suited
-    for non-linear functions with potential local minima and aims to capture the
-    U-shaped pattern more accurately.
+    Fits the U-shaped scaling law function (Lorentzian peak + linear baseline)
+    to data using L-BFGS-B with robust initial parameter guesses and bounds.
 
     Parameters:
-    - data_points: (N,1) array with columns [log_flops].
-    - loss_values: Array of corresponding brier_score values (negative). Can be (N,) or (N, T).
+    data_points (np.ndarray): (N,1) array with columns [log_flops].
+    loss_values (np.ndarray): Array of corresponding brier_score values.
 
     Returns:
-    - Optimized parameters (a 1D array of 5 parameters for a single task, or (T, 5) for multiple tasks).
+    np.ndarray: Optimized parameters [A, x0, w, B, C].
     &quot;&quot;&quot;
-    X = np.asarray(data_points) # (N, F) where F=1
-    y = np.asarray(loss_values) # (N,) or (N, T)
+    x = np.asarray(data_points).flatten() # Ensure x is 1D
+    y = np.asarray(loss_values).flatten() # Ensure y is 1D
 
-    # Standardize y to (N, T) format for consistent processing
-    if y.ndim == 1:
-        y2d = y[:, None] # (N, 1)
+    # Calculate min/max of x and y for bounds and initial guesses
+    x_min, x_max = np.min(x), np.max(x)
+    y_min, y_max = np.min(y), np.max(y)
+    y_range = y_max - y_min
+    if y_range == 0:
+        y_range = 1.0 # Prevent division by zero if all y values are identical
+
+    # --- Initial Parameter Guesses ---
+    # 1. Linear regression for initial B (slope) and C (intercept)
+    # This provides a baseline trend.
+    # Handle cases where linregress might fail due to insufficient unique x points
+    if len(np.unique(x)) &lt; 2:
+        B_init = 0.0
+        C_init = np.mean(y)
     else:
-        y2d = y          # (N, T)
-    T = y2d.shape[1]     # Number of tasks
+        slope, intercept, _, _, _ = linregress(x, y)
+        B_init = slope
+        C_init = intercept
 
-    P = 5 # Number of parameters for the chosen function: [p0, p1, p2, p3, p4]
+    # 2. Estimate initial baseline prediction and residuals
+    baseline_pred_init = B_init * x + C_init
+    residuals = y - baseline_pred_init
 
-    min_x, max_x = X.min(), X.max()
+    # 3. A_init: Amplitude of the &quot;badness&quot; peak
+    # This parameter should be positive (pushes brier_score towards 0).
+    # Estimate from the maximum positive deviation from the initial linear fit.
+    A_init = np.max(residuals) if np.max(residuals) &gt; 0 else 0.01
+
+    # Cap A_init to a reasonable value and ensure a minimum positive amplitude
+    if A_init &gt; y_range * 0.5: # Allow A to be up to half the total y range
+        A_init = y_range * 0.5
+    if A_init &lt; 0.001:
+        A_init = 0.001
+
+    # 4. x0_init: Center of the peak (worst performance point)
+    # Guess as the x-value where the maximum positive residual occurs.
+    # This is a more targeted guess than simply the mean of x.
+    if np.max(residuals) &gt; 0:
+        x0_init = x[np.argmax(residuals)]
+    else: # If no significant positive residual, peak is probably small or absent, center it broadly.
+        x0_init = np.mean(x)
     
-    # Define bounds for a single set of parameters for the Gaussian model.
-    # These bounds are chosen to guide the optimizer towards meaningful U-shaped solutions
-    # for negative brier scores (where performance worsens then improves).
-    # p0 (amplitude of Gaussian peak): Must be positive to create a &#x27;hill&#x27; (worsening score).
-    #                                  Max 0.5 because brier scores are in range -1 to 0.
-    # p1 (center of peak): Can be slightly outside the observed log_flops range to capture
-    #                      U-shapes that peak early or late.
-    # p2 (width of peak): Must be positive, small minimum for stability, and reasonable maximum.
-    # p3 (linear term): Allows for a slight linear trend, but not to dominate the U-shape.
-    # p4 (bias): Baseline brier score, typically negative.
-    
-    bounds_for_one_task = [
-        (0.0, 0.5),                      # p0 (amplitude): Positive for &#x27;hill&#x27; (less negative brier score).
-        (min_x - 0.5, max_x + 0.5),      # p1 (center): Slightly wider than data range.
-        (0.01, (max_x - min_x) * 0.8),   # p2 (width): Positive, up to 80% of data range.
-        (-0.2, 0.2),                     # p3 (linear term): Small linear trend.
-        (-1.0, 0.0)                      # p4 (bias): Brier scores are negative, so bias must be negative or zero.
+    # Ensure x0_init is within the observed log_flops range
+    x0_init = np.clip(x0_init, x_min, x_max)
+
+    # 5. w_init: Width of the peak
+    # Guess as a fraction (e.g., 1/3) of the total log_flops range.
+    w_init = (x_max - x_min) / 3.0
+    if w_init &lt; 1e-3: # Ensure w is not too small to prevent numerical instability
+        w_init = 1e-3
+    w_init = np.clip(w_init, 1e-3, x_max - x_min) # Cap max width to prevent excessively flat peaks
+
+    initial_params = [A_init, x0_init, w_init, B_init, C_init]
+
+    # --- Parameter Bounds ---
+    # A, w: Must be positive (amplitude and width). Small epsilon to avoid issues.
+    # x0: Should be within the observed log_flops range.
+    # B, C: Can be any real number.
+    bounds = [
+        (1e-6, y_range * 2),   # A (amplitude), upper bound based on y_range for robustness
+        (x_min, x_max),        # x0 (center of peak), constrained to data range
+        (1e-6, x_max - x_min), # w (width), upper bound based on x_range for robustness
+        (None, None),          # B (slope)
+        (None, None)           # C (intercept)
     ]
-    
-    # differential_evolution expects a list of (min, max) tuples for each parameter.
-    all_bounds_flat = bounds_for_one_task * T
 
-    def objective(flat_params):
-        &quot;&quot;&quot;
-        Objective function for minimization (calculates Mean Squared Error).
-        &quot;&quot;&quot;
-        params_current = flat_params.reshape(T, P)
-        pred = scaling_law_func(X, params_current)
-        mse = np.mean((pred - y2d) ** 2)
+    # Objective function to minimize (Mean Squared Error)
+    def objective(params):
+        pred = scaling_law_func(x, params)
+        mse = np.mean((pred - y) ** 2)
         return mse
 
-    # Perform optimization using differential_evolution for global search.
-    # It does not require an initial guess; it uses the bounds to initialize its population.
-    # `polish=True` runs a local optimization method (like L-BFGS-B) at the end to refine the result.
-    # `seed` ensures reproducibility.
-    result = differential_evolution(objective, bounds=all_bounds_flat, strategy=&#x27;best1bin&#x27;,
-                                    maxiter=2000, popsize=20, tol=0.001, polish=True, seed=42)
+    # Use L-BFGS-B, a quasi-Newton method that supports bounds,
+    # generally more robust for constrained optimization than BFGS.
+    result = minimize(objective, initial_params, method=&#x27;L-BFGS-B&#x27;, bounds=bounds, options={&#x27;maxiter&#x27;: 5000})
 
-    # differential_evolution returns result.x containing the optimized parameters.
-    params_opt = result.x.reshape(T, P)
+    # Return optimized parameters if successful, otherwise the initial guesses
+    # (or a fallback to prevent errors, though L-BFGS-B is usually robust with good bounds)
+    params_opt = result.x if result.success else initial_params
 
-    # Match the expected return format: (P,) for T=1, or (T, P) for T&gt;1
-    return params_opt[0] if T == 1 else params_opt
+    return params_opt
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>

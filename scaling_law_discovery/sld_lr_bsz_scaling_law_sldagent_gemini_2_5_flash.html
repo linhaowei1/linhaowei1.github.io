@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>SLD - LR & Batch Size Scaling Law - SLDAgent + Gemini 2.5 Flash</title>
+    <title>SLD - LR-BSZ Scaling Law - SLDAgent + Gemini 2.5 Flash</title>
     <link rel="icon" type="image/png" href="assets/sld_logo.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -285,10 +285,10 @@
     <div class="bg-pattern"></div>
 
     <div class="container">
-      <a href="sld_index.html" class="back-link"> ← Back to Leaderboard </a>
+      <a href="index.html" class="back-link"> ← Back to Leaderboard </a>
 
       <div class="header">
-        <h1>LR & Batch Size Scaling Law</h1>
+        <h1>LR-BSZ Scaling Law</h1>
         <div class="meta-row">
           <div class="meta-item">
             <span class="meta-label">Agent:</span>
@@ -300,15 +300,15 @@
           </div>
           <div class="meta-item">
             <span class="meta-label">Best R²:</span>
-            <span class="r2-badge" style="background-color: #d2691e; color: white"> 0.063766 </span>
+            <span class="r2-badge" style="background-color: #228B22; color: white"> 0.918060 </span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Mean R²:</span>
-            <span class="meta-value">-0.074636</span>
+            <span class="meta-value">0.913879</span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Min R²:</span>
-            <span class="meta-value">-0.348933</span>
+            <span class="meta-value">0.904116</span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Runs:</span>
@@ -320,12 +320,13 @@
       <h2 class="section-title">All Runs (sorted by R²)</h2>
 
       <div class="runs-container">
+
         <div class="run-card best-run">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge best-badge">Best</span>
-              <span class="run-label">Run 5</span>
-              <span class="r2-badge" style="background-color: #d2691e; color: white"> R² = 0.063766 </span>
+              <span class="run-label">Run 1</span>
+              <span class="r2-badge" style="background-color: #228B22; color: white"> R² = 0.918060 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -335,275 +336,172 @@
                 <span>Python</span>
                 <button class="copy-btn" onclick="copyCode(event, 'code-0')">Copy</button>
               </div>
-              <pre><code class="language-python" id="code-0">import numpy as np
+              <pre><code class="language-python" id="code-0"># EVOLVE-BLOCK-START
+import numpy as np
 from scipy.optimize import least_squares
 
-# EVOLVE-BLOCK-START
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    Predicts LM loss based on an extended multiplicative scaling law model.
-    This model incorporates an irreducible loss (L_min) and a multiplicative component
-    with power-law dependencies on data_size, non_embedding_param_size, learning rate,
-    and batch size. Crucially, it includes an interaction term between learning rate (lr)
-    and batch size (bsz) in the log-log domain, which helps to capture the coupled
-    effects and non-monotonic behavior often observed in these hyperparameters.
+    Predicts LM loss based on learning rate, batch size, data size, and non-embedding parameter size.
 
-    The functional form is:
-    Loss = L_min + exp(
-        log_C
-        + p_lr * log(lr)
-        + p_bsz * log(bsz)
-        + p_data * log(data_size)
-        + p_param * log(non_embedding_param_size)
-        + p_lr_bsz_interact * log(lr) * log(bsz)
-    )
+    The model is of the form:
+    Loss = L_0 + c_lr_pos * lr^e_lr_pos + c_lr_neg * lr^e_lr_neg + c_bsz * bsz^e_bsz + c_data * data_size^e_data + c_params * non_embedding_param_size^e_params
 
     Args:
-        data_points: (N,4) array with columns [lr, bsz, data_size, non_embedding_param_size]
-                     - lr: Learning rate
-                     - bsz: Batch size
-                     - data_size: Total tokens seen during training
-                     - non_embedding_param_size: Number of non-embedding parameters in the model
-        params: 1D array of 7 parameters:
-                [L_min, log_C, p_lr, p_bsz, p_data, p_param, p_lr_bsz_interact]
-                     - L_min: Irreducible loss (asymptotic minimum loss)
-                     - log_C: Logarithm of the constant multiplier C
-                     - p_lr: Exponent for learning rate
-                     - p_bsz: Exponent for batch size
-                     - p_data: Exponent for data size
-                     - p_param: Exponent for non-embedding parameter size
-                     - p_lr_bsz_interact: Exponent for the log(lr)*log(bsz) interaction term
+        data_points (np.ndarray): (N, 4) array with columns [lr, bsz, data_size, non_embedding_param_size].
+        params (np.ndarray): Array of model parameters. Can be (P,) for a single model or (T, P) for multiple.
+                             Expected P=11: [L_0, c_lr_pos, e_lr_pos, c_lr_neg, e_lr_neg, c_bsz, e_bsz, c_data, e_data, c_params, e_params].
 
     Returns:
-        Predicted lm loss values (N,) or (N,1) if original params was 2D.
+        np.ndarray: Predicted lm loss values. Shape (N,) if params is (P,), or (N, T) if params is (T, P).
     &quot;&quot;&quot;
-    X = np.atleast_2d(np.asarray(data_points, dtype=np.float64)) # Ensure float64 for precision
+    X = np.atleast_2d(np.asarray(data_points)) # (N, F)
+    # Ensure all inputs are positive to avoid issues with log(0) or log(negative)
+    # Using a small epsilon (1e-10) to prevent log of zero or negative numbers.
+    X = np.maximum(X, 1e-10)
 
-    # The outer framework might pass params as (T, P). This model assumes T=1.
-    # Extract the single set of parameters from the potentially 2D params array.
-    if params.ndim == 2:
-        current_params = params[0]
-        return_2d = True # Flag to return 2D output if input params was 2D
-    else:
-        current_params = params
-        return_2d = False
+    params_arr = np.asarray(params)
+    # Adapt to the original framework&#x27;s potential (T, P) parameter passing
+    if params_arr.ndim == 1:
+        params_arr = params_arr[None, :] # Make it (1, P)
 
-    # Unpack the 7 model parameters. Order must match initial_params and bounds.
-    L_min, log_C, p_lr, p_bsz, p_data, p_param, p_lr_bsz_interact = current_params
+    T, P = params_arr.shape # T: number of parameter sets, P: number of parameters per set
 
-    # Extract features, ensuring they are strictly positive for log transform.
-    # Using a small epsilon to prevent log(0) in case of extreme data.
-    # Learning rate can be very small, so 1e-12 is more robust.
-    lr = np.maximum(X[:, 0], 1e-12)
-    bsz = np.maximum(X[:, 1], 1e-9)
-    data_size = np.maximum(X[:, 2], 1e-9)
-    param_size = np.maximum(X[:, 3], 1e-9)
+    # Expected number of parameters for this specific model structure
+    # 1 (L0) + 2*2 (LR: c_pos, e_pos, c_neg, e_neg) + 1*2 (BSZ) + 1*2 (Data) + 1*2 (Params) = 11
+    EXPECTED_P = 11
+    if P != EXPECTED_P:
+        if P &gt; EXPECTED_P:
+            params_arr = params_arr[:, :EXPECTED_P]
+            P = EXPECTED_P
+        else:
+            raise ValueError(f&quot;Expected {EXPECTED_P} parameters per set for the scaling law model, but received {P}.&quot;)
 
-    # Calculate log of features once for efficiency
-    log_lr = np.log(lr)
-    log_bsz = np.log(bsz)
-    log_data_size = np.log(data_size)
-    log_param_size = np.log(param_size)
+    # Extract parameters for each parameter set (T sets)
+    L0_arr = params_arr[:, 0]
+    c_lr_pos_arr, e_lr_pos_arr = params_arr[:, 1], params_arr[:, 2]
+    c_lr_neg_arr, e_lr_neg_arr = params_arr[:, 3], params_arr[:, 4]
+    c_bsz_arr, e_bsz_arr = params_arr[:, 5], params_arr[:, 6]
+    c_data_arr, e_data_arr = params_arr[:, 7], params_arr[:, 8]
+    c_params_arr, e_params_arr = params_arr[:, 9], params_arr[:, 10]
 
-    # Calculate the sum of log-transformed terms for the multiplicative part,
-    # including the interaction term between log_lr and log_bsz.
-    log_multiplicative_term_sum = (
-        log_C
-        + p_lr * log_lr
-        + p_bsz * log_bsz
-        + p_data * log_data_size
-        + p_param * log_param_size
-        + p_lr_bsz_interact * log_lr * log_bsz # Interaction term
-    )
+    # Ensure coefficients are non-negative for power laws, robustifying against
+    # potential floating point issues or edge cases in optimization.
+    # These are safeguards; proper bounds in fit_scaling_law should enforce this for the optimized result.
+    c_lr_pos_arr = np.maximum(c_lr_pos_arr, 1e-10)
+    c_lr_neg_arr = np.maximum(c_lr_neg_arr, 1e-10)
+    c_bsz_arr = np.maximum(c_bsz_arr, 1e-10)
+    c_data_arr = np.maximum(c_data_arr, 1e-10)
+    c_params_arr = np.maximum(c_params_arr, 1e-10)
 
-    # Apply numerical stability clipping to the argument of exp.
-    # This prevents excessively large or small values that could lead to overflow/underflow (inf/0)
-    # when np.exp is applied, while maintaining a reasonable range for loss values.
-    # The range [-15.0, 5.0] maps to exp values from ~3e-7 to ~148, suitable for loss residuals.
-    multiplicative_term = np.exp(np.clip(log_multiplicative_term_sum, -15.0, 5.0))
+    # Calculate individual contributions using log-space for numerical stability (x^e = exp(e * log(x)))
+    # X[:, feature_idx][:, None] makes it (N, 1) for broadcasting against (1, T) parameter arrays
+    log_X_lr = np.log(X[:, 0][:, None])
+    log_X_bsz = np.log(X[:, 1][:, None])
+    log_X_data = np.log(X[:, 2][:, None])
+    log_X_params = np.log(X[:, 3][:, None])
 
-    # Calculate the final predicted loss by adding the irreducible loss.
-    predicted_loss = L_min + multiplicative_term
+    term_lr_pos = c_lr_pos_arr[None, :] * np.exp(e_lr_pos_arr[None, :] * log_X_lr)
+    term_lr_neg = c_lr_neg_arr[None, :] * np.exp(e_lr_neg_arr[None, :] * log_X_lr)
+    term_bsz = c_bsz_arr[None, :] * np.exp(e_bsz_arr[None, :] * log_X_bsz)
+    term_data = c_data_arr[None, :] * np.exp(e_data_arr[None, :] * log_X_data)
+    term_params = c_params_arr[None, :] * np.exp(e_params_arr[None, :] * log_X_params)
 
-    # Ensure predicted loss is always positive or a small minimum value (e.g., 0.01),
-    # as cross-entropy loss must be non-negative. This adds robustness.
-    predicted_loss = np.maximum(predicted_loss, 0.01)
+    # Sum all contributions
+    pred = L0_arr[None, :] + term_lr_pos + term_lr_neg + term_bsz + term_data + term_params
 
-    return predicted_loss[:, None] if return_2d else predicted_loss
-
-
-def _get_default_initial_params(y):
-    &quot;&quot;&quot;
-    Helper function to provide fallback initial parameters for the 7-parameter model
-    if the linear regression approach fails or is unstable.
-    &quot;&quot;&quot;
-    L_min_init = np.maximum(0.01, np.min(y) - 0.2) # Conservative L_min
-    log_C_init = np.log(np.maximum(1e-6, np.mean(y) - L_min_init)) # Rough log_C based on mean loss
-    # Neutral or typical initial values for exponents
-    p_lr_init = 0.0
-    p_bsz_init = 0.0
-    p_data_init = -0.07 # More data typically reduces loss
-    p_param_init = -0.07 # More params typically reduces loss
-    p_lr_bsz_interact_init = 0.0 # Start with no interaction effect
-    return np.array([L_min_init, log_C_init, p_lr_init, p_bsz_init, p_data_init, p_param_init, p_lr_bsz_interact_init], dtype=np.float64)
+    # If only one set of parameters was passed (T=1), return a 1D array (N,)
+    return pred[:, 0] if T == 1 else pred
 
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Fits the extended scaling law function to the provided data using non-linear least squares.
-    This method provides robust optimization with bounds for parameters and refined initial guesses.
-    It uses a two-stage approach: first, a linear regression on log-transformed data to get
-    initial estimates for exponents and the log-constant, then a non-linear `least_squares`
-    optimization with Huber loss to refine all parameters, including the irreducible loss (L_min).
+    Fits the scaling law function to the given data points and loss values.
 
     Args:
-        data_points: (N,4) array with columns [lr, bsz, data_size, non_embedding_param_size]
-        loss_values: Array of corresponding lm loss values.
+        data_points (np.ndarray): (N, 4) array with columns [lr, bsz, data_size, non_embedding_param_size].
+        loss_values (np.ndarray): (N,) array of corresponding lm loss values.
 
     Returns:
-        Optimized parameters (1D array) for the scaling_law_func.
+        np.ndarray: Optimized parameters (P,) for the scaling law function.
+                    [L_0, c_lr_pos, e_lr_pos, c_lr_neg, e_lr_neg, c_bsz, e_bsz, c_data, e_data, c_params, e_params].
     &quot;&quot;&quot;
-    X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
-    y = np.asarray(loss_values, dtype=np.float64).flatten() # Ensure target loss is 1D
+    X = np.atleast_2d(np.asarray(data_points))
+    y = np.asarray(loss_values)
 
-    # Define the number of parameters for our scaling_law_func: 7
-    # [L_min, log_C, p_lr, p_bsz, p_data, p_param, p_lr_bsz_interact]
-    num_params = 7
+    def residuals(params, X, y):
+        pred = scaling_law_func(X, params)
+        # CRITICAL IMPROVEMENT: Replace non-finite (NaN, inf) predictions with the mean of observed losses
+        # to prevent optimizer from failing due to extreme values. This significantly
+        # improves robustness during optimization, especially with power laws.
+        pred_clean = np.copy(pred) # Make a copy to avoid modifying &#x27;pred&#x27; in place if it&#x27;s reused
+        mean_y = np.mean(y)
+        pred_clean[~np.isfinite(pred_clean)] = mean_y 
+        return pred_clean - y
 
-    # --- Initial Guess for Parameters ---
-    # 1. Estimate L_min for the linear regression phase.
-    # Start with a reasonable offset from minimum observed loss.
-    L_min_for_lin_reg_candidate = np.min(y) - 0.1
-    L_min_for_lin_reg = np.maximum(0.01, L_min_for_lin_reg_candidate)
+    # Total number of parameters for the model (11 parameters)
+    P = 11
 
-    # Prepare data for initial linear regression on log-transformed loss: log(y - L_min)
-    y_adjusted = y - L_min_for_lin_reg
-    # Filter points where y - L_min is sufficiently positive for log transform.
-    positive_mask = y_adjusted &gt; 1e-5
+    # Initial guess for parameters: [L_0, c_lr_pos, e_lr_pos, c_lr_neg, e_lr_neg, c_bsz, e_bsz, c_data, e_data, c_params, e_params]
+    # These initial guesses are informed by typical LLM scaling laws and data ranges,
+    # and designed to capture the U-shaped LR effect.
+    # Reverted initial c_lr_pos/neg values to be more moderate (1.0).
+    initial_params = np.array([
+        np.min(y) * 0.95, # L_0: Irreducible loss, slightly below min observed loss
+        1.0,   1.0,       # c_lr_pos, e_lr_pos: For high LR, loss increases (positive exponent).
+        1.0,  -1.0,       # c_lr_neg, e_lr_neg: For low LR, loss increases (negative exponent).
+        1e-3,  0.5,       # c_bsz, e_bsz: Batch size effect (e.g., slight increase in loss with larger bsz if not scaled LR).
+        5.0,   -0.1,      # c_data, e_data: Data typically reduces loss (negative exponent), positive coeff
+        3.0,   -0.1        # c_params, e_params: Parameters typically reduce loss (negative exponent), positive coeff
+    ])
 
-    # If linear regression can&#x27;t be performed robustly, use default initial params.
-    if not np.any(positive_mask) or np.sum(positive_mask) &lt; num_params:
-        print(&quot;Warning: Insufficient positive y_adjusted data for linear regression initial guess. Falling back to default initial params.&quot;)
-        return _get_default_initial_params(y)
+    # Bounds for parameters to guide the optimizer and ensure physical realism.
+    # Reverted LR exponent bounds to allow zero (non-strict inequality), as in top performing programs,
+    # which can improve optimization flexibility.
+    lower_bounds = np.array([
+        0.0,              # L_0: Irreducible loss must be non-negative
+        1e-10, 0.0,       # c_lr_pos (positive), e_lr_pos (non-negative for increasing effect)
+        1e-10, -5.0,      # c_lr_neg (positive), e_lr_neg (non-positive for increasing effect with decreasing LR)
+        1e-10, -2.0,      # c_bsz, e_bsz
+        1e-10, -1.0,      # c_data, e_data: e_data typically negative (more data = less loss)
+        1e-10, -1.0       # c_params, e_params: e_params typically negative (more params = less loss)
+    ])
+    upper_bounds = np.array([
+        np.max(y) * 1.5,  # L_0: Cannot exceed max observed loss significantly
+        1e5,   5.0,       # c_lr_pos, e_lr_pos
+        1e5,   0.0,       # c_lr_neg, e_lr_neg
+        1e5,   2.0,       # c_bsz, e_bsz
+        1e5,   0.0,       # c_data, e_data: e_data &lt;= 0
+        1e5,   0.0         # c_params, e_params: e_params &lt;= 0
+    ])
 
-    X_filtered = X[positive_mask]
-    y_transformed = np.log(y_adjusted[positive_mask])
+    # Clip initial parameters to ensure they are within the defined bounds
+    initial_params = np.clip(initial_params, lower_bounds, upper_bounds)
 
-    # Calculate log of features for linear regression, ensuring positivity
-    log_lr = np.log(np.maximum(X_filtered[:, 0], 1e-12))
-    log_bsz = np.log(np.maximum(X_filtered[:, 1], 1e-9))
-    log_data_size = np.log(np.maximum(X_filtered[:, 2], 1e-9))
-    log_param_size = np.log(np.maximum(X_filtered[:, 3], 1e-9))
+    # Use &#x27;trf&#x27; (Trust Region Reflective) method, which handles bounds effectively and is robust for non-linear least squares.
+    # verbose=0 suppresses convergence messages.
+    # max_nfev reverted to 4000, which was effective in top performing programs.
+    result = least_squares(residuals, initial_params, args=(X, y),
+                           bounds=(lower_bounds, upper_bounds),
+                           method=&#x27;trf&#x27;, verbose=0, max_nfev=4000)
 
-    # Construct the design matrix (Z) for linear regression:
-    # Columns correspond to: [1 (for log_C), log(lr), log(bsz), log(data_size), log(param_size), log(lr)*log(bsz)]
-    Z = np.vstack([
-        np.ones_like(log_lr),
-        log_lr,
-        log_bsz,
-        log_data_size,
-        log_param_size,
-        log_lr * log_bsz # The interaction term
-    ]).T
-
-    # Perform linear regression to get initial estimates for log_C and exponents
-    try:
-        # np.linalg.lstsq handles potential rank deficiencies gracefully
-        linear_params_coeffs, _, _, _ = np.linalg.lstsq(Z, y_transformed, rcond=None)
-        # Unpack parameters in the correct order as defined by the model
-        log_C_init_lin_reg, p_lr_init_lin_reg, p_bsz_init_lin_reg, \
-        p_data_init_lin_reg, p_param_init_lin_reg, p_lr_bsz_interact_init_lin_reg = linear_params_coeffs
-    except Exception as e:
-        # Fallback to hardcoded initial guesses if linear regression fails
-        print(f&quot;Warning: Linear regression for initial guess failed ({e}). Falling back to default initial params.&quot;)
-        return _get_default_initial_params(y)
-
-    # Consolidate initial parameters, applying reasonable clipping to prevent extreme values
-    # from linear regression that might hinder the non-linear optimization.
-    p_lr_init = np.clip(p_lr_init_lin_reg, -1.0, 1.0)
-    p_bsz_init = np.clip(p_bsz_init_lin_reg, -1.0, 1.0)
-    p_data_init = np.clip(p_data_init_lin_reg, -0.5, 0.0) # Assume more data always reduces loss
-    p_param_init = np.clip(p_param_init_lin_reg, -0.5, 0.0) # Assume more params always reduces loss
-    p_lr_bsz_interact_init = np.clip(p_lr_bsz_interact_init_lin_reg, -0.5, 0.5)
-    log_C_init = np.clip(log_C_init_lin_reg, -10.0, 10.0)
-
-    # The L_min from linear regression phase is used as the initial guess for the optimizer.
-    initial_params = np.array([L_min_for_lin_reg, log_C_init, p_lr_init, p_bsz_init,
-                               p_data_init, p_param_init, p_lr_bsz_interact_init], dtype=np.float64)
-
-    # --- Define Bounds for Parameters ---
-    # These bounds help guide the optimizer towards physically meaningful solutions and improve stability.
-
-    # L_min: Must be positive and strictly less than the minimum observed loss.
-    L_min_lower_bound = 0.01
-    L_min_upper_bound = np.min(y) - 1e-4 # Refined upper bound to allow L_min closer to min(y)
-    if L_min_upper_bound &lt;= L_min_lower_bound: # Safeguard against very low or uniform min(y)
-        L_min_upper_bound = L_min_lower_bound + 0.01
-
-    # log_C: A broad range to allow flexibility for the constant multiplier C.
-    log_C_bounds = (-10.0, 10.0)
-
-    # Exponents for lr and bsz: Allowing both positive and negative effects.
-    p_lr_bounds = (-1.0, 1.0)
-    p_bsz_bounds = (-1.0, 1.0)
-
-    # p_data, p_param: Constrained to be negative as more resources typically reduce loss.
-    p_data_bounds = (-0.5, 0.0)
-    p_param_bounds = (-0.5, 0.0)
-
-    # p_lr_bsz_interact: A moderate range for the interaction term exponent.
-    p_lr_bsz_interact_bounds = (-0.5, 0.5)
-
-    lower_bounds = [
-        L_min_lower_bound, log_C_bounds[0], p_lr_bounds[0],
-        p_bsz_bounds[0], p_data_bounds[0], p_param_bounds[0],
-        p_lr_bsz_interact_bounds[0]
-    ]
-    upper_bounds = [
-        L_min_upper_bound, log_C_bounds[1], p_lr_bounds[1],
-        p_bsz_bounds[1], p_data_bounds[1], p_param_bounds[1],
-        p_lr_bsz_interact_bounds[1]
-    ]
-    bounds = (lower_bounds, upper_bounds)
-
-    # Define the residual function for `least_squares`: `y_actual - y_predicted`.
-    def residuals(params_flat, x_data, y_data):
-        return y_data - scaling_law_func(x_data, params_flat)
-
-    try:
-        # Use `least_squares` with &#x27;trf&#x27; method for robust non-linear curve fitting with bounds.
-        # &#x27;trf&#x27; (Trust Region Reflective) is well-suited for large-scale problems with bounds.
-        # Apply &#x27;huber&#x27; loss for robustness against potential outliers in the loss data.
-        # Increased `max_nfev` to allow more thorough optimization for the non-linear model.
-        result = least_squares(
-            residuals,
-            initial_params,
-            bounds=bounds,
-            args=(X, y),
-            method=&#x27;trf&#x27;,
-            loss=&#x27;huber&#x27;,      # Use Huber loss for improved robustness against outliers
-            f_scale=0.1,       # Threshold for Huber loss (typical residual scale)
-            verbose=0,         # Set to 1 or 2 for more detailed output during debugging
-            max_nfev=1000      # Limit number of function evaluations
-        )
-        optimized_params = result.x
-    except Exception as e:
-        # Fallback to default initial parameters if optimization fails (e.g., due to numerical issues).
-        print(f&quot;Warning: least_squares optimization failed: {e}. Falling back to default initial params.&quot;)
-        optimized_params = _get_default_initial_params(y)
-
-    return optimized_params
+    if result.success:
+        return result.x
+    else:
+        # Fallback to initial parameters if optimization fails.
+        # A warning is printed to alert about potential issues.
+        print(&quot;Warning: least_squares optimization failed. Returning initial parameters.&quot;)
+        return initial_params
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#2</span>
-              <span class="run-label">Run 1</span>
-              <span class="r2-badge" style="background-color: #b22222; color: white"> R² = -0.000245 </span>
+              <span class="run-label">Run 4</span>
+              <span class="r2-badge" style="background-color: #228B22; color: white"> R² = 0.917935 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -613,184 +511,220 @@ def fit_scaling_law(data_points, loss_values):
                 <span>Python</span>
                 <button class="copy-btn" onclick="copyCode(event, 'code-1')">Copy</button>
               </div>
-              <pre><code class="language-python" id="code-1">import numpy as np
+              <pre><code class="language-python" id="code-1"># EVOLVE-BLOCK-START
+import numpy as np
 from scipy.optimize import least_squares
 
-# EVOLVE-BLOCK-START
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    Predicts LM loss based on an evolved multiplicative scaling law model.
-    This version introduces a quadratic term for the log of the learning rate,
-    allowing for a U-shaped loss curve with respect to LR on a log-log plot,
-    which is often observed in practice (optimal LR, with higher loss for
-    both too low and too high LRs).
+    Predicts LM loss based on learning rate, batch size, data size, and non-embedding parameter size.
 
-    The numerical stability clipping for the exponential part has been
-    tightened to better reflect the observed loss range, which aims to
-    guide the optimizer towards more realistic solutions and improve convergence.
+    The model is of the form:
+    Loss = L_0 + exp(log_c_lr) * lr^e_lr + exp(log_c_bsz) * bsz^e_bsz + exp(log_c_data) * data_size^e_data + exp(log_c_params) * non_embedding_param_size^e_params
 
-    Model:
-    Loss = L_min + exp(log_C + p_lr_1*log(lr) + p_lr_2*(log(lr))^2 + p_bsz*log(bsz) + p_data*log(data_size) + p_param*log(param_size))
+    To improve numerical stability during optimization, the coefficients (c_lr, c_bsz, c_data, c_params)
+    are optimized in their logarithmic form (log_c_i). This ensures they remain positive and handles large ranges.
 
     Args:
-        data_points: (N,4) array with columns [lr, bsz, data_size, non_embedding_param_size]
-        params: 1D array of 7 parameters: [L_min, log_C, p_lr_1, p_lr_2, p_bsz, p_data, p_param]
+        data_points (np.ndarray): (N, 4) array with columns [lr, bsz, data_size, non_embedding_param_size].
+        params (np.ndarray): Array of model parameters. Can be (P,) for a single model or (T, P) for multiple.
+                             Expected P=9: [L_0, log_c_lr, e_lr, log_c_bsz, e_bsz, log_c_data, e_data, log_c_params, e_params].
 
     Returns:
-        Predicted lm loss values (N,) or (N,1) if original params was 2D.
+        np.ndarray: Predicted lm loss values. Shape (N,) if params is (P,), or (N, T) if params is (T, P).
     &quot;&quot;&quot;
-    X = np.atleast_2d(np.asarray(data_points, dtype=np.float64)) # Ensure float64 for precision
+    X = np.atleast_2d(np.asarray(data_points)) # (N, F)
+    
+    # Ensure all input features are strictly positive to avoid issues with np.log(0) or negative bases.
+    # A small epsilon (1e-10) is used to clamp values if they are zero or negative.
+    X = np.maximum(X, 1e-10)
 
-    # Handle potential 2D params array passed by outer framework
-    if params.ndim == 2:
-        current_params = params[0]
-        return_2d = True
-    else:
-        current_params = params
-        return_2d = False
+    params_arr = np.asarray(params)
+    # The framework might pass parameters as (P,) or (T, P).
+    # We ensure it&#x27;s at least 2D (1, P) for consistent broadcasting.
+    if params_arr.ndim == 1:
+        params_arr = params_arr[None, :] # Make it (1, P)
 
-    # Unpack parameters (7 parameters in this evolved model)
-    L_min, log_C, p_lr_1, p_lr_2, p_bsz, p_data, p_param = current_params
+    T, P = params_arr.shape # T: number of parameter sets, P: number of parameters per set
 
-    # Extract features, ensuring they are strictly positive for log transform
-    # Clipping to a small positive value prevents log(0) for robustness.
-    lr = np.maximum(X[:, 0], 1e-9)
-    bsz = np.maximum(X[:, 1], 1e-9)
-    data_size = np.maximum(X[:, 2], 1e-9)
-    param_size = np.maximum(X[:, 3], 1e-9)
+    # This model expects 9 parameters: 1 (L0) + 4 features * 2 (log_coefficient, exponent)
+    EXPECTED_P = 9
+    if P != EXPECTED_P:
+        # Robustly handle cases where too many parameters are passed by taking the first EXPECTED_P.
+        # If too few, it&#x27;s an error in parameter passing.
+        if P &gt; EXPECTED_P:
+            params_arr = params_arr[:, :EXPECTED_P]
+            P = EXPECTED_P
+        else:
+            raise ValueError(f&quot;Expected {EXPECTED_P} parameters per set for the scaling law model, but received {P}.&quot;)
 
-    # Calculate log-transformed features
-    log_lr = np.log(lr)
-    log_bsz = np.log(bsz)
-    log_data_size = np.log(data_size)
-    log_param_size = np.log(param_size)
+    # Extract parameters for each parameter set (T sets)
+    L0_arr = params_arr[:, 0]
+    # Coefficients are stored and optimized in log-space for numerical stability
+    log_c_lr_arr, e_lr_arr = params_arr[:, 1], params_arr[:, 2]
+    log_c_bsz_arr, e_bsz_arr = params_arr[:, 3], params_arr[:, 4]
+    log_c_data_arr, e_data_arr = params_arr[:, 5], params_arr[:, 6]
+    log_c_params_arr, e_params_arr = params_arr[:, 7], params_arr[:, 8]
 
-    # Calculate the sum of log-transformed terms for the multiplicative part
-    # log(C * X1^e1 * X2^e2...) = log(C) + e1*log(X1) + e2*log(X2) + ...
-    # The quadratic term for log(lr) is used to model the U-shape.
-    log_terms_sum = (
-        log_C
-        + p_lr_1 * log_lr
-        + p_lr_2 * (log_lr**2)  # Quadratic term for log(lr) to model U-shape
-        + p_bsz * log_bsz
-        + p_data * log_data_size
-        + p_param * log_param_size
-    )
+    # Convert log-coefficients back to actual coefficients (c_i = exp(log_c_i))
+    # This ensures coefficients are strictly positive.
+    c_lr_arr = np.exp(log_c_lr_arr)
+    c_bsz_arr = np.exp(log_c_bsz_arr)
+    c_data_arr = np.exp(log_c_data_arr)
+    c_params_arr = np.exp(log_c_params_arr)
 
-    # Apply numerical stability clipping to the argument of exp.
-    # Given observed loss range [2.1, 3.7] and L_min around 2.0,
-    # the exp_part (Loss - L_min) should typically be in range [0.1, 1.7].
-    # log(0.1) approx -2.3, log(1.7) approx 0.53.
-    # Clipping to [-3.0, 1.0] gives sufficient room while preventing extreme values.
-    exp_part = np.exp(np.clip(log_terms_sum, -3.0, 1.0))
+    # Calculate individual power law contributions.
+    # Using np.exp(exponent * np.log(base)) is numerically more stable than base**exponent,
+    # especially for very small or very large bases, and correctly handles fractional exponents.
+    # X[:, feature_idx][:, None] makes it (N, 1) for broadcasting across parameter sets.
+    # c_arr[None, :] and e_arr[None, :] makes them (1, T) for broadcasting across data points.
+    # Resulting terms are (N, T).
 
-    # Calculate the final predicted loss
-    predicted_loss = L_min + exp_part
+    log_X_lr = np.log(X[:, 0][:, None])
+    log_X_bsz = np.log(X[:, 1][:, None])
+    log_X_data = np.log(X[:, 2][:, None])
+    log_X_params = np.log(X[:, 3][:, None])
 
-    # Ensure predicted loss is always positive and realistic for cross-entropy.
-    predicted_loss = np.maximum(predicted_loss, 0.01)
+    term_lr = c_lr_arr[None, :] * np.exp(e_lr_arr[None, :] * log_X_lr)
+    term_bsz = c_bsz_arr[None, :] * np.exp(e_bsz_arr[None, :] * log_X_bsz)
+    term_data = c_data_arr[None, :] * np.exp(e_data_arr[None, :] * log_X_data)
+    term_params = c_params_arr[None, :] * np.exp(e_params_arr[None, :] * log_X_params)
 
-    return predicted_loss[:, None] if return_2d else predicted_loss
+    # Sum all contributions to get the predicted loss
+    pred = L0_arr[None, :] + term_lr + term_bsz + term_data + term_params
+
+    # Loss values must be non-negative. Clamp any predicted negative values to a small positive epsilon.
+    pred = np.maximum(pred, 1e-10)
+
+    # If only one set of parameters was passed (T=1), return a 1D array (N,).
+    # Otherwise, return (N, T).
+    return pred[:, 0] if T == 1 else pred
 
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Fits the evolved scaling law function (with quadratic log(lr) term) to the provided data
-    using non-linear least squares. This version incorporates refined initial guesses,
-    more robust bounds, and increased optimization iterations for better convergence.
+    Fits the scaling law function to the given data points and loss values using non-linear least squares.
+    Optimizes coefficients in log-space for improved numerical stability and convergence,
+    especially for coefficients that can span many orders of magnitude and must be positive.
 
     Args:
-        data_points: (N,4) array with columns [lr, bsz, data_size, non_embedding_param_size]
-        loss_values: Array of corresponding lm loss values.
+        data_points (np.ndarray): (N, 4) array with columns [lr, bsz, data_size, non_embedding_param_size].
+        loss_values (np.ndarray): (N,) array of corresponding lm loss values.
 
     Returns:
-        Optimized parameters (1D array) for the scaling_law_func.
+        np.ndarray: Optimized parameters (P,) for the scaling law function.
+                    [L_0, log_c_lr, e_lr, log_c_bsz, e_bsz, log_c_data, e_data, log_c_params, e_params].
     &quot;&quot;&quot;
-    X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
-    y = np.asarray(loss_values, dtype=np.float64).flatten() # Ensure y is 1D
+    X = np.atleast_2d(np.asarray(data_points))
+    y = np.asarray(loss_values)
 
-    # Number of parameters for our evolved scaling_law_func:
-    # [L_min, log_C, p_lr_1, p_lr_2, p_bsz, p_data, p_param]
-    num_params = 7
+    # Define the residual function for scipy.optimize.least_squares
+    # This function calculates the difference between predicted and actual loss.
+    def residuals(params, X, y):
+        pred = scaling_law_func(X, params)
+        return pred - y
 
-    # --- Initial Guess for Parameters ---
-    # L_min_init: Slightly less than the minimum observed loss, ensuring `y - L_min` is positive.
-    # It must also be positive.
-    min_observed_loss = np.min(y)
-    L_min_init = np.maximum(0.01, min_observed_loss - 0.2)
+    F = X.shape[1] # Number of features is 4
+    P = 1 + F * 2  # Total number of parameters for the model: 1 (L0) + 4*2 (log_coefficient, exponent) = 9
 
-    # log_C_init: Estimate based on average residual if exponents were zero.
-    log_C_init = np.log(np.maximum(1e-6, np.mean(y) - L_min_init))
+    # --- Intelligent Initial Guess for Parameters ---
+    # Good initial guesses are crucial for non-linear optimization convergence.
 
-    # p_lr_1_init: Initial linear coefficient for log(lr).
-    # Calculated to place the optimal log(lr) (minimum of the U-shape) near the center
-    # of the observed log(lr) range. Observed log(lr) range approx -8.3 to -3.8, midpoint approx -6.0.
-    # Optimal log(lr) = -p_lr_1 / (2 * p_lr_2). With p_lr_2_init = 0.1, this implies p_lr_1_init = 1.2.
-    p_lr_1_init = 1.2 # Refined initial guess based on expected optimal LR
-    # p_lr_2_init: Initial quadratic coefficient for log(lr). A small positive value encourages
-    # a convex (U-shaped) curve, common for optimal learning rates.
-    p_lr_2_init = 0.1
-    # p_bsz_init: Initial coefficient for batch size, starting near zero.
-    p_bsz_init = 0.0
-    # p_data_init, p_param_init: Typical negative exponents for data and parameter scaling laws.
-    p_data_init = -0.07
-    p_param_init = -0.07
+    # 1. L_0 (Irreducible Loss): Estimate as slightly below the minimum observed loss.
+    L0_guess = np.maximum(np.min(y) * 0.9, 0.01) # Ensure L0 is positive and not too small
 
-    initial_params = np.array([L_min_init, log_C_init, p_lr_1_init, p_lr_2_init, p_bsz_init, p_data_init, p_param_init], dtype=np.float64)
+    # 2. Exponent Initial Guesses (e_i): Based on common LLM scaling literature.
+    #    - Learning rate (lr): higher LR often leads to higher loss.
+    #    - Batch size (bsz): higher Bsz often leads to slightly higher loss.
+    #    - Data size (data_size): more data reduces loss (negative exponent).
+    #    - Parameter size (non_embedding_param_size): more parameters reduce loss (negative exponent).
+    e_lr_init = 0.5
+    e_bsz_init = 0.1
+    e_data_init = -0.07 # Typical range: -0.05 to -0.2
+    e_params_init = -0.07 # Typical range: -0.05 to -0.2
+
+    # 3. Coefficient Initial Guesses (c_i):
+    #    Calculate coefficients such that each power law term contributes a reasonable portion
+    #    of the remaining loss (total loss - L_0) when evaluated at the geometric mean of its feature.
+    
+    # Clamp X to avoid log(0) for geometric mean calculation.
+    X_clamped = np.maximum(X, 1e-10)
+    geom_mean_lr = np.exp(np.mean(np.log(X_clamped[:, 0])))
+    geom_mean_bsz = np.exp(np.mean(np.log(X_clamped[:, 1])))
+    geom_mean_data_size = np.exp(np.mean(np.log(X_clamped[:, 2])))
+    geom_mean_param_size = np.exp(np.mean(np.log(X_clamped[:, 3])))
+
+    remaining_mean_loss = np.mean(y) - L0_guess
+    # Ensure this target is positive to avoid issues with coefficient calculation.
+    target_contrib_per_term = np.maximum(remaining_mean_loss / 4.0, 1e-5) 
+
+    # c_i = target_contribution / (geometric_mean_feature_i ^ initial_exponent_i)
+    # Ensure calculated c_i are positive before taking log.
+    c_lr_init = np.maximum(target_contrib_per_term / (geom_mean_lr ** e_lr_init), 1e-10)
+    c_bsz_init = np.maximum(target_contrib_per_term / (geom_mean_bsz ** e_bsz_init), 1e-10)
+    c_data_init = np.maximum(target_contrib_per_term / (geom_mean_data_size ** e_data_init), 1e-10)
+    c_params_init = np.maximum(target_contrib_per_term / (geom_mean_param_size ** e_params_init), 1e-10)
+
+    # Assemble the complete initial_params array, with coefficients log-transformed
+    initial_params = np.array([
+        L0_guess,
+        np.log(c_lr_init), e_lr_init,
+        np.log(c_bsz_init), e_bsz_init,
+        np.log(c_data_init), e_data_init,
+        np.log(c_params_init), e_params_init
+    ])
 
     # --- Define Bounds for Parameters ---
-    # L_min: Must be positive and strictly less than the minimum observed loss to allow for exp_part.
-    L_min_lower_bound = 0.01
-    L_min_upper_bound = min_observed_loss - 0.05 # Increased margin from min_observed_loss for robustness
-    if L_min_upper_bound &lt;= L_min_lower_bound: # Adjust if min(y) is very low or uniform
-        L_min_upper_bound = L_min_lower_bound + 0.05 # Ensure a valid range if min_observed_loss is small
+    # Bounds constrain the search space, improve stability, and enforce physical realism.
+    # For log-transformed coefficients, the bounds become log(min_val) and log(max_val).
+    log_c_min = np.log(1e-10) # Corresponds to c_i &gt;= 1e-10
+    log_c_max = np.log(1e10)  # Corresponds to c_i &lt;= 1e10
 
-    # log_C: Broad bounds to allow for different scales of the multiplicative factor.
-    log_C_bounds = (-10.0, 10.0)
-
-    # p_lr_1: Wider bounds for the linear log(lr) term, as it interacts with the quadratic term.
-    p_lr_1_bounds = (-2.5, 2.5) # Wider bounds for more flexibility
-    # p_lr_2: Constrain to be non-negative to enforce a convex U-shape (minimum loss at optimal LR).
-    p_lr_2_bounds = (0.0, 1.0) # From no quadratic effect (0) to a strong one.
-
-    # p_bsz: Moderate bounds, allowing for positive or negative effects of batch size.
-    p_bsz_bounds = (-1.0, 1.0) # Wider range to capture potential positive/negative batch size effects
+    lower_bounds = np.array([
+        0.0,              # L_0: Irreducible loss must be non-negative.
+        log_c_min, -5.0,  # log_c_lr, e_lr: log_c_lr within reasonable range; e_lr broad typical range.
+        log_c_min, -5.0,  # log_c_bsz, e_bsz: log_c_bsz within reasonable range; e_bsz broad typical range.
+        log_c_min, -2.0,  # log_c_data, e_data: e_data typically negative, expanded lower bound to -2.0 for stronger scaling.
+        log_c_min, -2.0   # log_c_params, e_params: e_params typically negative, expanded lower bound to -2.0 for stronger scaling.
+    ])
+    upper_bounds = np.array([
+        np.max(y) * 1.5,  # L_0: Bounded above by a value slightly higher than max observed loss.
+        log_c_max, 5.0,   # log_c_lr, e_lr: log_c_max within reasonable range; e_lr broad typical range.
+        log_c_max, 5.0,   # log_c_bsz, e_bsz: log_c_max within reasonable range; e_bsz broad typical range.
+        log_c_max, 0.0,   # log_c_data, e_data: e_data &lt;= 0 (increasing data should not increase loss).
+        log_c_max, 0.0    # log_c_params, e_params: e_params &lt;= 0 (increasing parameters should not increase loss).
+    ])
     
-    # p_data, p_param: Typically negative (more resources -&gt; lower loss).
-    p_data_bounds = (-0.5, 0.0)
-    p_param_bounds = (-0.5, 0.0)
+    # Clip the initial parameters to ensure they are within the defined bounds.
+    # This is important for optimizers that use bounds, like &#x27;trf&#x27;, to prevent initial values from being out-of-range.
+    initial_params = np.clip(initial_params, lower_bounds, upper_bounds)
 
-    lower_bounds = [L_min_lower_bound, log_C_bounds[0], p_lr_1_bounds[0], p_lr_2_bounds[0], p_bsz_bounds[0], p_data_bounds[0], p_param_bounds[0]]
-    upper_bounds = [L_min_upper_bound, log_C_bounds[1], p_lr_1_bounds[1], p_lr_2_bounds[1], p_bsz_bounds[1], p_data_bounds[1], p_param_bounds[1]]
-    bounds = (lower_bounds, upper_bounds)
+    # --- Optimization using least_squares ---
+    # &#x27;trf&#x27; (Trust Region Reflective) is robust for bounded non-linear least squares.
+    # Increased max_nfev (max function evaluations) to allow more iterations for complex landscapes.
+    # Tightened ftol, xtol, gtol for a more precise and thorough fit.
+    result = least_squares(residuals, initial_params, args=(X, y),
+                           bounds=(lower_bounds, upper_bounds),
+                           method=&#x27;trf&#x27;, verbose=0, max_nfev=3000,
+                           ftol=1e-9, xtol=1e-9, gtol=1e-9)
 
-    # Define the residual function for least_squares: y_actual - y_predicted
-    def residuals(params_flat, x_data, y_data):
-        return y_data - scaling_law_func(x_data, params_flat)
-
-    try:
-        # Use least_squares with &#x27;trf&#x27; method for robust non-linear curve fitting with bounds.
-        # &#x27;trf&#x27; (Trust-Region Reflective) method is well-suited for bound-constrained problems.
-        # verbose=0 suppresses iteration output. max_nfev increased for potentially more complex convergence.
-        result = least_squares(residuals, initial_params, bounds=bounds, args=(X, y), method=&#x27;trf&#x27;, verbose=0, max_nfev=2000)
-        optimized_params = result.x
-    except Exception as e:
-        # Fallback to initial parameters if optimization fails (e.g., due to numerical issues).
-        print(f&quot;least_squares failed: {e}. Falling back to initial_params.&quot;)
-        optimized_params = initial_params
-
-    return optimized_params
+    if result.success:
+        return result.x
+    else:
+        # If optimization fails (e.g., did not converge), return the initial parameters as a fallback.
+        # This prevents the program from crashing and provides a default, albeit suboptimal, result.
+        print(&quot;Warning: least_squares optimization failed. Returning initial parameters.&quot;)
+        return initial_params
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#3</span>
-              <span class="run-label">Run 4</span>
-              <span class="r2-badge" style="background-color: #b22222; color: white"> R² = -0.013159 </span>
+              <span class="run-label">Run 3</span>
+              <span class="r2-badge" style="background-color: #228B22; color: white"> R² = 0.914771 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -800,206 +734,144 @@ def fit_scaling_law(data_points, loss_values):
                 <span>Python</span>
                 <button class="copy-btn" onclick="copyCode(event, 'code-2')">Copy</button>
               </div>
-              <pre><code class="language-python" id="code-2">import numpy as np
+              <pre><code class="language-python" id="code-2"># EVOLVE-BLOCK-START
+import numpy as np
 from scipy.optimize import least_squares
 
-# EVOLVE-BLOCK-START
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    Predicts LM loss based on an extended multiplicative scaling law model.
-    This model includes a quadratic term for log(learning_rate) to better capture
-    the typical non-monotonic effect of learning rate (i.e., existence of an optimal LR).
-    It also incorporates an interaction term between data size and parameter size,
-    a feature commonly observed in advanced scaling laws to account for synergy.
+    Predicts LM loss based on learning rate, batch size, data size, and non-embedding parameter size.
 
-    The model form is:
-    Loss = L_min + exp(log_C + p_lr1*log(lr) + p_lr2*(log(lr))^2 + p_bsz*log(bsz)
-                       + p_data*log(data_size) + p_param*log(param_size)
-                       + p_inter_ND * log(data_size) * log(param_size))
+    The model uses a general two-term power law for learning rate, and power laws
+    for batch size, data size, and non-embedding parameter size, plus an irreducible loss L_0.
+    The form is:
+    Loss = L_0 + (c_lr_pos * lr^e_lr_pos + c_lr_neg * lr^e_lr_neg) + c_bsz * bsz^e_bsz + c_data * data_size^e_data + c_params * non_embedding_param_size^e_params
 
     Args:
-        data_points: (N,4) array with columns [lr, bsz, data_size, non_embedding_param_size]
-        params: 1D array of 8 parameters:
-                [L_min, log_C, p_lr1, p_lr2, p_bsz, p_data, p_param, p_inter_ND]
+        data_points (np.ndarray): (N, 4) array with columns [lr, bsz, data_size, non_embedding_param_size].
+        params (np.ndarray): Array of model parameters. Can be (P,) for a single model or (T, P) for multiple.
+                             Expected P=11: [L_0, c_lr_pos, e_lr_pos, c_lr_neg, e_lr_neg, c_bsz, e_bsz, c_data, e_data, c_params, e_params].
 
     Returns:
-        Predicted lm loss values (N,) or (N,1) if original params was 2D.
+        np.ndarray: Predicted lm loss values. Shape (N,) if params is (P,), or (N, T) if params is (T, P).
     &quot;&quot;&quot;
-    X = np.atleast_2d(np.asarray(data_points, dtype=np.float64)) # Ensure float64 for precision
+    X = np.atleast_2d(np.asarray(data_points))
+    # Ensure all inputs are positive before power calculation to prevent issues with fractional exponents of negative numbers
+    X = np.maximum(X, 1e-10) 
 
-    # Handle parameter dimension consistently for scipy.optimize.least_squares
-    if params.ndim == 2:
-        current_params = params[0]
-        return_2d = True
-    else:
-        current_params = params
-        return_2d = False
+    params_arr = np.asarray(params)
+    if params_arr.ndim == 1:
+        params_arr = params_arr[None, :]
 
-    # Unpack the 8 parameters of the model
-    L_min, log_C, p_lr1, p_lr2, p_bsz, p_data, p_param, p_inter_ND = current_params
+    T, P = params_arr.shape
+    EXPECTED_P = 11
+    if P != EXPECTED_P:
+        if P &gt; EXPECTED_P:
+            params_arr = params_arr[:, :EXPECTED_P]
+            P = EXPECTED_P
+        else:
+            raise ValueError(f&quot;Expected {EXPECTED_P} parameters per set for the scaling law model, but received {P}.&quot;)
 
-    # Extract features and apply numerical stability clipping
-    # Features must be strictly positive for log transform
-    lr = np.maximum(X[:, 0], 1e-10)
-    bsz = np.maximum(X[:, 1], 1e-10)
-    data_size = np.maximum(X[:, 2], 1e-10)
-    param_size = np.maximum(X[:, 3], 1e-10)
+    # Extract parameters for each parameter set (T sets)
+    L0_arr = params_arr[:, 0]
+    c_lr_pos_arr, e_lr_pos_arr = params_arr[:, 1], params_arr[:, 2]
+    c_lr_neg_arr, e_lr_neg_arr = params_arr[:, 3], params_arr[:, 4]
+    c_bsz_arr, e_bsz_arr = params_arr[:, 5], params_arr[:, 6]
+    c_data_arr, e_data_arr = params_arr[:, 7], params_arr[:, 8]
+    c_params_arr, e_params_arr = params_arr[:, 9], params_arr[:, 10]
 
-    # Compute log-transformed features
-    log_lr = np.log(lr)
-    log_bsz = np.log(bsz)
-    log_data_size = np.log(data_size)
-    log_param_size = np.log(param_size)
+    lr_val = X[:, 0][:, None]
+    bsz_val = X[:, 1][:, None]
+    data_val = X[:, 2][:, None]
+    params_val = X[:, 3][:, None]
 
-    # Calculate the sum of log-transformed terms for the exponential part.
-    # This now includes the linear and quadratic terms for log(lr), direct power laws
-    # for bsz, data_size, and param_size, and an interaction term for data_size * param_size.
-    log_terms_sum = (
-        log_C
-        + p_lr1 * log_lr                  # Linear effect of log(learning_rate)
-        + p_lr2 * (log_lr**2)             # Quadratic effect of log(learning_rate)
-        + p_bsz * log_bsz                 # Effect of log(batch_size)
-        + p_data * log_data_size          # Effect of log(data_size)
-        + p_param * log_param_size        # Effect of log(non_embedding_param_size)
-        + p_inter_ND * log_data_size * log_param_size # Interaction between data_size and param_size
-    )
+    term_lr_pos = c_lr_pos_arr[None, :] * np.power(lr_val, e_lr_pos_arr[None, :])
+    term_lr_neg = c_lr_neg_arr[None, :] * np.power(lr_val, e_lr_neg_arr[None, :])
+    term_lr = term_lr_pos + term_lr_neg
 
-    # Apply numerical stability clipping to the argument of exp to prevent overflow/underflow.
-    # The chosen range [-15.0, 5.0] is sufficiently wide for typical loss values.
-    exp_part = np.exp(np.clip(log_terms_sum, -15.0, 5.0))
+    term_bsz = c_bsz_arr[None, :] * np.power(bsz_val, e_bsz_arr[None, :])
+    term_data = c_data_arr[None, :] * np.power(data_val, e_data_arr[None, :])
+    term_params = c_params_arr[None, :] * np.power(params_val, e_params_arr[None, :])
 
-    # Calculate the final predicted loss, adding the irreducible loss L_min.
-    predicted_loss = L_min + exp_part
+    pred = L0_arr[None, :] + term_lr + term_bsz + term_data + term_params
 
-    # Ensure predicted loss is always positive and at least a small value,
-    # as cross-entropy loss must be positive.
-    predicted_loss = np.maximum(predicted_loss, 0.01)
-
-    return predicted_loss[:, None] if return_2d else predicted_loss
+    return pred[:, 0] if T == 1 else pred
 
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Fits the extended scaling law function to the provided data using non-linear least squares.
-    This function refines the optimization by employing a robust &#x27;soft_l1&#x27; loss,
-    well-informed initial parameter guesses, and carefully defined bounds to guide the search,
-    thereby improving numerical stability and convergence.
+    Fits the scaling law function to the given data points and loss values using
+    non-linear least squares optimization with robust initial guesses and bounds.
 
     Args:
-        data_points: (N,4) array with columns [lr, bsz, data_size, non_embedding_param_size]
-        loss_values: Array of corresponding lm loss values.
+        data_points (np.ndarray): (N, 4) array with columns [lr, bsz, data_size, non_embedding_param_size].
+        loss_values (np.ndarray): (N,) array of corresponding lm loss values.
 
     Returns:
-        Optimized parameters (1D array) for the scaling_law_func.
+        np.ndarray: Optimized parameters (P,) for the scaling law function.
+                    [L_0, c_lr_pos, e_lr_pos, c_lr_neg, e_lr_neg, c_bsz, e_bsz, c_data, e_data, c_params, e_params].
     &quot;&quot;&quot;
-    X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
-    y = np.asarray(loss_values, dtype=np.float64).flatten() # Ensure y is 1D
+    X = np.atleast_2d(np.asarray(data_points))
+    y = np.asarray(loss_values)
 
-    # The model now has 8 parameters: [L_min, log_C, p_lr1, p_lr2, p_bsz, p_data, p_param, p_inter_ND]
-    num_params = 8
+    def residuals(params, X, y):
+        pred = scaling_law_func(X, params)
+        res = pred - y
+        # Penalize non-finite values heavily to guide the optimizer away from invalid regions
+        res[~np.isfinite(res)] = 1e9 
+        return res
 
-    # --- Initial Guesses for Parameters ---
-    # L_min_init: Slightly less than the minimum observed loss, ensuring `y - L_min` is positive.
-    L_min_init = np.min(y) - 0.2
-    L_min_init = np.maximum(0.01, L_min_init) # Ensure L_min is positive
+    P = 11
 
-    # log_C_init: Estimated assuming exponents are initially zero, then exp(log_C) = mean(y) - L_min
-    log_C_init = np.log(np.maximum(1e-6, np.mean(y) - L_min_init)) # Prevent log(0)
-
-    # Exponents initial guesses based on common scaling law observations:
-    p_lr1_init = 0.0          # Neutral starting point for linear LR effect
-    p_lr2_init = -0.05        # Strong prior for a concave-down quadratic effect (optimal LR)
-    p_bsz_init = -0.01        # Batch size often has a small, slightly negative effect
-    p_data_init = -0.07       # Typical negative exponent for data size
-    p_param_init = -0.07      # Typical negative exponent for parameter size
-    p_inter_ND_init = -0.005  # Small negative interaction term is common
-
+    # Refined Initial guess for parameters, based on typical scaling law values and data ranges.
+    # [L_0, c_lr_pos, e_lr_pos, c_lr_neg, e_lr_neg, c_bsz, e_bsz, c_data, e_data, c_params, e_params]
     initial_params = np.array([
-        L_min_init, log_C_init,
-        p_lr1_init, p_lr2_init,
-        p_bsz_init,
-        p_data_init, p_param_init,
-        p_inter_ND_init
-    ], dtype=np.float64)
+        np.min(y) * 0.9,  # L_0: Irreducible loss, a bit below min observed loss
+        0.1,   1.0,       # c_lr_pos, e_lr_pos: Increased c_lr_pos for larger impact
+        1e-4, -1.0,       # c_lr_neg, e_lr_neg: Increased c_lr_neg for larger impact
+        1e-2,  0.0,       # c_bsz, e_bsz: Small coefficient, neutral exponent
+        1e2,  -0.07,      # c_data, e_data: Data typically reduces loss (negative exponent)
+        1e2,  -0.07       # c_params, e_params: Parameters typically reduce loss (negative exponent)
+    ])
 
-    # --- Define Bounds for Parameters ---
-    # L_min: Must be positive and strictly less than the minimum observed loss.
-    L_min_lower_bound = 0.01
-    L_min_upper_bound = np.min(y) - 0.001
-    if L_min_upper_bound &lt;= L_min_lower_bound:
-        # Fallback if min(y) is too close to L_min_lower_bound
-        L_min_upper_bound = L_min_lower_bound + 0.01
+    # Refined Bounds for parameters, guiding the optimizer to physically realistic regions.
+    lower_bounds = np.array([
+        0.0,              # L_0: must be non-negative
+        1e-5, 0.1,        # c_lr_pos (positive, min), e_lr_pos (must be positive)
+        1e-8, -5.0,       # c_lr_neg (positive, min), e_lr_neg (must be negative)
+        1e-5, -0.8,       # c_bsz (positive), e_bsz (can be negative, slightly tighter range)
+        1e-1, -0.2,       # c_data (positive), e_data (negative for loss reduction)
+        1e-1, -0.2        # c_params (positive), e_params (negative for loss reduction)
+    ])
+    upper_bounds = np.array([
+        np.max(y) * 1.1,  # L_0: bounded above by a value slightly higher than max observed loss
+        1e1,  5.0,        # c_lr_pos (upper bound), e_lr_pos (upper bound for exponent)
+        5e-4, -0.1,       # c_lr_neg (upper bound, significantly tightened), e_lr_neg (must be negative, not too close to 0)
+        1e0,  0.8,        # c_bsz (upper bound), e_bsz (upper bound for exponent, slightly tighter range)
+        1e3, -0.01,       # c_data (upper bound), e_data (must be negative, not too close to 0)
+        1e3, -0.01        # c_params (upper bound), e_params (must be negative, not too close to 0)
+    ])
 
-    log_C_bounds = (-10.0, 10.0) # Broad bounds for the constant scale factor
+    result = least_squares(residuals, initial_params, args=(X, y),
+                           bounds=(lower_bounds, upper_bounds),
+                           method=&#x27;trf&#x27;, verbose=0, max_nfev=10000,
+                           x_scale=&#x27;jac&#x27;, ftol=1e-8, xtol=1e-8)
 
-    # Exponent bounds for learning rate (tightened based on typical ranges):
-    p_lr1_bounds = (-1.0, 1.0)
-    p_lr2_bounds = (-0.5, 0.5)
-
-    # Exponent bounds for batch size (expected to be small):
-    p_bsz_bounds = (-0.1, 0.1)
-
-    # Exponent bounds for data size and parameter size (expected to be negative):
-    p_data_bounds = (-0.5, 0.0)
-    p_param_bounds = (-0.5, 0.0)
-
-    # Bounds for the interaction term (expected to be small):
-    p_inter_ND_bounds = (-0.05, 0.05)
-
-    lower_bounds = [
-        L_min_lower_bound, log_C_bounds[0],
-        p_lr1_bounds[0], p_lr2_bounds[0],
-        p_bsz_bounds[0],
-        p_data_bounds[0], p_param_bounds[0],
-        p_inter_ND_bounds[0]
-    ]
-    upper_bounds = [
-        L_min_upper_bound, log_C_bounds[1],
-        p_lr1_bounds[1], p_lr2_bounds[1],
-        p_bsz_bounds[1],
-        p_data_bounds[1], p_param_bounds[1],
-        p_inter_ND_bounds[1]
-    ]
-    bounds = (lower_bounds, upper_bounds)
-
-    # Define the residual function for least_squares (actual - predicted)
-    def residuals(params_flat, x_data, y_data):
-        return y_data - scaling_law_func(x_data, params_flat)
-
-    try:
-        # Use least_squares with &#x27;trf&#x27; method for robust non-linear curve fitting with bounds.
-        # &#x27;verbose=0&#x27; suppresses output. &#x27;loss=&#x27;soft_l1&#x27;&#x27; provides robustness against outliers.
-        # &#x27;f_scale&#x27; is the threshold for soft_l1 loss, and &#x27;max_nfev&#x27; limits computation time.
-        result = least_squares(
-            residuals,
-            initial_params,
-            bounds=bounds,
-            args=(X, y),
-            method=&#x27;trf&#x27;, # Trust Region Reflective algorithm for bound-constrained problems
-            verbose=0,
-            loss=&#x27;soft_l1&#x27;,
-            f_scale=0.1,    # Scale for soft_l1 loss, relative to typical residual magnitude
-            max_nfev=1000   # Maximum number of function evaluations
-        )
-        optimized_params = result.x
-    except Exception as e:
-        # Fallback to initial parameters if optimization fails to prevent errors,
-        # logging the failure for debugging.
-        print(f&quot;least_squares optimization failed: {e}. Falling back to initial_params.&quot;)
-        optimized_params = initial_params
-
-    return optimized_params
+    if result.success:
+        return result.x
+    else:
+        print(f&quot;Warning: least_squares optimization failed. Status: {result.status}, Message: {result.message}. Returning initial parameters.&quot;)
+        return initial_params
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#4</span>
-              <span class="run-label">Run 2</span>
-              <span class="r2-badge" style="background-color: #b22222; color: white"> R² = -0.074611 </span>
+              <span class="run-label">Run 5</span>
+              <span class="r2-badge" style="background-color: #228B22; color: white"> R² = 0.914512 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -1009,198 +881,185 @@ def fit_scaling_law(data_points, loss_values):
                 <span>Python</span>
                 <button class="copy-btn" onclick="copyCode(event, 'code-3')">Copy</button>
               </div>
-              <pre><code class="language-python" id="code-3">import numpy as np
+              <pre><code class="language-python" id="code-3"># EVOLVE-BLOCK-START
+import numpy as np
 from scipy.optimize import least_squares
 
-# EVOLVE-BLOCK-START
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    Predicts LM loss based on an evolved multiplicative scaling law model.
-    This version includes:
-    1. A quadratic term for the log of the learning rate, allowing for a U-shaped loss curve
-       which is often observed in practice (optimal LR).
-    2. An interaction term between log(data_size) and log(param_size). This term captures
-       the interplay between model size and data size in determining loss, as seen in
-       Chinchilla-style scaling laws where an optimal balance between N and D exists.
+    Predicts LM loss based on learning rate, batch size, data size, and non-embedding parameter size.
 
-    Model:
-    Loss = L_min + exp(log_C + p_lr_1*log(lr) + p_lr_2*(log(lr))^2 + p_bsz*log(bsz) +
-                       p_data*log(data_size) + p_param*log(param_size) +
-                       p_data_param_interact*log(data_size)*log(param_size))
+    The model is of the form:
+    Loss = L_0 + c_lr1 * lr^e_lr1 + c_lr2 * lr^e_lr2 + c_bsz * bsz^e_bsz + c_data * data_size^e_data + c_params * non_embedding_param_size^e_params
+
+    This model uses two learning rate terms to capture a U-shaped or more complex relationship,
+    where one term typically models the benefit of increasing LR (e_lr1 &lt; 0) and the other
+    the detriment (e_lr2 &gt; 0).
 
     Args:
-        data_points: (N,4) array with columns [lr, bsz, data_size, non_embedding_param_size]
-        params: 1D array of 8 parameters: [L_min, log_C, p_lr_1, p_lr_2, p_bsz, p_data, p_param, p_data_param_interact]
+        data_points (np.ndarray): (N, 4) array with columns [lr, bsz, data_size, non_embedding_param_size].
+        params (np.ndarray): Array of model parameters. Can be (P,) for a single model or (T, P) for multiple.
+                             Expected P=11: [L_0, c_lr1, e_lr1, c_lr2, e_lr2, c_bsz, e_bsz, c_data, e_data, c_params, e_params].
 
     Returns:
-        Predicted lm loss values (N,) or (N,1) if original params was 2D.
+        np.ndarray: Predicted lm loss values. Shape (N,) if params is (P,), or (N, T) if params is (T, P).
     &quot;&quot;&quot;
-    X = np.atleast_2d(np.asarray(data_points, dtype=np.float64)) # Ensure float64 for precision
+    X = np.atleast_2d(np.asarray(data_points)) # (N, F)
+    # Ensure all inputs are positive before log/power to prevent numerical issues
+    X = np.maximum(X, 1e-10)
 
-    # Handle potential 2D params array passed by outer framework
-    if params.ndim == 2:
-        current_params = params[0]
-        return_2d = True
-    else:
-        current_params = params
-        return_2d = False
+    params_arr = np.asarray(params)
+    # Adapt to the original framework&#x27;s potential (T, P) parameter passing
+    if params_arr.ndim == 1:
+        params_arr = params_arr[None, :] # Make it (1, P)
 
-    # Unpack parameters (8 parameters in this evolved model)
-    L_min, log_C, p_lr_1, p_lr_2, p_bsz, p_data, p_param, p_data_param_interact = current_params
+    T, P = params_arr.shape # T: number of parameter sets, P: number of parameters per set
 
-    # Extract features, ensuring they are strictly positive for log transform
-    # Clipping to a small positive value prevents log(0) for robustness.
-    # The given data ranges are significantly larger than 1e-9, so this acts purely as a safeguard.
-    lr = np.maximum(X[:, 0], 1e-9)
-    bsz = np.maximum(X[:, 1], 1e-9)
-    data_size = np.maximum(X[:, 2], 1e-9)
-    param_size = np.maximum(X[:, 3], 1e-9)
+    # Expected number of parameters for this specific model structure
+    # 1 (L0) + 4 (lr terms) + 2 (bsz) + 2 (data_size) + 2 (params_size) = 11
+    EXPECTED_P = 11
+    if P != EXPECTED_P:
+        if P &gt; EXPECTED_P:
+            # If more parameters are passed than expected, use only the first EXPECTED_P
+            params_arr = params_arr[:, :EXPECTED_P]
+            P = EXPECTED_P
+        else:
+            # If fewer parameters are passed, it&#x27;s an error in model definition or parameter passing.
+            raise ValueError(f&quot;Expected {EXPECTED_P} parameters per set for the scaling law model, but received {P}. &quot;
+                             &quot;Please check the number of parameters defined in the model structure.&quot;)
 
-    # Calculate log-transformed features
-    log_lr = np.log(lr)
-    log_bsz = np.log(bsz)
-    log_data_size = np.log(data_size)
-    log_param_size = np.log(param_size)
+    # Extract parameters for each parameter set (T sets)
+    L0_arr = params_arr[:, 0]
+    c_lr1_arr, e_lr1_arr = params_arr[:, 1], params_arr[:, 2]
+    c_lr2_arr, e_lr2_arr = params_arr[:, 3], params_arr[:, 4]
+    c_bsz_arr, e_bsz_arr = params_arr[:, 5], params_arr[:, 6]
+    c_data_arr, e_data_arr = params_arr[:, 7], params_arr[:, 8]
+    c_params_arr, e_params_arr = params_arr[:, 9], params_arr[:, 10]
 
-    # Calculate the sum of log-transformed terms for the multiplicative part.
-    # Includes quadratic log(lr) term and log(data_size)*log(param_size) interaction.
-    log_terms_sum = (
-        log_C
-        + p_lr_1 * log_lr
-        + p_lr_2 * (log_lr**2)  # Quadratic term for log(lr)
-        + p_bsz * log_bsz
-        + p_data * log_data_size
-        + p_param * log_param_size
-        + p_data_param_interact * log_data_size * log_param_size # Interaction term
-    )
+    # Ensure coefficients are non-negative for power laws, robustifying against
+    # potential floating point issues or edge cases in optimization.
+    c_lr1_arr = np.maximum(c_lr1_arr, 1e-10)
+    c_lr2_arr = np.maximum(c_lr2_arr, 1e-10)
+    c_bsz_arr = np.maximum(c_bsz_arr, 1e-10)
+    c_data_arr = np.maximum(c_data_arr, 1e-10)
+    c_params_arr = np.maximum(c_params_arr, 1e-10)
 
-    # Apply numerical stability clipping to the argument of exp.
-    # These bounds ensure that exp_part does not overflow, underflow to 0, or become NaN,
-    # while still allowing for a broad range of loss values.
-    # Max loss is around 3.7, min loss is around 2.1. L_min is subtracted.
-    # So exp_part is typically around 0.1 to 1.7. Current clipping bounds are wide enough.
-    exp_part = np.exp(np.clip(log_terms_sum, -15.0, 5.0))
+    # Calculate individual contributions using log-space for numerical stability,
+    # then exponentiate. This is generally preferred over direct X**e for robustness
+    # with arbitrary real exponents and very small base values.
+    # X[:, feature_idx][:, None] makes it (N, 1) for broadcasting against (1, T) parameter arrays
+    log_X_lr = np.log(X[:, 0][:, None])
+    log_X_bsz = np.log(X[:, 1][:, None])
+    log_X_data = np.log(X[:, 2][:, None])
+    log_X_params = np.log(X[:, 3][:, None])
 
-    # Calculate the final predicted loss
-    predicted_loss = L_min + exp_part
+    # Learning rate terms (U-shaped contribution)
+    term_lr1 = c_lr1_arr[None, :] * np.exp(e_lr1_arr[None, :] * log_X_lr)
+    term_lr2 = c_lr2_arr[None, :] * np.exp(e_lr2_arr[None, :] * log_X_lr)
+    term_lr = term_lr1 + term_lr2
 
-    # Ensure predicted loss is always positive and realistic for cross-entropy.
-    # L_min and the positive exp_part usually handle this, but an explicit clamp is safer.
-    predicted_loss = np.maximum(predicted_loss, 0.01)
+    # Other terms
+    term_bsz = c_bsz_arr[None, :] * np.exp(e_bsz_arr[None, :] * log_X_bsz)
+    term_data = c_data_arr[None, :] * np.exp(e_data_arr[None, :] * log_X_data)
+    term_params = c_params_arr[None, :] * np.exp(e_params_arr[None, :] * log_X_params)
 
-    return predicted_loss[:, None] if return_2d else predicted_loss
+    # Sum all contributions
+    pred = L0_arr[None, :] + term_lr + term_bsz + term_data + term_params
+
+    # Ensure predictions are non-negative, as loss cannot be negative.
+    # This also helps clip any numerically unstable negative predictions that might arise.
+    pred = np.maximum(pred, 0.0)
+
+    # If only one set of parameters was passed (T=1), return a 1D array (N,)
+    return pred[:, 0] if T == 1 else pred
 
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Fits the evolved scaling law function (with quadratic log(lr) term and
-    log(data_size)*log(param_size) interaction) to the provided data
-    using non-linear least squares.
+    Fits the scaling law function to the given data points and loss values.
 
     Args:
-        data_points: (N,4) array with columns [lr, bsz, data_size, non_embedding_param_size]
-        loss_values: Array of corresponding lm loss values.
+        data_points (np.ndarray): (N, 4) array with columns [lr, bsz, data_size, non_embedding_param_size].
+        loss_values (np.ndarray): (N,) array of corresponding lm loss values.
 
     Returns:
-        Optimized parameters (1D array) for the scaling_law_func.
+        np.ndarray: Optimized parameters (P,) for the scaling law function.
+                    [L_0, c_lr1, e_lr1, c_lr2, e_lr2, c_bsz, e_bsz, c_data, e_data, c_params, e_params].
     &quot;&quot;&quot;
-    X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
-    y = np.asarray(loss_values, dtype=np.float64).flatten() # Ensure y is 1D
+    X = np.atleast_2d(np.asarray(data_points))
+    y = np.asarray(loss_values)
 
-    num_params = 8 # Number of parameters for the scaling_law_func
+    def residuals(params, X, y):
+        pred = scaling_law_func(X, params)
+        res = pred - y
+        # Robustly handle NaN/Inf predictions.
+        # Assign a large finite value (1e10) with the correct sign to problematic residuals
+        # to strongly penalize these regions during optimization.
+        problematic_indices = ~np.isfinite(res)
+        if np.any(problematic_indices):
+            # Use np.where to ensure that even if res is NaN, it gets a sign (e.g., from a small positive value)
+            # This makes the gradient more meaningful than just NaN.
+            res[problematic_indices] = 1e10 * np.sign(np.where(np.isfinite(res), res, 1e-6))[problematic_indices]
+        return res
 
-    # --- Initial Guess for Parameters ---
-    min_y = np.min(y)
+    # Total number of parameters for the new model (L0 + 2*LR + 2*BSZ + 2*Data + 2*Params = 11)
+    P = 11
 
-    # L_min_init: Slightly less than the minimum observed loss, ensuring `y - L_min` is positive.
-    # Using 80% of min_y as a starting point.
-    L_min_init = min_y * 0.8
-    L_min_init = np.maximum(0.01, L_min_init) # Must be positive and realistic for CE loss.
+    # Initial guess for parameters: [L_0, c_lr1, e_lr1, c_lr2, e_lr2, c_bsz, e_bsz, c_data, e_data, c_params, e_params]
+    # These initial guesses are informed by typical LLM scaling laws and data ranges,
+    # with a focus on capturing the U-shaped learning rate behavior.
+    initial_params = np.array([
+        np.min(y) * 0.9,  # L_0: Irreducible loss, slightly below min observed loss
+        1e-4, -1.0,       # c_lr1, e_lr1: For the decreasing loss part with increasing LR (e.g., 1/LR)
+        1e3,   1.0,       # c_lr2, e_lr2: For the increasing loss part with increasing LR (e.g., LR)
+        0.1,   0.1,       # c_bsz, e_bsz: Small effect, potentially slightly positive exponent for batch size
+        10.0,  -0.1,      # c_data, e_data: Data typically reduces loss (negative exponent)
+        5.0,   -0.1        # c_params, e_params: Parameters typically reduce loss (negative exponent)
+    ])
 
-    # log_C_init: Estimate based on average residual if exponents were zero.
-    # Ensure mean_y - L_min_init is positive for log.
-    mean_residual = np.mean(y) - L_min_init
-    log_C_init = np.log(np.maximum(1e-6, mean_residual)) # Using 1e-6 for numerical stability for log input.
+    # Refined bounds for parameters to guide the optimizer and ensure physical realism.
+    # Coefficients (c_i) are generally positive. Exponents (e_i) are constrained based on expected effects.
+    lower_bounds = np.array([
+        0.0,              # L_0: Irreducible loss must be non-negative
+        1e-10, -3.0,      # c_lr1 (positive), e_lr1 (negative for 1/lr effect)
+        1e-10,  0.01,     # c_lr2 (positive), e_lr2 (positive for lr effect)
+        1e-10, -1.0,      # c_bsz (positive), e_bsz (can be negative or positive, but not too extreme)
+        1e-10, -1.0,      # c_data (positive), e_data (negative or zero, increasing data should not increase loss)
+        1e-10, -1.0       # c_params (positive), e_params (negative or zero, increasing params should not increase loss)
+    ])
+    upper_bounds = np.array([
+        np.max(y) * 1.5,  # L_0: Cannot exceed max observed loss significantly
+        1e2,   -0.01,     # c_lr1, e_lr1 (must be negative, e.g., &lt;= -0.01)
+        1e5,   3.0,       # c_lr2, e_lr2 (must be positive, e.g., &gt;= 0.01)
+        1e3,   1.0,       # c_bsz, e_bsz
+        1e4,   0.0,       # c_data, e_data (&lt;= 0)
+        1e4,   0.0         # c_params, e_params (&lt;= 0)
+    ])
 
-    # p_lr_1_init: Initial linear coefficient for log(lr), starting near zero.
-    p_lr_1_init = 0.0
-    # p_lr_2_init: Initial quadratic coefficient for log(lr). A small positive value encourages
-    # a convex (U-shaped) curve, common for optimal learning rates.
-    p_lr_2_init = 0.1
-    # p_bsz_init: Initial coefficient for batch size, starting near zero.
-    p_bsz_init = 0.0
-    # p_data_init, p_param_init: Typical negative exponents for data and parameter scaling laws.
-    p_data_init = -0.07
-    p_param_init = -0.07
-    # p_data_param_interact_init: Initial coefficient for interaction term, starting near zero.
-    p_data_param_interact_init = 0.0
+    # Use &#x27;trf&#x27; (Trust Region Reflective) method, which handles bounds effectively and is robust for non-linear least squares.
+    # verbose=0 suppresses convergence messages.
+    # max_nfev increased to allow more iterations for complex landscapes.
+    # ftol and xtol tightened for better convergence precision, to help with the more complex model.
+    result = least_squares(residuals, initial_params, args=(X, y),
+                           bounds=(lower_bounds, upper_bounds),
+                           method=&#x27;trf&#x27;, verbose=0, max_nfev=5000, ftol=1e-8, xtol=1e-8)
 
-    initial_params = np.array([L_min_init, log_C_init, p_lr_1_init, p_lr_2_init, p_bsz_init,
-                               p_data_init, p_param_init, p_data_param_interact_init], dtype=np.float64)
-
-    # --- Define Bounds for Parameters ---
-    # L_min: Must be positive and strictly less than the minimum observed loss to allow for exp_part.
-    L_min_lower_bound = 0.01
-    L_min_upper_bound = min_y - 0.001 # Keep a small margin below min_y.
-    # Robustness check for bounds: Adjust if min_y is extremely low or causes issues.
-    if L_min_upper_bound &lt;= L_min_lower_bound:
-        L_min_upper_bound = L_min_lower_bound + 0.1
-
-    # log_C: Narrowed bounds based on typical exp_part range (0.1 to 1.7 =&gt; log is -2.3 to 0.5)
-    log_C_bounds = (-3.0, 3.0)
-
-    # p_lr_1: Wider bounds for the linear log(lr) term, as it interacts with the quadratic term.
-    p_lr_1_bounds = (-3.0, 3.0)
-    # p_lr_2: Constrain to be non-negative to enforce a convex U-shape (minimum loss at optimal LR).
-    p_lr_2_bounds = (0.0, 2.0)
-
-    # p_bsz: Moderate bounds, often smaller effect than other variables.
-    p_bsz_bounds = (-0.5, 0.5)
-    
-    # p_data, p_param: Typically negative exponents for loss reduction. Narrowed range.
-    # Refined: Enforce strictly negative, even if very small, to align with theoretical expectation
-    # that increasing data/parameters should generally reduce loss.
-    p_data_bounds = (-0.2, -0.0001) # Upper bound slightly below 0
-    p_param_bounds = (-0.2, -0.0001) # Upper bound slightly below 0
-
-    # p_data_param_interact: Moderate bounds for interaction term. Narrowed range due to large
-    # log_data_size * log_param_size products which can make even small coefficients influential.
-    # Refined: Halved the range from (-0.02, 0.02) to (-0.01, 0.01) for tighter control.
-    p_data_param_interact_bounds = (-0.01, 0.01)
-
-    lower_bounds = [L_min_lower_bound, log_C_bounds[0], p_lr_1_bounds[0], p_lr_2_bounds[0],
-                    p_bsz_bounds[0], p_data_bounds[0], p_param_bounds[0], p_data_param_interact_bounds[0]]
-    upper_bounds = [L_min_upper_bound, log_C_bounds[1], p_lr_1_bounds[1], p_lr_2_bounds[1],
-                    p_bsz_bounds[1], p_data_bounds[1], p_param_bounds[1], p_data_param_interact_bounds[1]]
-    bounds = (lower_bounds, upper_bounds)
-
-    # Define the residual function for least_squares: y_actual - y_predicted
-    def residuals(params_flat, x_data, y_data):
-        return y_data - scaling_law_func(x_data, params_flat)
-
-    try:
-        # Use least_squares with &#x27;trf&#x27; method for robust non-linear curve fitting with bounds.
-        # jac=&#x27;3-point&#x27; for more robust numerical Jacobian estimation.
-        # max_nfev increased to allow more function evaluations for complex interactions.
-        result = least_squares(residuals, initial_params, bounds=bounds, args=(X, y), method=&#x27;trf&#x27;, jac=&#x27;3-point&#x27;, max_nfev=2500, verbose=0)
-        optimized_params = result.x
-    except Exception as e:
-        # Fallback to initial parameters if optimization fails (e.g., due to numerical issues).
-        print(f&quot;least_squares failed: {e}. Falling back to initial_params.&quot;)
-        optimized_params = initial_params
-
-    return optimized_params
+    if result.success:
+        return result.x
+    else:
+        # If optimization fails, return the initial_params as a robust fallback.
+        print(&quot;Warning: least_squares optimization failed. Returning initial parameters.&quot;)
+        return initial_params
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#5</span>
-              <span class="run-label">Run 3</span>
-              <span class="r2-badge" style="background-color: #b22222; color: white"> R² = -0.348933 </span>
+              <span class="run-label">Run 2</span>
+              <span class="r2-badge" style="background-color: #228B22; color: white"> R² = 0.904116 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -1210,196 +1069,172 @@ def fit_scaling_law(data_points, loss_values):
                 <span>Python</span>
                 <button class="copy-btn" onclick="copyCode(event, 'code-4')">Copy</button>
               </div>
-              <pre><code class="language-python" id="code-4">import numpy as np
+              <pre><code class="language-python" id="code-4"># EVOLVE-BLOCK-START
+import numpy as np
 from scipy.optimize import least_squares
 
-# EVOLVE-BLOCK-START
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    Predicts LM loss based on an evolved multiplicative scaling law model.
-    This version includes a quadratic term for log(learning rate) and two
-    interaction terms: one between log(data_size) and log(param_size) (common
-    in Chinchilla-like laws), and a new one between log(learning rate) and
-    log(parameter size). This new term aims to capture how the optimal learning
-    rate might depend on the model&#x27;s scale, acknowledging that larger models
-    may behave differently with respect to learning rate.
+    Predicts LM loss based on learning rate, batch size, data size, and non-embedding parameter size.
 
-    Model:
-    Loss = L_min + exp(log_C
-                        + p_lr_1*log(lr)
-                        + p_lr_2*(log(lr))^2
-                        + p_bsz*log(bsz)
-                        + p_data*log(data_size)
-                        + p_param*log(param_size)
-                        + p_data_param_interact*log(data_size)*log(param_size)
-                        + p_lr_param_interact*log(lr)*log(param_size) # NEW interaction term
-                       )
+    This evolved model uses a quadratic term for the learning rate in log-space to capture its
+    U-shaped effect on loss (loss increases for both very low and very high learning rates).
+    The model also includes power-law terms for model size, data size, and batch size,
+    plus an irreducible loss component. This reduces the number of parameters compared to
+    the previous two-power-law LR model, aiming for better parameter efficiency and stability.
+
+    Model form:
+    Loss = L_inf + C_N * N^E_N + C_D * D^E_D + C_bsz * bsz^E_bsz + K_lr * (log(lr) - log_lr_opt)^2
 
     Args:
-        data_points: (N,4) array with columns [lr, bsz, data_size, non_embedding_param_size]
-        params: 1D array of 9 parameters: [L_min, log_C, p_lr_1, p_lr_2, p_bsz, p_data, p_param, p_data_param_interact, p_lr_param_interact]
+        data_points (np.ndarray): (N, 4) array with columns [lr, bsz, data_size, non_embedding_param_size].
+                                  N is the number of data points.
+        params (np.ndarray): Array of model parameters. Can be (P,) for a single set of parameters
+                             or (T, P) for multiple sets (where T is the number of sets).
+                             Expected P=9 parameters:
+                             [L_inf, C_N, E_N, C_D, E_D, C_bsz, E_bsz, K_lr, log_lr_opt].
 
     Returns:
-        Predicted lm loss values (N,) or (N,1) if original params was 2D.
+        np.ndarray: Predicted lm loss values.
+                    Shape (N,) if params is (P,), or (N, T) if params is (T, P).
     &quot;&quot;&quot;
-    X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
+    X = np.atleast_2d(np.asarray(data_points))
+    
+    # Ensure all input features are strictly positive before log transformation.
+    # A small epsilon (1e-10) is added to prevent log(0) issues.
+    X = np.maximum(X, 1e-10) 
 
-    # Handle potential 2D params array passed by outer framework
-    if params.ndim == 2:
-        current_params = params[0]
-        return_2d = True
-    else:
-        current_params = params
-        return_2d = False
+    params_arr = np.asarray(params)
+    # Adapt to potential (T, P) parameter passing for generality.
+    # If params is a 1D array (P,), reshape it to (1, P) for consistent broadcasting.
+    if params_arr.ndim == 1:
+        params_arr = params_arr[None, :] # Make it (1, P)
 
-    # Unpack parameters (9 parameters in this evolved model)
-    L_min, log_C, p_lr_1, p_lr_2, p_bsz, p_data, p_param, p_data_param_interact, p_lr_param_interact = current_params
+    T, P = params_arr.shape # T: number of parameter sets, P: number of parameters per set
 
-    # Extract features, ensuring they are strictly positive for log transform
-    # Clipping to a small positive value prevents log(0) for robustness.
-    lr = np.maximum(X[:, 0], 1e-9)
-    bsz = np.maximum(X[:, 1], 1e-9)
-    data_size = np.maximum(X[:, 2], 1e-9)
-    param_size = np.maximum(X[:, 3], 1e-9)
+    # Define the expected number of parameters for this specific scaling law model.
+    EXPECTED_P = 9 # L_inf, C_N, E_N, C_D, E_D, C_bsz, E_bsz, K_lr, log_lr_opt
+    if P != EXPECTED_P:
+        if P &gt; EXPECTED_P: # Truncate if too many parameters are passed
+            params_arr = params_arr[:, :EXPECTED_P]
+            P = EXPECTED_P
+        else:
+            raise ValueError(f&quot;Expected {EXPECTED_P} parameters per set for the scaling law model, but received {P}.&quot;)
 
-    # Calculate log-transformed features
+    # Extract parameters for each parameter set (T sets).
+    L_inf_arr = params_arr[:, 0]
+    C_N_arr, E_N_arr = params_arr[:, 1], params_arr[:, 2] # Non-embedding parameter size (N)
+    C_D_arr, E_D_arr = params_arr[:, 3], params_arr[:, 4] # Data size (D)
+    C_bsz_arr, E_bsz_arr = params_arr[:, 5], params_arr[:, 6] # Batch size (bsz)
+    K_lr_arr, log_lr_opt_arr = params_arr[:, 7], params_arr[:, 8] # Learning rate (lr) quadratic term
+
+    # Extract individual features from the data_points array.
+    # X is (N_data_points, 4). Appending [:, None] reshapes them to (N_data_points, 1) for broadcasting
+    # with parameter arrays of shape (1, T).
+    lr = X[:, 0][:, None]
+    bsz = X[:, 1][:, None]
+    data_size = X[:, 2][:, None]
+    non_embedding_param_size = X[:, 3][:, None]
+
+    # Calculate each power-law term using log-space for numerical stability.
+    # C * X^E is performed as C * exp(E * log(X)).
+    term_N = C_N_arr[None, :] * np.exp(E_N_arr[None, :] * np.log(non_embedding_param_size))
+    term_D = C_D_arr[None, :] * np.exp(E_D_arr[None, :] * np.log(data_size))
+    term_bsz = C_bsz_arr[None, :] * np.exp(E_bsz_arr[None, :] * np.log(bsz))
+    
+    # Calculate the quadratic learning rate term.
+    # K_lr * (log(lr) - log_lr_opt)^2
     log_lr = np.log(lr)
-    log_bsz = np.log(bsz)
-    log_data_size = np.log(data_size)
-    log_param_size = np.log(param_size)
+    term_lr = K_lr_arr[None, :] * (log_lr - log_lr_opt_arr[None, :])**2
 
-    # Calculate the sum of log-transformed terms for the multiplicative part
-    log_terms_sum = (
-        log_C
-        + p_lr_1 * log_lr
-        + p_lr_2 * (log_lr**2)  # Quadratic term for log(lr) to model U-shape
-        + p_bsz * log_bsz
-        + p_data * log_data_size
-        + p_param * log_param_size
-        + p_data_param_interact * log_data_size * log_param_size # Interaction term between data and parameter sizes
-        + p_lr_param_interact * log_lr * log_param_size # NEW: Interaction term between learning rate and parameter size
-    )
-
-    # Apply numerical stability clipping to the argument of exp
-    # These bounds ensure that exp_part does not overflow or become NaN,
-    # while still allowing for a broad range of loss values observed in similar models.
-    exp_part = np.exp(np.clip(log_terms_sum, -15.0, 5.0))
-
-    # Calculate the final predicted loss
-    predicted_loss = L_min + exp_part
-
-    # Ensure predicted loss is always positive and realistic for cross-entropy.
-    # L_min and the positive exp_part usually handle this, but an explicit clamp adds robustness.
-    predicted_loss = np.maximum(predicted_loss, 0.01)
-
-    return predicted_loss[:, None] if return_2d else predicted_loss
+    # The total predicted loss is the sum of the irreducible loss (L_inf) and all feature contributions.
+    pred = L_inf_arr[None, :] + term_N + term_D + term_bsz + term_lr
+    
+    # If only one set of parameters was passed (T=1), return a 1D array (N_data_points,).
+    # Otherwise, return (N_data_points, T).
+    return pred[:, 0] if T == 1 else pred
 
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Fits the evolved scaling law function (with quadratic log(lr) term and two
-    interaction terms: log(data_size)*log(param_size) and log(lr)*log(param_size))
-    to the provided data using non-linear least squares.
+    Fits the evolved scaling law function to the given data points and loss values using non-linear least squares.
+
+    This function utilizes `scipy.optimize.least_squares` with refined initial guesses and tighter bounds
+    to improve optimization robustness and accuracy. The model form has been simplified for learning rate.
 
     Args:
-        data_points: (N,4) array with columns [lr, bsz, data_size, non_embedding_param_size]
-        loss_values: Array of corresponding lm loss values.
+        data_points (np.ndarray): (N, 4) array with columns [lr, bsz, data_size, non_embedding_param_size].
+        loss_values (np.ndarray): (N,) array of corresponding lm loss values.
 
     Returns:
-        Optimized parameters (1D array) for the scaling_law_func.
+        np.ndarray: Optimized parameters (9,) for the scaling law function:
+                    [L_inf, C_N, E_N, C_D, E_D, C_bsz, E_bsz, K_lr, log_lr_opt].
     &quot;&quot;&quot;
-    X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
-    y = np.asarray(loss_values, dtype=np.float64).flatten() # Ensure y is 1D
+    X = np.atleast_2d(np.asarray(data_points))
+    y = np.asarray(loss_values)
 
-    # Number of parameters for our evolved scaling_law_func:
-    # [L_min, log_C, p_lr_1, p_lr_2, p_bsz, p_data, p_param, p_data_param_interact, p_lr_param_interact]
-    num_params = 9
+    # Define the residual function for scipy.optimize.least_squares.
+    def residuals(params, X, y):
+        pred = scaling_law_func(X, params)
+        return pred - y
 
-    # --- Initial Guess for Parameters ---
-    min_loss_observed = np.min(y)
-    # L_min_init: Start slightly less than the minimum observed loss, ensuring `y - L_min` is positive.
-    L_min_init = min_loss_observed * 0.9
-    L_min_init = np.maximum(0.01, L_min_init) # Must be positive
+    # The model has 9 parameters.
+    P = 9 
 
-    # log_C_init: Estimate based on average residual if exponents were zero.
-    log_C_init = np.log(np.maximum(1e-6, np.mean(y) - L_min_init))
-
-    # p_lr_1_init, p_lr_2_init: Initial quadratic coefficients for log(lr).
-    # We aim for the initial optimal log_lr to be in the middle of the observed log(lr) range.
-    min_log_lr = np.log(np.maximum(np.min(X[:,0]), 1e-9))
-    max_log_lr = np.log(np.maximum(np.max(X[:,0]), 1e-9))
-    optimal_log_lr_init_guess = (min_log_lr + max_log_lr) / 2
-    p_lr_2_init = 0.05 # A small positive value encourages a convex (U-shaped) curve.
-    p_lr_1_init = -2 * p_lr_2_init * optimal_log_lr_init_guess # Sets initial optimal LR to midpoint.
-
-    # Other exponents: Typically neutral or small negative for scaling effects.
-    p_bsz_init = 0.0
-    p_data_init = -0.07 # Common range for data exponent (e.g., in Chinchilla-like laws)
-    p_param_init = -0.07 # Common range for parameter exponent
-    p_data_param_interact_init = 0.0 # Initial guess for data-param interaction
-    p_lr_param_interact_init = 0.0 # NEW initial guess for LR-Param interaction
-
+    # --- Initial Guesses for Parameters ---
+    # These values are chosen based on common LLM scaling law observations and analysis
+    # of the provided data ranges, aiming to guide the optimizer efficiently.
+    min_loss = np.min(y)
+    
+    # Calculate log(lr) for estimating optimal LR range
+    log_lr_data = np.log(X[:, 0])
+    
     initial_params = np.array([
-        L_min_init, log_C_init, p_lr_1_init, p_lr_2_init,
-        p_bsz_init, p_data_init, p_param_init,
-        p_data_param_interact_init, p_lr_param_interact_init
-    ], dtype=np.float64)
+        min_loss * 0.9,           # L_inf: Irreducible loss, slightly below the minimum observed loss.
+                                  # This is a good heuristic to start L_inf.
+        1.0, -0.07,               # C_N, E_N: For non_embedding_param_size. More params reduce loss (E_N &lt; 0).
+                                  # C_N=1.0 is reasonable given param_size values (e.g., 1e9) and N^-0.07 ~ 0.1-0.3.
+        1.0, -0.07,               # C_D, E_D: For data_size. More data reduces loss (E_D &lt; 0).
+                                  # C_D=1.0 is reasonable given data_size values (e.g., 1e11) and D^-0.07 ~ 0.1-0.2.
+        0.01, 0.0,                # C_bsz, E_bsz: For batch size. Small coefficient, neutral exponent as a starting point.
+        0.1, np.median(log_lr_data) # K_lr, log_lr_opt: Quadratic LR term. K_lr must be positive for U-shape.
+                                  # log_lr_opt initialized to median log LR in the data.
+    ])
 
-    # --- Define Bounds for Parameters ---
-    # L_min: Must be positive and strictly less than the minimum observed loss to allow for exp_part.
-    # The upper bound is critical to prevent L_min from &quot;explaining&quot; all the loss, leaving exp_part near zero.
-    L_min_lower_bound = 0.01
-    L_min_upper_bound = min_loss_observed - 0.05 # Ensure a meaningful margin
-    if L_min_upper_bound &lt;= L_min_lower_bound: # Adjust if min(y) is very low or uniform, to maintain valid range.
-        L_min_upper_bound = L_min_lower_bound + 0.05
+    # --- Bounds for Parameters ---
+    # These are crucial for numerical stability and ensuring physically meaningful results.
+    # They prevent the optimizer from exploring unrealistic parameter spaces.
+    lower_bounds = np.array([
+        0.0,                      # L_inf: Irreducible loss must be non-negative.
+        1e-5, -0.5,               # C_N: positive. E_N: negative (more params should not increase loss).
+        1e-5, -0.5,               # C_D: positive. E_D: negative (more data should not increase loss).
+        1e-5, -0.5,               # C_bsz: positive. E_bsz: flexible but usually small magnitude.
+        1e-5, np.min(log_lr_data) # K_lr: positive (for U-shape). log_lr_opt: within observed log(lr) range.
+    ])
+    upper_bounds = np.array([
+        np.max(y) * 1.2,          # L_inf: Upper bound slightly above the maximum observed loss value.
+        10.0, 0.0,                # C_N: upper bound for coefficient. E_N: upper bound of 0.0.
+        10.0, 0.0,                # C_D: upper bound for coefficient. E_D: upper bound of 0.0.
+        1.0, 0.5,                 # C_bsz: upper bound for coefficient. E_bsz: upper bound.
+        5.0, np.max(log_lr_data)  # K_lr: upper bound for coefficient. log_lr_opt: within observed log(lr) range.
+    ])
 
-    # log_C: Broad bounds to allow for different scales of the multiplicative factor.
-    log_C_bounds = (-10.0, 10.0)
+    # Use &#x27;trf&#x27; (Trust Region Reflective) method, which is highly effective for non-linear
+    # least squares problems with bounds. It is generally robust and efficient.
+    # `verbose=0` suppresses output during optimization.
+    # `max_nfev` (maximum number of function evaluations) is increased to allow sufficient
+    # iterations for convergence over a potentially complex parameter landscape.
+    result = least_squares(residuals, initial_params, args=(X, y),
+                           bounds=(lower_bounds, upper_bounds),
+                           method=&#x27;trf&#x27;, verbose=0, max_nfev=5000) # Increased max_nfev
 
-    # p_lr_1: Moderate bounds for the linear log(lr) term.
-    p_lr_1_bounds = (-2.0, 2.0)
-    # p_lr_2: Constrain to be non-negative to enforce a convex U-shape (minimum loss at optimal LR).
-    p_lr_2_bounds = (0.0, 1.0) # From no quadratic effect (0) to a strong one.
-
-    # p_bsz: Moderate bounds, can be positive or negative depending on its role.
-    p_bsz_bounds = (-1.0, 1.0)
-    # p_data, p_param: Typically negative (more resources -&gt; lower loss).
-    p_data_bounds = (-0.5, 0.0)
-    p_param_bounds = (-0.5, 0.0)
-
-    # p_data_param_interact: Tighter bounds as the product of log(data) and log(param) can be large.
-    # Keeping this coefficient small prevents it from dominating the log_terms_sum.
-    p_data_param_interact_bounds = (-0.005, 0.005)
-    # p_lr_param_interact: NEW bounds for the LR-Param interaction.
-    # The product log(lr)*log(param_size) ranges from approx -172 to -68.
-    # Bounds of (-0.01, 0.01) seem appropriate to allow for meaningful effects without instability.
-    p_lr_param_interact_bounds = (-0.01, 0.01)
-
-    lower_bounds = [L_min_lower_bound, log_C_bounds[0], p_lr_1_bounds[0], p_lr_2_bounds[0],
-                    p_bsz_bounds[0], p_data_bounds[0], p_param_bounds[0],
-                    p_data_param_interact_bounds[0], p_lr_param_interact_bounds[0]]
-    upper_bounds = [L_min_upper_bound, log_C_bounds[1], p_lr_1_bounds[1], p_lr_2_bounds[1],
-                    p_bsz_bounds[1], p_data_bounds[1], p_param_bounds[1],
-                    p_data_param_interact_bounds[1], p_lr_param_interact_bounds[1]]
-    bounds = (lower_bounds, upper_bounds)
-
-    # Define the residual function for least_squares: y_actual - y_predicted
-    def residuals(params_flat, x_data, y_data):
-        return y_data - scaling_law_func(x_data, params_flat)
-
-    try:
-        # Use least_squares with &#x27;trf&#x27; method for robust non-linear curve fitting with bounds.
-        # &#x27;trf&#x27; (Trust Region Reflective) is suitable for bounded problems.
-        # Increased max_nfev to allow more iterations for convergence with a more complex model (9 parameters).
-        result = least_squares(residuals, initial_params, bounds=bounds, args=(X, y), method=&#x27;trf&#x27;, verbose=0, max_nfev=3000)
-        optimized_params = result.x
-    except Exception as e:
-        # Fallback to initial parameters if optimization fails (e.g., due to numerical issues).
-        # This provides robustness against pathological cases or edge data.
-        print(f&quot;least_squares failed: {e}. Falling back to initial_params.&quot;)
-        optimized_params = initial_params
-
-    return optimized_params
+    # Return the optimized parameters if the optimization was successful.
+    # If the optimization fails, return the initial parameters as a robust fallback.
+    if result.success:
+        return result.x
+    else:
+        # print(&quot;Warning: least_squares optimization failed. Returning initial parameters.&quot;)
+        return initial_params
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>

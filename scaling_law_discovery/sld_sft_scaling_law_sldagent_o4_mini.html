@@ -285,7 +285,7 @@
     <div class="bg-pattern"></div>
 
     <div class="container">
-      <a href="sld_index.html" class="back-link"> ← Back to Leaderboard </a>
+      <a href="index.html" class="back-link"> ← Back to Leaderboard </a>
 
       <div class="header">
         <h1>SFT Scaling Law</h1>
@@ -300,15 +300,15 @@
           </div>
           <div class="meta-item">
             <span class="meta-label">Best R²:</span>
-            <span class="r2-badge" style="background-color: #006400; color: white"> 0.994732 </span>
+            <span class="r2-badge" style="background-color: #006400; color: white"> 0.999264 </span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Mean R²:</span>
-            <span class="meta-value">0.993466</span>
+            <span class="meta-value">0.995574</span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Min R²:</span>
-            <span class="meta-value">0.991570</span>
+            <span class="meta-value">0.981141</span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Runs:</span>
@@ -320,12 +320,13 @@
       <h2 class="section-title">All Runs (sorted by R²)</h2>
 
       <div class="runs-container">
+
         <div class="run-card best-run">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge best-badge">Best</span>
               <span class="run-label">Run 2</span>
-              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.994732 </span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.999264 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -335,80 +336,102 @@
                 <span>Python</span>
                 <button class="copy-btn" onclick="copyCode(event, 'code-0')">Copy</button>
               </div>
-              <pre><code class="language-python" id="code-0"># EVOLVE-BLOCK-START
-import numpy as np
-from scipy.optimize import least_squares
+              <pre><code class="language-python" id="code-0">import numpy as np
+from scipy.optimize import minimize
 
+# EVOLVE-BLOCK-START
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    Four-parameter logistic-power scaling law:
-      L(D) = d + a / (1 + (D / c)**b)
-    params = [a, b, c, d]
-      a &gt; 0 : amplitude above floor
-      b &gt; 0 : decay exponent
-      c &gt; 0 : characteristic data size (knee)
-      d ≥ 0 : asymptotic loss floor
+    4-parameter logistic-saturating law:
+      L(D) = L_inf + R / (1 + (D / D0)^alpha)
+    params = [logD0, logalpha, logR, L_inf]
     &quot;&quot;&quot;
-    D = np.asarray(data_points, dtype=np.float64).ravel()
-    a, b, c, d = params
-    # stable power evaluation
-    return d + a / (1.0 + np.power(D / c, b))
+    D = np.atleast_1d(np.squeeze(data_points)).astype(np.float64)
+    p = np.ravel(params).astype(np.float64)
+    D0    = np.exp(p[0])
+    alpha = np.exp(p[1])
+    R     = np.exp(p[2])
+    L_inf = p[3]
+    denom = 1.0 + np.power(D / D0, alpha)
+    # avoid div-by-zero
+    return L_inf + R / (denom + 1e-12)
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Fit the 4-parameter logistic-power law by minimizing log‐residuals
-    with a robust Cauchy loss to balance relative errors.
-    Returns optimized params [a, b, c, d].
+    Fit L(D) = L_inf + R / (1 + (D / D0)^alpha)
+    by minimizing combined MSE + log-MSE for robust fit.
+    Returns params = [logD0, logalpha, logR, L_inf].
     &quot;&quot;&quot;
-    D = np.asarray(data_points, dtype=np.float64).ravel()
-    y = np.asarray(loss_values, dtype=np.float64).ravel()
-
-    # Basic statistics
-    y_min, y_max = y.min(), y.max()
-    D_min, D_max = max(D.min(), 1e-8), D.max()
-
-    # Initial parameter guesses
-    d0 = max(0.0, 0.95 * y_min)           # floor near observed minimum
-    a0 = max(1e-8, y_max - d0)            # amplitude above floor
-    c0 = np.sqrt(D_min * D_max)           # knee at geometric mean
-    b0 = 1.0                              # moderate decay exponent
-    p0 = np.array([a0, b0, c0, d0], dtype=np.float64)
-
-    # Bounds: a,b,c &gt; 0 ; 0 ≤ d ≤ y_min
-    lower = np.array([1e-12, 1e-12, 1e-12, 0.0], dtype=np.float64)
-    upper = np.array([np.inf,   np.inf,   np.inf,   y_min], dtype=np.float64)
-
-    # small constant to avoid log(0)
+    # Prepare data
+    D = np.atleast_1d(np.squeeze(data_points)).astype(np.float64)
+    L = np.ravel(loss_values).astype(np.float64)
+    D = np.maximum(D, 1e-8)
     eps = 1e-8
-    def residuals(p):
-        pred = scaling_law_func(D, p)
-        return np.log(pred + eps) - np.log(y + eps)
 
-    # robust nonlinear least squares with Cauchy loss
-    res = least_squares(
-        fun=residuals,
-        x0=p0,
-        bounds=(lower, upper),
-        loss=&#x27;cauchy&#x27;,
-        f_scale=0.05,
-        xtol=1e-14,
-        ftol=1e-14,
-        gtol=1e-14,
-        max_nfev=3000
-    )
+    Lmin, Lmax = L.min(), L.max()
+    logL = np.log(L + eps)
 
-    return res.x if res.success else p0
+    # Bounds for [logD0, logalpha, logR, L_inf]
+    bounds = [
+        (np.log(D.min() * 0.01), np.log(D.max() * 100.0)),   # logD0
+        (-5.0, 5.0),                                          # logalpha
+        (np.log(eps), np.log(max(Lmax - Lmin, eps) * 10.0)),  # logR
+        (0.0, Lmin)                                           # L_inf
+    ]
+
+    # Multi-start seeds
+    D0_seeds = [np.median(D), D.min() * 5.0, D.max() / 5.0]
+    alpha_seeds = [0.3, 0.5, 1.0]
+    R0 = max(Lmax - Lmin, 1e-2)
+    Linf0 = Lmin
+
+    best_p, best_obj = None, np.inf
+
+    for D0_guess in D0_seeds:
+        for alpha_guess in alpha_seeds:
+            p0 = np.array([
+                np.log(D0_guess),
+                np.log(alpha_guess),
+                np.log(R0),
+                Linf0
+            ], dtype=np.float64)
+
+            def obj(p):
+                pred = scaling_law_func(D, p)
+                mse = np.mean((pred - L) ** 2)
+                log_mse = np.mean((np.log(pred + eps) - logL) ** 2)
+                return mse + log_mse
+
+            res = minimize(
+                obj,
+                p0,
+                method=&#x27;L-BFGS-B&#x27;,
+                bounds=bounds,
+                options={&#x27;ftol&#x27;: 1e-9, &#x27;maxiter&#x27;: 3000}
+            )
+            if res.success and res.fun &lt; best_obj:
+                best_obj, best_p = res.fun, res.x
+
+    # Fallback if no start succeeded
+    if best_p is None:
+        best_p = np.array([
+            np.log(np.median(D)),
+            np.log(0.5),
+            np.log(R0),
+            Linf0
+        ], dtype=np.float64)
+
+    return best_p
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#2</span>
-              <span class="run-label">Run 3</span>
-              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.994435 </span>
+              <span class="run-label">Run 5</span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.999261 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -421,105 +444,54 @@ def fit_scaling_law(data_points, loss_values):
               <pre><code class="language-python" id="code-1">import numpy as np
 from scipy.optimize import least_squares
 
-def scaling_law_func(data_points, params):
-    &quot;&quot;&quot;
-    4-parameter Hill-type scaling law:
-       L(D) = L_inf + A / (1 + (D / D0)^alpha)
-
-    Args:
-      data_points: array-like of shape (N,1) or (N,), data sizes D.
-      params:      length-4 array [L_inf, A, D0, alpha]:
-                     L_inf ≥ 0  : asymptotic loss floor
-                     A     ≥ 0  : amplitude above floor at small D
-                     D0    &gt; 0  : characteristic data scale
-                     alpha &gt; 0  : decay exponent
-
-    Returns:
-      preds: array of predicted loss values, shape (N,)
-    &quot;&quot;&quot;
-    X = np.atleast_1d(np.squeeze(data_points)).astype(float)
-    L_inf, A, D0, alpha = np.ravel(params)
-    # enforce positivity for D0, alpha to avoid NaNs
-    D0 = max(D0, 1e-12)
-    alpha = max(alpha, 1e-12)
-    return L_inf + A / (1.0 + (X / D0)**alpha)
-
+def scaling_law_func(D, p):
+    # L(D) = L_inf + A / (D^alpha + N0)
+    D = np.ravel(D).astype(float)
+    L_inf, A, alpha, N0 = np.maximum(p, [0.0, 1e-12, 1e-6, 1e-12])
+    return L_inf + A / (D**alpha + N0)
 
 def fit_scaling_law(data_points, loss_values):
-    &quot;&quot;&quot;
-    Fit the 4-parameter Hill-type law L(D) = L_inf + A/(1 + (D/D0)^alpha)
-    by minimizing robust log-residuals:
-        minimize sum rho( log(pred) - log(y) )
-    where rho is the Cauchy loss to downweight outliers.
+    D = np.ravel(data_points).astype(float)
+    y = np.ravel(loss_values).astype(float)
+    y0, y1 = y.min(), y.max()
 
-    Returns:
-      params_opt: array [L_inf, A, D0, alpha]
-    &quot;&quot;&quot;
-    # prepare 1D float arrays
-    X = np.atleast_1d(np.squeeze(data_points)).astype(float)
-    y = np.atleast_1d(np.squeeze(loss_values)).astype(float)
-    N = X.size
+    # Initial guesses
+    L0 = max(0.0, 0.9 * y0)
+    a0 = 0.5
+    n0 = max(1e-8, D.min())
+    A0 = max(1e-8, (y1 - L0) * (D.min()**a0 + n0))
+    p0 = np.array([L0, A0, a0, n0])
 
-    # basic stats
-    D_min, D_max = X.min(), X.max()
-    y_min, y_max = y.min(), y.max()
+    # Bounds
+    lb = [0.0, 1e-12, 1e-6, 1e-12]
+    ub = [y0,  np.inf, 50.0, D.max() * 10.0]
 
-    # sort for slope estimation in log-log
-    idx = np.argsort(X)
-    Xs, ys = X[idx], y[idx]
-    i_low = int(0.1 * (N - 1))
-    i_high = int(0.9 * (N - 1))
-    D_low, D_high = Xs[i_low], Xs[i_high]
-    y_low = max(ys[i_low], 1e-8)
-    y_high = max(ys[i_high], 1e-8)
-
-    # initial guesses
-    L_inf0 = max(0.0, 0.8 * y_min)
-    A0     = max(1e-6, y_max - L_inf0)
-    # estimate alpha from two quantiles in log-log space
-    num = np.log(y_low - L_inf0 + 1e-12) - np.log(y_high - L_inf0 + 1e-12)
-    den = np.log(D_low + 1e-12) - np.log(D_high + 1e-12)
-    alpha0 = np.clip(abs(num / (den + 1e-12)), 0.1, 10.0)
-    # D0 initial ~ geometric mean
-    D0_0 = np.exp(np.mean(np.log(X + 1e-12)))
-
-    p0 = np.array([L_inf0, A0, D0_0, alpha0], dtype=float)
-
-    # bounds for numerical stability
-    lower_bounds = [0.0,           1e-8,      D_min * 1e-3, 1e-3]
-    upper_bounds = [y_min * 1.2,  (y_max - y_min) * 100.0, D_max * 100.0, 20.0]
-
-    # residual in log-space
+    # Residuals: combine absolute + relative error
     def residuals(p):
-        pred = scaling_law_func(X, p)
-        return np.log(pred + 1e-12) - np.log(y + 1e-12)
+        pred = scaling_law_func(D, p)
+        e = pred - y
+        return np.concatenate([e, e / (y + 1e-8)])
 
-    # robust scale based on initial residuals
-    init_res = residuals(p0)
-    f_scale = max(np.median(np.abs(init_res)), 1e-2)
-
-    # perform robust least-squares with Cauchy loss
     res = least_squares(
         residuals,
         p0,
-        bounds=(lower_bounds, upper_bounds),
-        method=&#x27;trf&#x27;,
-        loss=&#x27;cauchy&#x27;,
-        f_scale=f_scale,
-        max_nfev=2000
+        bounds=(lb, ub),
+        loss=&#x27;soft_l1&#x27;,
+        f_scale=0.1,
+        max_nfev=5000
     )
 
-    return res.x if res.success else p0</code></pre>
+    p_opt = res.x if res.success else p0
+    return np.maximum(p_opt, [0.0, 0.0, 0.0, 0.0])</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#3</span>
-              <span class="run-label">Run 5</span>
-              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.993633 </span>
+              <span class="run-label">Run 3</span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.999118 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -532,78 +504,52 @@ def fit_scaling_law(data_points, loss_values):
               <pre><code class="language-python" id="code-2">import numpy as np
 from scipy.optimize import minimize
 
-# EVOLVE-BLOCK-START
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    4-param rational power law:
-      L(D) = L_inf + A / (D^alpha + B)
-    params = [log A, log alpha, log B, L_inf]
+    4-parameter logistic-style scaling law:
+      L(D) = L_inf + A / (1 + (D/D0)^alpha)
+    params = [logA, logD0, logAlpha, L_inf]
     &quot;&quot;&quot;
     D = np.atleast_1d(np.squeeze(data_points)).astype(float)
     p = np.ravel(params).astype(float)
-    A, alpha, B, L_inf = np.exp(p[0]), np.exp(p[1]), np.exp(p[2]), p[3]
-    return L_inf + A / (D**alpha + B)
+    A      = np.exp(p[0])
+    D0     = np.exp(p[1])
+    alpha  = np.exp(p[2])
+    L_inf  = p[3]
+    return L_inf + A / (1.0 + (D / D0)**alpha)
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Fit L_inf + A/(D^alpha + B) by:
-     1) initializing L_inf just below min(loss)
-     2) log–log regression for A, alpha on residual y = L - L_inf
-     3) setting B to 0.1 * median(D^alpha)
-     4) minimizing MSE + 0.1*relative-log-MSE under bounds
+    Fit the 4-parameter form L_inf + A/(1+(D/D0)^alpha)
+    by minimizing squared log-errors via L-BFGS-B.
+    Returns optimized [logA, logD0, logAlpha, L_inf].
     &quot;&quot;&quot;
-    # flatten inputs
     D = np.atleast_1d(np.squeeze(data_points)).astype(float)
     L = np.ravel(loss_values).astype(float)
-
-    # 1) init asymptote just below min observed loss
-    L_inf0 = max(0.0, L.min() * 0.995)
-
-    # 2) fit log–log for A &amp; alpha on positive residuals
-    y = L - L_inf0
-    mask = y &gt; 0
-    if mask.sum() &gt;= 2:
-        slope, intercept = np.polyfit(np.log(D[mask]), np.log(y[mask]), 1)
-        alpha0 = max(-slope, 1e-6)
-        A0 = max(np.exp(intercept), 1e-6)
-    else:
-        alpha0, A0 = 0.5, max(L.max() - L_inf0, 1e-3)
-
-    # 3) init offset B so denom ~ balanced at median scale
-    B0 = max(np.median(D**alpha0) * 0.1, 1e-6)
-
-    # pack initial params
-    p0 = np.array([np.log(A0), np.log(alpha0), np.log(B0), L_inf0], dtype=float)
-
-    # bounds: keep alpha, B within reasonable log-ranges, L_inf ∈ [0, min(L)]
-    bounds = [
-        (None, None),   # log A
-        (-5.0, 5.0),    # log alpha
-        (-10.0, 10.0),  # log B
-        (0.0, float(L.min()))
-    ]
-
-    # combined objective: abs-MSE + 0.1 * relative-log-MSE
-    eps = 1e-8
-    def objective(p):
+    D = np.maximum(D, 1e-8)
+    # Initial guesses
+    L_min, L_max = L.min(), L.max()
+    L_inf0 = max(0.9 * L_min, 1e-3)
+    A0      = max(L_max - L_inf0, 1e-3)
+    D0_0    = np.median(D)
+    alpha0  = 0.5
+    p0 = np.array([np.log(A0), np.log(D0_0), np.log(alpha0), L_inf0], dtype=float)
+    # Objective: mean squared log-residual
+    def obj(p):
         pred = scaling_law_func(D, p)
-        mse_abs = np.mean((pred - L)**2)
-        mse_rel = np.mean((np.log(pred + eps) - np.log(L + eps))**2)
-        return mse_abs + 0.1 * mse_rel
-
-    res = minimize(objective, p0, method=&#x27;L-BFGS-B&#x27;, bounds=bounds)
-    return res.x if res.success else p0
-# EVOLVE-BLOCK-END</code></pre>
+        return np.mean((np.log(pred + 1e-8) - np.log(L + 1e-8))**2)
+    # Optimize with L-BFGS-B for stability
+    res = minimize(obj, p0, method=&#x27;L-BFGS-B&#x27;)
+    return res.x if res.success else p0</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#4</span>
-              <span class="run-label">Run 1</span>
-              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.992961 </span>
+              <span class="run-label">Run 4</span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.999086 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -613,102 +559,73 @@ def fit_scaling_law(data_points, loss_values):
                 <span>Python</span>
                 <button class="copy-btn" onclick="copyCode(event, 'code-3')">Copy</button>
               </div>
-              <pre><code class="language-python" id="code-3"># EVOLVE-BLOCK-START
-&quot;&quot;&quot;
-4-parameter rational power-law scaling for LLM supervised fine‐tuning:
-
-    L(D) = L_inf + A / (D^alpha + B)
-
-Where:
-  - L_inf : asymptotic loss as D→∞
-  - A     : finite‐data loss coefficient
-  - alpha : decay exponent
-  - B     : regularization offset avoiding singularity
-
-This form ensures monotonic decay, avoids division‐by‐zero at small D,
-and yields a power‐law tail. We fit via a scaled Soft‐L1 robust loss
-for stability across model‐dataset regimes.
-&quot;&quot;&quot;
-import numpy as np
+              <pre><code class="language-python" id="code-3">import numpy as np
 from scipy.optimize import least_squares
 
+# EVOLVE-BLOCK-START
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    Predict cross-entropy loss from data size(s).
-
-    Args:
-      data_points: array-like of shape (N,1) or (N,) for data sizes D.
-      params: sequence of 4 parameters [L_inf, A, alpha, B].
-    Returns:
-      preds: ndarray of length N with predicted losses.
+    4-parameter logistic scaling on log-data size:
+      Let d = log10(D + eps).
+      L(D) = L_inf + (L0 - L_inf) / [1 + (d/d_mid)^alpha].
+    params = [L_inf, L0, d_mid, alpha]
     &quot;&quot;&quot;
     D = np.ravel(data_points).astype(float)
-    L_inf, A, alpha, B = params
-    # avoid zero or negative sizes
-    D_safe = np.clip(D, 1.0, None)
-    return L_inf + A / (np.power(D_safe, alpha) + B)
+    d = np.log10(D + 1e-8)
+    L_inf, L0, d_mid, alpha = params
+    return L_inf + (L0 - L_inf) / (1.0 + np.power(d / d_mid, alpha))
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Fit the 4-parameter rational power-law to (data_size, loss) pairs.
-
-    Args:
-      data_points: array-like of shape (N,1) or (N,) for D.
-      loss_values: array-like of shape (N,) for observed losses.
-    Returns:
-      opt_params: ndarray of shape (4,) [L_inf, A, alpha, B].
+    Fit [L_inf, L0, d_mid, alpha] by robust least_squares
+    using a Cauchy loss for stability against outliers.
     &quot;&quot;&quot;
-    # prepare data
     D = np.ravel(data_points).astype(float)
     y = np.ravel(loss_values).astype(float)
-    y_min, y_max = y.min(), y.max()
-    D_min = max(D.min(), 1.0)
+    d = np.log10(D + 1e-8)
+    y_min, y_max = float(y.min()), float(y.max())
 
-    # initial guess:
-    #  L_inf ~ 90% of min loss,
-    #  A ~ loss span,
-    #  alpha ~ 1.0,
-    #  B ~ minimal dataset size
-    p0 = np.array([
-        max(0.0, 0.9 * y_min),       # L_inf
-        max(1e-6, (y_max - y_min)),   # A
-        1.0,                          # alpha
-        D_min                         # B
-    ])
+    # Initial guesses: asymptote ~min loss, start ~max loss,
+    # midpoint ~median(log10 D), slope ~1
+    p0 = [y_min, y_max, float(np.median(d)), 1.0]
 
-    # bounds to ensure L_inf ≤ y_min and positivity
-    lower = [0.0, 0.0, 0.0, 0.0]
-    upper = [y_min, np.inf, 5.0, np.inf]
-
-    # scale residuals by loss range
-    scale = (y_max - y_min) + 1e-6
+    # Bounds to keep parameters in sensible ranges
+    lb = [
+        0.0,                    # L_inf &gt;= 0
+        y_max * 0.9,            # L0 &gt;= ~90% of max loss
+        max(d.min() * 0.1, 1e-6),  # d_mid &gt; 0
+        0.01                    # alpha &gt; 0
+    ]
+    ub = [
+        y_min * 1.2 + 1e-6,     # L_inf not far above min loss
+        y_max * 1.5 + 1e-6,     # L0 not far above max loss
+        d.max() * 2.0 + 1e-6,   # d_mid up to 2× max(log D)
+        20.0                    # alpha upper bound
+    ]
 
     def residuals(p):
-        return (scaling_law_func(D, p) - y) / scale
+        return scaling_law_func(D, p) - y
 
-    # robust fitting with Trust-Region Reflective + Soft L1 loss
-    result = least_squares(
-        residuals,
-        p0,
-        bounds=(lower, upper),
-        method=&#x27;trf&#x27;,
-        loss=&#x27;soft_l1&#x27;,
-        f_scale=0.1,
-        max_nfev=3000
-    )
-
-    return result.x if result.success else p0
+    try:
+        res = least_squares(
+            residuals, p0,
+            bounds=(lb, ub),
+            loss=&#x27;cauchy&#x27;, f_scale=0.1,
+            xtol=1e-9, ftol=1e-9, max_nfev=1000
+        )
+        return res.x if res.success else np.array(p0, dtype=float)
+    except Exception:
+        return np.array(p0, dtype=float)
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#5</span>
-              <span class="run-label">Run 4</span>
-              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.991570 </span>
+              <span class="run-label">Run 1</span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.981141 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -718,72 +635,52 @@ def fit_scaling_law(data_points, loss_values):
                 <span>Python</span>
                 <button class="copy-btn" onclick="copyCode(event, 'code-4')">Copy</button>
               </div>
-              <pre><code class="language-python" id="code-4">import numpy as np
-from scipy.optimize import minimize
+              <pre><code class="language-python" id="code-4"># EVOLVE-BLOCK-START
+import numpy as np
+from scipy.optimize import least_squares
 
-# EVOLVE-BLOCK-START
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    4-parameter asymptotic power law:
-       loss(D) = d + a * (D + c)^(-b)
-    params = [a, b, c, d]
+    4-parameter sigmoid-like scaling law:
+      L(D) = a + b / (1 + (D / c)**d)
+    where b, c, d are kept positive via absolute+eps.
+    params: array([a, b, c, d])
     &quot;&quot;&quot;
-    X = np.asarray(data_points).ravel().astype(float)
+    # Flatten to 1D array of data sizes
+    D = np.atleast_1d(np.squeeze(data_points)).astype(float)
     a, b, c, d = params
-    return d + a * (X + c) ** (-b)
+    # enforce positivity for b, c, d
+    b = np.abs(b) + 1e-12
+    c = np.abs(c) + 1e-12
+    d = np.abs(d) + 1e-12
+    return a + b / (1.0 + (D / c)**d)
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Fit loss(D) = d + a*(D+c)^(-b) via multi-start L-BFGS-B
-    with a log-linear warm start.
+    Fit L(D) = a + b / (1 + (D/c)**d) via non-linear least squares.
     Returns optimized [a, b, c, d].
     &quot;&quot;&quot;
-    X = np.asarray(data_points).ravel().astype(float)
-    y = np.asarray(loss_values).ravel().astype(float)
-    x_min = max(X.min(), 1e-8)
+    # Prepare 1D arrays
+    D = np.atleast_1d(np.squeeze(data_points)).astype(float)
+    y = np.atleast_1d(np.squeeze(loss_values)).astype(float)
+    # Basic statistics for initialization
     y_min, y_max = y.min(), y.max()
-
-    # 1) Log-linear warm start: y - d0 ~ a*(X + c0)^(-b)
-    d0 = y_min - 0.05 * (y_max - y_min)
-    c0 = max(1e-9, 0.1 * x_min)
-    Y = np.clip(y - d0, 1e-8, None)
-    slope, intercept = np.polyfit(np.log(X + c0), np.log(Y), 1)
-    b0 = max(-slope, 1e-8)
-    a0 = max(np.exp(intercept), 1e-8)
-
-    # 2) Build a small pool of initial guesses
-    inits = [np.array([a0, b0, c0, d0], dtype=float)]
-    for bg in (0.5, 1.0, 2.0):
-        for frac in (1e-3, 1e-2, 1e-1):
-            cg = x_min * frac + 1e-12
-            ag = max(y_max - y_min, 1e-3) * (x_min + cg) ** bg
-            dg = y_min
-            inits.append(np.array([ag, bg, cg, dg], dtype=float))
-
-    # 3) Define bounds and objective
-    bounds = [
-        (1e-12, None),  # a &gt; 0
-        (1e-12, None),  # b &gt; 0
-        (1e-12, None),  # c &gt; 0
-        (None, None)    # d free
-    ]
-    def mse(p):
-        return np.mean((scaling_law_func(X, p) - y) ** 2)
-
-    # 4) Multi-start optimization
-    best_loss, best_p = np.inf, None
-    for p0 in inits:
-        res = minimize(
-            mse, p0,
-            method=&#x27;L-BFGS-B&#x27;,
-            bounds=bounds,
-            options={&#x27;maxiter&#x27;: 500, &#x27;ftol&#x27;: 1e-12}
-        )
-        if res.success and res.fun &lt; best_loss:
-            best_loss, best_p = res.fun, res.x
-
-    # 5) Fallback to warm start if none succeeded
-    return best_p if best_p is not None else inits[0]
+    # Initial guess
+    a0 = max(y_min * 0.9, 1e-3)
+    b0 = max(y_max - a0, 1e-3)
+    c0 = np.median(D)
+    d0 = 1.0
+    p0 = np.array([a0, b0, c0, d0])
+    # Bounds: b, c, d strictly positive
+    lower = np.array([-np.inf, 1e-8, 1e-8, 1e-8])
+    upper = np.array([ np.inf,  np.inf,  np.inf,  np.inf])
+    # Residual function
+    def residuals(p):
+        return scaling_law_func(D, p) - y
+    # Solve with trust-region-reflective bounds
+    res = least_squares(residuals, p0, bounds=(lower, upper),
+                        ftol=1e-8, xtol=1e-8, gtol=1e-8)
+    return res.x if res.success else p0
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
