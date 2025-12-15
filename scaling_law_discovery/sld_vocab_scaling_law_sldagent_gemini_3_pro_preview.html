@@ -1,0 +1,1112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SLD - Vocabulary Scaling Law - SLDAgent + Gemini 3 Pro Preview</title>
+    <link rel="icon" type="image/png" href="assets/sld_logo.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" rel="stylesheet" />
+    <style>
+        :root {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8f9fa;
+            --accent-primary: #2563eb;
+            --accent-secondary: #3b82f6;
+            --accent-gradient: linear-gradient(135deg, #2563eb 0%, #3b82f6 50%, #60a5fa 100%);
+            --text-primary: #1f2937;
+            --text-secondary: #4b5563;
+            --border-subtle: rgba(0, 0, 0, 0.1);
+            --glass-bg: rgba(0, 0, 0, 0.02);
+            --success: #10b981;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Sora', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            min-height: 100vh;
+            color: var(--text-primary);
+        }
+        
+        .bg-pattern {
+            display: none;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--accent-primary);
+            text-decoration: none;
+            font-size: 0.9rem;
+            margin-bottom: 1.5rem;
+            transition: color 0.2s;
+        }
+        
+        .back-link:hover {
+            color: var(--accent-secondary);
+        }
+        
+        .header {
+            background: var(--glass-bg);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            backdrop-filter: blur(10px);
+        }
+        
+        .header h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            background: var(--accent-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .meta-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+            margin-top: 1rem;
+        }
+        
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .meta-label {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+        
+        .meta-value {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .r2-badge {
+            display: inline-block;
+            padding: 0.3rem 0.6rem;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        .section-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+        
+        .runs-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .run-card {
+            background: var(--glass-bg);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            overflow: hidden;
+            transition: border-color 0.2s;
+        }
+        
+        .run-card:hover {
+            border-color: rgba(99, 102, 241, 0.3);
+        }
+        
+        .run-card.best-run {
+            border-color: var(--success);
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.1);
+        }
+        
+        .run-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 1.25rem;
+            background: rgba(255, 255, 255, 0.02);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .run-header:hover {
+            background: rgba(255, 255, 255, 0.04);
+        }
+        
+        .run-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .run-badge {
+            padding: 0.25rem 0.6rem;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-secondary);
+        }
+        
+        .run-badge.best-badge {
+            background: var(--success);
+            color: white;
+        }
+        
+        .run-label {
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+        
+        .expand-icon {
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            transition: transform 0.2s;
+        }
+        
+        .run-header.expanded .expand-icon {
+            transform: rotate(180deg);
+        }
+        
+        .run-content {
+            border-top: 1px solid var(--border-subtle);
+        }
+        
+        .code-container {
+            overflow: hidden;
+        }
+        
+        .code-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 1.25rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-bottom: 1px solid var(--border-subtle);
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+        
+        .copy-btn {
+            padding: 0.35rem 0.75rem;
+            background: rgba(99, 102, 241, 0.2);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 6px;
+            color: var(--accent-primary);
+            font-size: 0.75rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        
+        .copy-btn:hover {
+            background: rgba(99, 102, 241, 0.3);
+        }
+        
+        .code-container pre {
+            margin: 0;
+            padding: 1.25rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            line-height: 1.6;
+            overflow-x: auto;
+            background: transparent !important;
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 3rem;
+            padding-top: 2rem;
+            border-top: 1px solid var(--border-subtle);
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+        
+        .footer a {
+            color: var(--accent-primary);
+            text-decoration: none;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+            
+            .header h1 {
+                font-size: 1.25rem;
+            }
+            
+            .meta-row {
+                flex-direction: column;
+                gap: 0.75rem;
+            }
+            
+            .run-info {
+                flex-wrap: wrap;
+                gap: 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-pattern"></div>
+    
+    <div class="container">
+        <a href="sld_index.html" class="back-link">
+            ← Back to Leaderboard
+        </a>
+        
+        <div class="header">
+            <h1>Vocabulary Scaling Law</h1>
+            <div class="meta-row">
+                <div class="meta-item">
+                    <span class="meta-label">Agent:</span>
+                    <span class="meta-value">SLDAgent</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Model:</span>
+                    <span class="meta-value">Gemini 3 Pro Preview</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Best R²:</span>
+                    <span class="r2-badge" style="background-color: #006400; color: white;">
+                        0.988201
+                    </span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Mean R²:</span>
+                    <span class="meta-value">0.982351</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Min R²:</span>
+                    <span class="meta-value">0.975751</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Runs:</span>
+                    <span class="meta-value">4</span>
+                </div>
+            </div>
+        </div>
+        
+        <h2 class="section-title">All Runs (sorted by R²)</h2>
+        
+        <div class="runs-container">
+            
+        <div class="run-card best-run">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge best-badge">Best</span>
+                    <span class="run-label">Run 5</span>
+                    <span class="r2-badge" style="background-color: #006400; color: white;">
+                        R² = 0.988201
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: block;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-0')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-0"># EVOLVE-BLOCK-START
+&quot;&quot;&quot;
+Scaling law discovery for LLM finetuning scenarios
+Improved program using an Exponential Interaction Scaling Law:
+Loss = Bias + exp(C_V(log(V) - V_opt)^2) * (C_N/N^alpha + C_D/D^beta)
+
+Refinements:
+1. Exponential Interaction: Replaces (1 + P_V) with exp(P_V) to ensure strict positivity and 
+   model the compounding cost of suboptimal tokenization more naturally (steep penalties for poor vocab).
+2. Two-Stage Optimization: Uses a diverse global scan followed by a high-precision refinement 
+   step to locate the global minimum and then converge tightly.
+3. Updated Centering: Adjusted normalization constant S_N to 5e8 to better align with the geometric mean of N.
+&quot;&quot;&quot;
+import numpy as np
+from scipy.optimize import minimize
+
+def scaling_law_func(data_points, params):
+    &quot;&quot;&quot;
+    Predicts Lossu based on parameters.
+    Model: y = Bias + Inefficiency * (Term_N + Term_D)
+    where Inefficiency = exp(C_V * (log(V/S_V) - V_opt)^2)
+          Term_N = C_N * (N/S_N)^(-alpha)
+          Term_D = C_D * (D/S_D)^(-beta)
+    
+    Args:
+        data_points: (N, 3) array [non_vocab_params, vocab_size, num_characters]
+        params: Array of 7 parameters [bias, log_CN, log_CD, log_CV, log_alpha, log_beta, V_opt]
+    &quot;&quot;&quot;
+    X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
+    params = np.atleast_2d(np.asarray(params, dtype=np.float64))
+    
+    # Scaling constants centered on dataset geometric means
+    S_N = 5e8   # Updated from 2e8 to better center on 3e7-1e9 range
+    S_V = 2e4   # Centered on 4k-96k
+    S_D = 2e10  # Centered on 1e8-5e12
+    
+    eps = 1e-20
+    # Normalize inputs
+    ln_N = np.log(np.maximum(X[:, 0] / S_N, eps))
+    ln_V = np.log(np.maximum(X[:, 1] / S_V, eps))
+    ln_D = np.log(np.maximum(X[:, 2] / S_D, eps))
+    
+    # Unpack parameters (Broadcast-ready)
+    bias   = params[:, 0]
+    C_N    = np.exp(params[:, 1])
+    C_D    = np.exp(params[:, 2])
+    C_V    = np.exp(params[:, 3])
+    alpha  = np.exp(params[:, 4])
+    beta   = np.exp(params[:, 5])
+    V_opt  = params[:, 6]
+    
+    # Power law terms: C * exp(-exponent * ln_input)
+    # Shapes: (N_data, T) via broadcasting
+    term_N = C_N[None, :] * np.exp(-alpha[None, :] * ln_N[:, None])
+    term_D = C_D[None, :] * np.exp(-beta[None, :] * ln_D[:, None])
+    
+    # Vocabulary Penalty: Exponential of quadratic difference
+    # Models the cost of vocabulary mismatch. 
+    # C_V controls the curvature (sensitivity).
+    diff_V = ln_V[:, None] - V_opt[None, :]
+    
+    # Safety clip to prevent overflow in exp during aggressive search
+    # This corresponds to penalty factor ~ exp(20) approx 4.8e8 (huge)
+    penalty_arg = np.minimum(C_V[None, :] * (diff_V**2), 20.0)
+    inefficiency = np.exp(penalty_arg)
+    
+    # Combined Model
+    pred = bias[None, :] + inefficiency * (term_N + term_D)
+    
+    if pred.shape[1] == 1:
+        return pred[:, 0]
+    return pred
+
+def fit_scaling_law(data_points, loss_values):
+    &quot;&quot;&quot;
+    Fits the scaling law using a robust two-stage L-BFGS-B optimization strategy.
+    &quot;&quot;&quot;
+    X = np.asarray(data_points, dtype=np.float64)
+    y = np.asarray(loss_values, dtype=np.float64)
+    
+    if y.ndim == 1:
+        y = y[:, None]
+    
+    n_targets = y.shape[1]
+    fitted_params = []
+    
+    # Heuristics for initialization
+    S_V = 2e4
+    ln_V_data = np.log(np.maximum(X[:, 1] / S_V, 1e-10))
+    min_ln_V, max_ln_V = np.min(ln_V_data), np.max(ln_V_data)
+    mean_ln_V = np.mean(ln_V_data)
+    
+    # Bounds: [Bias, lCN, lCD, lCV, lAlpha, lBeta, Vopt]
+    # Tighter bounds on log_CV to prevent numerical explosion
+    bounds = [
+        (None, None),      # Bias
+        (-20, 10),         # log_CN
+        (-20, 10),         # log_CD
+        (-20, 5),          # log_CV
+        (-5, 2),           # log_alpha (exp in [0.006, 7.3])
+        (-5, 2),           # log_beta
+        (min_ln_V - 2.0, max_ln_V + 2.0) # V_opt
+    ]
+    
+    for i in range(n_targets):
+        y_curr = y[:, i]
+        min_y = np.min(y_curr)
+        
+        def objective(p):
+            preds = scaling_law_func(X, p)
+            return np.mean((preds - y_curr)**2)
+        
+        # Grid Search Initialization Strategy
+        # We vary the initial bias offset, scaling coefficients, and exponents
+        # to ensure we find the global basin of attraction.
+        
+        # Base configs: [bias_offset, log_C, log_CV, log_alpha, log_beta_offset]
+        configs = [
+            # Standard: moderate bias, standard exponents
+            [0.5, -2.0, -4.0, -0.6, 0.0],
+            # Steep: large bias distance, steep scaling
+            [1.5, -1.0, -4.0, -0.3, 0.0],
+            # Flat: small bias distance, small exponents
+            [0.1, -4.0, -5.0, -1.5, 0.0],
+            # Asymmetric: Alpha != Beta
+            [0.5, -2.0, -4.0, -0.6, 0.4],
+            [0.5, -2.0, -4.0, -0.6, -0.4],
+        ]
+        
+        candidates = []
+        for (b_off, lC, lCV, lA, lB_off) in configs:
+            # Construct parameter vector
+            p = [min_y - b_off, lC, lC, lCV, lA, lA + lB_off, mean_ln_V]
+            candidates.append(p)
+            
+        # Add candidates for boundary V_opt
+        candidates.append([min_y - 0.5, -2.0, -4.0, -0.6, -0.6, min_ln_V])
+        candidates.append([min_y - 0.5, -2.0, -4.0, -0.6, -0.6, max_ln_V])
+
+        best_p = None
+        best_loss = np.inf
+        
+        # Stage 1: Global Search
+        for p0 in candidates:
+            try:
+                res = minimize(objective, np.array(p0), method=&#x27;L-BFGS-B&#x27;, bounds=bounds, tol=1e-5)
+                if res.success or res.message:
+                    if res.fun &lt; best_loss:
+                        best_loss = res.fun
+                        best_p = res.x
+            except Exception:
+                continue
+                
+        # Stage 2: Refinement
+        # Take the best result and polish it with high precision
+        if best_p is not None:
+            try:
+                res_final = minimize(objective, best_p, method=&#x27;L-BFGS-B&#x27;, bounds=bounds, 
+                                     options={&#x27;ftol&#x27;: 1e-11, &#x27;gtol&#x27;: 1e-11})
+                if res_final.fun &lt; best_loss:
+                    best_p = res_final.x
+            except Exception:
+                pass
+        else:
+            best_p = np.array(candidates[0])
+            
+        fitted_params.append(best_p)
+            
+    fitted_params = np.array(fitted_params)
+    if n_targets == 1:
+        return fitted_params[0]
+    return fitted_params
+# EVOLVE-BLOCK-END</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#2</span>
+                    <span class="run-label">Run 2</span>
+                    <span class="r2-badge" style="background-color: #006400; color: white;">
+                        R² = 0.987607
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-1')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-1"># EVOLVE-BLOCK-START
+&quot;&quot;&quot;
+Scaling law discovery for LLM finetuning scenarios
+Improved program using a Multiplicative Interaction Scaling Law with Decoupled Exponent Initialization.
+
+Model Form:
+    Loss = Bias + (1 + C_V * (log(V) - V_opt)^2) * (C_N * N^-alpha + C_D * D^-beta)
+
+Key Features:
+1.  Multiplicative Penalty: Models vocabulary efficiency as a multiplier on the base power law.
+2.  Decoupled Exponent Grid: Explicitly searches regions where alpha != beta, as parameter and data scaling 
+    efficiencies often differ (e.g., Chinchilla coefficients).
+3.  Robust Optimization: Uses Levenberg-Marquardt (least_squares) which is superior for 
+    sum-of-squares minimization compared to generic BFGS.
+4.  Standardized Inputs: Uses fixed geometric mean constants for numerical stability.
+&quot;&quot;&quot;
+import numpy as np
+from scipy.optimize import least_squares
+
+def scaling_law_func(data_points, params):
+    &quot;&quot;&quot;
+    Predicts Lossu based on the multiplicative scaling law.
+    
+    Args:
+        data_points: (N, 3) array [non_vocab_params, vocab_size, num_characters]
+        params: (7,) or (K, 7) array [bias, log_CN, log_CD, log_CV, log_alpha, log_beta, V_opt]
+    
+    Returns:
+        Predicted Loss: (N,) or (N, K)
+    &quot;&quot;&quot;
+    # 1. Standardize Inputs with fixed constants (approx geometric means of domain)
+    X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
+    P = np.atleast_2d(np.asarray(params, dtype=np.float64))
+    
+    # N ~ 2e8, V ~ 2e4, D ~ 2e10
+    eps = 1e-20
+    ln_N = np.log(np.maximum(X[:, 0] / 2.0e8, eps))
+    ln_V = np.log(np.maximum(X[:, 1] / 2.0e4, eps))
+    ln_D = np.log(np.maximum(X[:, 2] / 2.0e10, eps))
+    
+    # 2. Unpack Parameters (Broadcasting for vectorized batch evaluation)
+    # P shape: (K, 7). Reshape to (1, K) to broadcast against (N, 1) inputs
+    bias   = P[:, 0][None, :]
+    
+    # Enforce positivity for coefficients and exponents
+    C_N    = np.exp(P[:, 1])[None, :]
+    C_D    = np.exp(P[:, 2])[None, :]
+    C_V    = np.exp(P[:, 3])[None, :]
+    alpha  = np.exp(P[:, 4])[None, :]
+    beta   = np.exp(P[:, 5])[None, :]
+    
+    # V_opt is unconstrained in log-space
+    V_opt  = P[:, 6][None, :]
+    
+    # 3. Compute Scaling Terms
+    # Power laws: C * N^-alpha -&gt; C * exp(-alpha * ln_N)
+    term_N = C_N * np.exp(-alpha * ln_N[:, None])
+    term_D = C_D * np.exp(-beta * ln_D[:, None])
+    
+    # Vocabulary Inefficiency Penalty
+    # Quadratic in log-space: C_V * (ln_V - V_opt)^2
+    penalty = C_V * (ln_V[:, None] - V_opt)**2
+    
+    # 4. Combined Model
+    # Inefficiency factor (1 + penalty) multiplies the reducible loss
+    pred = bias + (1.0 + penalty) * (term_N + term_D)
+    
+    # Squeeze if single parameter set
+    if pred.shape[1] == 1:
+        return pred[:, 0]
+    return pred
+
+def fit_scaling_law(data_points, loss_values):
+    &quot;&quot;&quot;
+    Fits the scaling law using Grid-Search initialized Levenberg-Marquardt.
+    Handles both 1D and 2D target arrays.
+    &quot;&quot;&quot;
+    X = np.asarray(data_points, dtype=np.float64)
+    Y = np.asarray(loss_values, dtype=np.float64)
+    
+    squeeze_result = False
+    if Y.ndim == 1:
+        Y = Y[:, None]
+        squeeze_result = True
+        
+    n_targets = Y.shape[1]
+    fitted_params = []
+    
+    # Pre-calculate simple statistics for initialization
+    # Note: These are only used for finding starting points, not in the model function itself.
+    ln_V_data = np.log(np.maximum(X[:, 1] / 2.0e4, 1e-10))
+    v_mean = np.mean(ln_V_data)
+    
+    for i in range(n_targets):
+        y_tgt = Y[:, i]
+        min_y = np.min(y_tgt)
+        
+        # --- Grid Search Initialization ---
+        # Exploration of non-convex parameters (Bias, Exponents)
+        
+        # 1. Bias Candidates: Asymptote is typically below the minimum observed loss
+        bias_cands = min_y - np.array([0.02, 0.5, 2.0])
+        
+        # 2. Exponent Candidates (log-space):
+        # We explore both coupled (alpha=beta) and decoupled (alpha!=beta) regimes.
+        # -1.2 ~ 0.3, -0.5 ~ 0.6, 0.0 ~ 1.0
+        exp_pairs = [
+            (-1.2, -1.2), # Slow decay, coupled
+            (-0.5, -0.5), # Medium decay, coupled (Chinchilla-ish)
+            ( 0.0,  0.0), # Fast decay, coupled
+            (-1.2, -0.4), # Slow alpha, Fast beta
+            (-0.4, -1.2), # Fast alpha, Slow beta
+        ]
+        
+        # Initial guesses for linear-ish parameters (log-space)
+        # C_N, C_D ~ exp(-2) = 0.135
+        # C_V ~ exp(-4) = 0.018 (Start with small penalty assumption)
+        p_init_base = [-2.0, -2.0, -4.0]
+        
+        candidates = []
+        for b in bias_cands:
+            for (la, lb) in exp_pairs:
+                # [bias, log_CN, log_CD, log_CV, log_alpha, log_beta, V_opt]
+                candidates.append([b] + p_init_base + [la, lb, v_mean])
+        
+        candidates = np.array(candidates)
+        
+        # Vectorized Pre-screening
+        try:
+            preds = scaling_law_func(X, candidates) # Shape (N_data, N_candidates)
+            # Sum of squared residuals
+            ssr = np.sum((preds - y_tgt[:, None])**2, axis=0)
+            
+            # Keep top 3 seeds
+            best_indices = np.argsort(ssr)[:3]
+            seeds = candidates[best_indices]
+        except Exception:
+            seeds = candidates[:3]
+            
+        # --- Optimization Phase ---
+        def residuals(p):
+            return scaling_law_func(X, p) - y_tgt
+            
+        best_p = None
+        best_cost = np.inf
+        
+        for p0 in seeds:
+            try:
+                # Levenberg-Marquardt (&#x27;lm&#x27;) is ideal for sum-of-squares problems
+                res = least_squares(residuals, p0, method=&#x27;lm&#x27;, 
+                                  ftol=1e-6, xtol=1e-6, gtol=1e-6, max_nfev=600)
+                if res.cost &lt; best_cost:
+                    best_cost = res.cost
+                    best_p = res.x
+            except Exception:
+                continue
+        
+        if best_p is not None:
+            fitted_params.append(best_p)
+        else:
+            fitted_params.append(seeds[0])
+            
+    results = np.array(fitted_params)
+    if squeeze_result:
+        return results[0]
+    return results
+# EVOLVE-BLOCK-END</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#3</span>
+                    <span class="run-label">Run 1</span>
+                    <span class="r2-badge" style="background-color: #006400; color: white;">
+                        R² = 0.977844
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-2')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-2"># EVOLVE-BLOCK-START
+&quot;&quot;&quot;
+Scaling law discovery for LLM finetuning scenarios
+Improved program using a physics-inspired scaling law form with multi-start optimization.
+Model: Loss = Bias + C_N * N^(-alpha) + C_D * D^(-alpha) + C_V * (log(V) - V_opt)^2
+Refines optimal vocabulary scaling V_opt to depend on both model size (N) and data size (D),
+acknowledging that larger datasets justify larger vocabularies for rare token coverage.
+Uses a shared power-law exponent (alpha) for N and D to maintain parameter efficiency (7 params).
+&quot;&quot;&quot;
+import numpy as np
+from scipy.optimize import least_squares
+
+def scaling_law_func(data_points, params):
+    &quot;&quot;&quot;
+    Predicts Lossu based on parameters.
+    Model: y = Bias + C_N * N^(-alpha) + C_D * D^(-alpha) + C_V * (log(V) - V_opt)^2
+    where V_opt = V_base + gamma * (log(N) + rho * log(D)).
+    rho is fixed to 0.2 to incorporate data-scaling of vocabulary without extra parameters.
+    
+    Arguments:
+        data_points: (M, 3) array [non_vocab_params, vocab_size, num_characters]
+        params: (7,) or (T, 7) array
+            0: bias
+            1: log(C_N)
+            2: log(C_D)
+            3: log(C_V)
+            4: log(alpha)
+            5: V_base
+            6: gamma
+            
+    Returns:
+        (M,) or (M, T) array of predictions
+    &quot;&quot;&quot;
+    X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
+    params = np.asarray(params, dtype=np.float64)
+    if params.ndim == 1:
+        params = params[None, :]
+    
+    # Scaling constants to center inputs (N~1e9, V~1e4, D~1e12)
+    S_N, S_V, S_D = 1e9, 1e4, 1e12
+    # Fixed heuristic: Data size influences optimal vocabulary (rho*logD)
+    rho = 0.2
+    
+    # Safe logarithms of normalized inputs
+    eps = 1e-12
+    log_n = np.log(np.maximum(X[:, 0] / S_N, eps))
+    log_v = np.log(np.maximum(X[:, 1] / S_V, eps))
+    log_d = np.log(np.maximum(X[:, 2] / S_D, eps))
+    
+    # Unpack parameters
+    bias = params[:, 0]
+    
+    # Clip log-params to reasonable range to prevent overflow
+    # C_N, C_D, C_V, alpha are exp(param)
+    log_params = np.clip(params[:, 1:5], -30, 20)
+    
+    c_n    = np.exp(log_params[:, 0])
+    c_d    = np.exp(log_params[:, 1])
+    c_v    = np.exp(log_params[:, 2])
+    alpha  = np.exp(log_params[:, 3])
+    
+    v_base = params[:, 5]
+    gamma  = params[:, 6]
+    
+    # Term 1: Model Size Scaling C_N * N^-alpha
+    term_n = c_n[None, :] * np.exp(-alpha[None, :] * log_n[:, None])
+    
+    # Term 2: Data Size Scaling C_D * D^-alpha
+    term_d = c_d[None, :] * np.exp(-alpha[None, :] * log_d[:, None])
+    
+    # Term 3: Vocabulary Mismatch Penalty C_V * (logV - V_opt)^2
+    # Optimal V scales with Compute driver: logN + rho*logD
+    log_driver = log_n[:, None] + rho * log_d[:, None]
+    v_opt = v_base[None, :] + gamma[None, :] * log_driver
+    
+    diff_v = log_v[:, None] - v_opt
+    term_v = c_v[None, :] * (diff_v ** 2)
+    
+    # Total prediction
+    pred = bias[None, :] + term_n + term_d + term_v
+    
+    if pred.shape[1] == 1:
+        return pred[:, 0]
+    return pred
+
+def fit_scaling_law(data_points, loss_values):
+    &quot;&quot;&quot;
+    Fits parameters using Trust Region Reflective optimization with robust loss.
+    Initializes from multiple starting points to find global minimum.
+    &quot;&quot;&quot;
+    X = np.asarray(data_points, dtype=np.float64)
+    y = np.asarray(loss_values, dtype=np.float64)
+    
+    if y.ndim == 1:
+        y_2d = y[:, None]
+    else:
+        y_2d = y
+        
+    n_targets = y_2d.shape[1]
+    fitted_params = []
+    
+    # Scaling constants matching scaling_law_func
+    S_N, S_V, S_D = 1e9, 1e4, 1e12
+    rho = 0.2
+    
+    ln = np.log(np.maximum(X[:, 0] / S_N, 1e-12))
+    lv = np.log(np.maximum(X[:, 1] / S_V, 1e-12))
+    ld = np.log(np.maximum(X[:, 2] / S_D, 1e-12))
+    
+    mean_driver = np.mean(ln + rho * ld)
+    mean_lv = np.mean(lv)
+    
+    # Heuristic for V_base
+    def get_vbase(g_guess):
+        return mean_lv - g_guess * mean_driver
+    
+    def residuals(p, y_true):
+        return scaling_law_func(X, p) - y_true
+        
+    # Bounds: [Bias, lCn, lCd, lCv, lAlpha, Vbase, gamma]
+    # Restrict alpha to ~ [0.007, 2.7] (log scale -5 to 1)
+    # Restrict gamma to [-0.5, 1.5]
+    lb = [-np.inf, -20, -20, -20, -5.0, -20.0, -0.5]
+    ub = [ np.inf,  10,  10,  10,  1.0,  20.0,  1.5]
+    
+    for i in range(n_targets):
+        y_curr = y_2d[:, i]
+        min_y = np.min(y_curr)
+        
+        # Bias is asymptotic limit, typically below min observed loss
+        bias_init = min_y - 0.5
+        
+        # Diverse initial configurations
+        # [Bias, lCn, lCd, lCv, lAlpha, Vbase, gamma]
+        configs = [
+            # 1. Balanced Chinchilla (alpha=0.33, gamma=0.15)
+            [bias_init, 0.0, 0.0, -4.0, np.log(0.33), get_vbase(0.15), 0.15],
+            
+            # 2. Steep Scaling (alpha=0.5, gamma=0.25)
+            [bias_init, 0.0, 0.0, -3.0, np.log(0.5), get_vbase(0.25), 0.25],
+            
+            # 3. Shallow Scaling (alpha=0.1, gamma=0.05)
+            [bias_init, -1.0, -1.0, -4.0, np.log(0.1), get_vbase(0.05), 0.05],
+            
+            # 4. Data Dominant (High Cd, Low Cn)
+            [bias_init, -2.0, 1.0, -4.0, np.log(0.33), get_vbase(0.15), 0.15],
+            
+            # 5. Parameter Dominant (High Cn, Low Cd)
+            [bias_init, 1.0, -2.0, -4.0, np.log(0.33), get_vbase(0.15), 0.15],
+            
+            # 6. High Vocabulary Penalty
+            [bias_init, 0.0, 0.0, -1.0, np.log(0.33), get_vbase(0.15), 0.15],
+        ]
+        
+        best_res = None
+        best_cost = float(&#x27;inf&#x27;)
+        
+        for p0 in configs:
+            try:
+                res = least_squares(
+                    residuals, 
+                    np.array(p0), 
+                    bounds=(lb, ub),
+                    args=(y_curr,), 
+                    method=&#x27;trf&#x27;,
+                    loss=&#x27;soft_l1&#x27;,
+                    f_scale=0.1,
+                    max_nfev=1000,
+                    ftol=1e-9
+                )
+                if res.cost &lt; best_cost:
+                    best_cost = res.cost
+                    best_res = res
+            except Exception:
+                continue
+                
+        if best_res is not None:
+            fitted_params.append(best_res.x)
+        else:
+            fitted_params.append(np.array(configs[0]))
+            
+    fitted_params = np.array(fitted_params)
+    if n_targets == 1:
+        return fitted_params[0]
+    return fitted_params
+# EVOLVE-BLOCK-END</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#4</span>
+                    <span class="run-label">Run 4</span>
+                    <span class="r2-badge" style="background-color: #006400; color: white;">
+                        R² = 0.975751
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-3')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-3"># EVOLVE-BLOCK-START
+&quot;&quot;&quot;
+Scaling law discovery for LLM finetuning scenarios
+Improved program using a robust Variable Projection method.
+Model: Loss = Bias + C_N * N^(-alpha) + C_D * D^(-beta) + C_V1 * log(V) + C_V2 * log(V)^2
+This form linearizes the V-dependence parameters, reducing the non-linear search space
+to just 2 parameters (alpha, beta), which are solved via grid-search initialized BFGS.
+The linear parameters (Bias, C_N, C_D, C_V1, C_V2) are solved exactly with constraints.
+&quot;&quot;&quot;
+import numpy as np
+from scipy.optimize import minimize, lsq_linear
+
+def scaling_law_func(data_points, params):
+    &quot;&quot;&quot;
+    Predicts Lossu based on parameters.
+    Model: y = c0 + c1*N^-alpha + c2*D^-beta + c3*log(V_norm) + c4*log(V_norm)^2
+    params: [c0, c1, c2, c3, c4, alpha, beta]
+    &quot;&quot;&quot;
+    X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
+    params = np.atleast_1d(np.asarray(params, dtype=np.float64))
+    
+    # Constants for normalization 
+    S_N, S_V, S_D = 1e9, 1e4, 1e12
+    epsilon = 1e-12
+    
+    # Normalized inputs
+    N_hat = X[:, 0] / S_N
+    V_hat = X[:, 1] / S_V
+    D_hat = X[:, 2] / S_D
+    
+    # Logarithms
+    log_N = np.log(np.maximum(N_hat, epsilon))
+    log_D = np.log(np.maximum(D_hat, epsilon))
+    log_V = np.log(np.maximum(V_hat, epsilon))
+    
+    # Unpack parameters
+    # Assuming params is (7,)
+    if params.ndim == 1:
+        c0, c1, c2, c3, c4, alpha, beta = params
+        alpha = np.abs(alpha) # Ensure positive exponents if passed directly
+        beta = np.abs(beta)
+        
+        term_N = c1 * np.exp(-alpha * log_N)
+        term_D = c2 * np.exp(-beta * log_D)
+        term_V = c3 * log_V + c4 * (log_V**2)
+        
+        return c0 + term_N + term_D + term_V
+    else:
+        # Fallback for batch parameters if needed
+        return np.zeros(X.shape[0])
+
+def fit_scaling_law(data_points, loss_values):
+    &quot;&quot;&quot;
+    Fits the scaling law parameters using Variable Projection.
+    1. Fix non-linear exponents (alpha, beta).
+    2. Solve constrained linear least squares for coefficients.
+    3. Optimize (1) using a global-local search strategy.
+    &quot;&quot;&quot;
+    X = np.asarray(data_points, dtype=np.float64)
+    y = np.asarray(loss_values, dtype=np.float64)
+    
+    if y.ndim == 1:
+        y_2d = y[:, None]
+    else:
+        y_2d = y
+        
+    n_targets = y_2d.shape[1]
+    fitted_params = []
+    
+    # Constants
+    S_N, S_V, S_D = 1e9, 1e4, 1e12
+    epsilon = 1e-12
+    
+    # Precompute features independent of exponents
+    N_hat = X[:, 0] / S_N
+    D_hat = X[:, 2] / S_D
+    V_hat = X[:, 1] / S_V
+    
+    log_N = np.log(np.maximum(N_hat, epsilon))
+    log_D = np.log(np.maximum(D_hat, epsilon))
+    log_V = np.log(np.maximum(V_hat, epsilon))
+    log_V_sq = log_V**2
+    
+    # Ones for bias
+    ones = np.ones(len(X))
+    
+    # Loop over targets (usually 1)
+    for i in range(n_targets):
+        y_curr = y_2d[:, i]
+        
+        # Inner function: Solve linear params given alpha, beta
+        def solve_linear(exponents):
+            alpha, beta = exponents
+            
+            # Construct feature matrix A
+            # Columns: [Bias, N_term, D_term, V_term_linear, V_term_quad]
+            # N_term = N^-alpha = exp(-alpha * log_N)
+            term_N = np.exp(-alpha * log_N)
+            term_D = np.exp(-beta * log_D)
+            
+            # Stack columns (M, 5)
+            A = np.column_stack((ones, term_N, term_D, log_V, log_V_sq))
+            
+            # Constraints:
+            # c0 (Bias): unconstrained (-inf, inf)
+            # c1 (C_N): &gt;= 0 (Adding parameters reduces loss)
+            # c2 (C_D): &gt;= 0 (Adding data reduces loss)
+            # c3 (C_V1): unconstrained (Shifts V_opt)
+            # c4 (C_V2): &gt;= 0 (Convexity/Penalty for sub-optimal V)
+            lb = [-np.inf, 0, 0, -np.inf, 0]
+            ub = [np.inf, np.inf, np.inf, np.inf, np.inf]
+            
+            res = lsq_linear(A, y_curr, bounds=(lb, ub), tol=1e-8)
+            return res.x, res.cost # cost is 0.5 * sum of squared residuals
+            
+        # Outer objective
+        def objective(exponents):
+            _, cost = solve_linear(exponents)
+            return cost
+            
+        # Grid search for initialization of alpha, beta
+        # Range: [0.0, 3.0] covers most scaling laws (typically ~0.5)
+        grid_vals = [0.1, 0.33, 0.5, 0.75, 1.0, 1.5, 2.0]
+        best_x0 = np.array([0.5, 0.5])
+        best_cost = np.inf
+        
+        # Coarse grid search to avoid local minima
+        for a in grid_vals:
+            for b in grid_vals:
+                cost = objective([a, b])
+                if cost &lt; best_cost:
+                    best_cost = cost
+                    best_x0 = np.array([a, b])
+                    
+        # Refine with L-BFGS-B
+        # Bounds: exponents must be positive
+        res = minimize(objective, best_x0, method=&#x27;L-BFGS-B&#x27;, bounds=[(0, 10), (0, 10)], tol=1e-6)
+        
+        # Final extraction
+        final_exponents = res.x
+        final_coeffs, _ = solve_linear(final_exponents)
+        
+        # Pack parameters: [c0, c1, c2, c3, c4, alpha, beta]
+        p = np.concatenate((final_coeffs, final_exponents))
+        fitted_params.append(p)
+        
+    fitted_params = np.array(fitted_params)
+    if n_targets == 1:
+        return fitted_params[0]
+    return fitted_params
+# EVOLVE-BLOCK-END</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        </div>
+        
+        <footer class="footer">
+            <p>SLDBench | <a href="https://arxiv.org/abs/2507.21184" target="_blank">arXiv:2507.21184</a> | <a href="https://github.com/linhaowei1/SLD" target="_blank">GitHub</a></p>
+        </footer>
+    </div>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script>
+        function toggleRun(header) {
+            const content = header.nextElementSibling;
+            const isExpanded = content.style.display === 'block';
+            content.style.display = isExpanded ? 'none' : 'block';
+            header.classList.toggle('expanded', !isExpanded);
+        }
+        
+        function copyCode(event, codeId) {
+            event.stopPropagation();
+            const code = document.getElementById(codeId).textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                const btn = event.target;
+                btn.textContent = 'Copied!';
+                setTimeout(() => btn.textContent = 'Copy', 2000);
+            });
+        }
+        
+        Prism.highlightAll();
+    </script>
+</body>
+</html>

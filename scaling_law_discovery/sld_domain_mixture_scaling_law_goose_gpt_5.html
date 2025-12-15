@@ -1,0 +1,1140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SLD - Domain Mixture Scaling Law - goose + GPT-5</title>
+    <link rel="icon" type="image/png" href="assets/sld_logo.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" rel="stylesheet" />
+    <style>
+        :root {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8f9fa;
+            --accent-primary: #2563eb;
+            --accent-secondary: #3b82f6;
+            --accent-gradient: linear-gradient(135deg, #2563eb 0%, #3b82f6 50%, #60a5fa 100%);
+            --text-primary: #1f2937;
+            --text-secondary: #4b5563;
+            --border-subtle: rgba(0, 0, 0, 0.1);
+            --glass-bg: rgba(0, 0, 0, 0.02);
+            --success: #10b981;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Sora', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            min-height: 100vh;
+            color: var(--text-primary);
+        }
+        
+        .bg-pattern {
+            display: none;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--accent-primary);
+            text-decoration: none;
+            font-size: 0.9rem;
+            margin-bottom: 1.5rem;
+            transition: color 0.2s;
+        }
+        
+        .back-link:hover {
+            color: var(--accent-secondary);
+        }
+        
+        .header {
+            background: var(--glass-bg);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            backdrop-filter: blur(10px);
+        }
+        
+        .header h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            background: var(--accent-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .meta-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+            margin-top: 1rem;
+        }
+        
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .meta-label {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+        
+        .meta-value {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .r2-badge {
+            display: inline-block;
+            padding: 0.3rem 0.6rem;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        .section-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+        
+        .runs-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .run-card {
+            background: var(--glass-bg);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            overflow: hidden;
+            transition: border-color 0.2s;
+        }
+        
+        .run-card:hover {
+            border-color: rgba(99, 102, 241, 0.3);
+        }
+        
+        .run-card.best-run {
+            border-color: var(--success);
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.1);
+        }
+        
+        .run-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 1.25rem;
+            background: rgba(255, 255, 255, 0.02);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .run-header:hover {
+            background: rgba(255, 255, 255, 0.04);
+        }
+        
+        .run-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .run-badge {
+            padding: 0.25rem 0.6rem;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-secondary);
+        }
+        
+        .run-badge.best-badge {
+            background: var(--success);
+            color: white;
+        }
+        
+        .run-label {
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+        
+        .expand-icon {
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            transition: transform 0.2s;
+        }
+        
+        .run-header.expanded .expand-icon {
+            transform: rotate(180deg);
+        }
+        
+        .run-content {
+            border-top: 1px solid var(--border-subtle);
+        }
+        
+        .code-container {
+            overflow: hidden;
+        }
+        
+        .code-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 1.25rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-bottom: 1px solid var(--border-subtle);
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+        
+        .copy-btn {
+            padding: 0.35rem 0.75rem;
+            background: rgba(99, 102, 241, 0.2);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 6px;
+            color: var(--accent-primary);
+            font-size: 0.75rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        
+        .copy-btn:hover {
+            background: rgba(99, 102, 241, 0.3);
+        }
+        
+        .code-container pre {
+            margin: 0;
+            padding: 1.25rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            line-height: 1.6;
+            overflow-x: auto;
+            background: transparent !important;
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 3rem;
+            padding-top: 2rem;
+            border-top: 1px solid var(--border-subtle);
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+        
+        .footer a {
+            color: var(--accent-primary);
+            text-decoration: none;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+            
+            .header h1 {
+                font-size: 1.25rem;
+            }
+            
+            .meta-row {
+                flex-direction: column;
+                gap: 0.75rem;
+            }
+            
+            .run-info {
+                flex-wrap: wrap;
+                gap: 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-pattern"></div>
+    
+    <div class="container">
+        <a href="sld_index.html" class="back-link">
+            ← Back to Leaderboard
+        </a>
+        
+        <div class="header">
+            <h1>Domain Mixture Scaling Law</h1>
+            <div class="meta-row">
+                <div class="meta-item">
+                    <span class="meta-label">Agent:</span>
+                    <span class="meta-value">goose</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Model:</span>
+                    <span class="meta-value">GPT-5</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Best R²:</span>
+                    <span class="r2-badge" style="background-color: #006400; color: white;">
+                        0.971140
+                    </span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Mean R²:</span>
+                    <span class="meta-value">0.943936</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Min R²:</span>
+                    <span class="meta-value">0.842023</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Runs:</span>
+                    <span class="meta-value">5</span>
+                </div>
+            </div>
+        </div>
+        
+        <h2 class="section-title">All Runs (sorted by R²)</h2>
+        
+        <div class="runs-container">
+            
+        <div class="run-card best-run">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge best-badge">Best</span>
+                    <span class="run-label">Run 1</span>
+                    <span class="r2-badge" style="background-color: #006400; color: white;">
+                        R² = 0.971140
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: block;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-0')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-0">def law(input_data: list[dict[str, float]], group: str) -&gt; list[dict[str, float]]:
+    &quot;&quot;&quot;
+    Predicts output variables based on input variables according to a discovered scaling law.
+
+    Scaling law (same functional form for all groups and domains):
+        loss_domain_i = a_{g,i} + b_{g,i} * ln(proportion_domain_i + eps_{g,i})
+
+    If the provided group is unknown, a sensible fallback using the average
+    coefficients across known groups is used (per-domain averages of a, b, eps).
+    &quot;&quot;&quot;
+    import math
+
+    # Parameters per (group, domain): loss_i = a + b * ln(p_i + eps)
+    _PARAMS = {
+        &#x27;160M&#x27;: {
+            1: {&#x27;a&#x27;: 2.2531838390, &#x27;b&#x27;: -0.1337589930, &#x27;eps&#x27;: 0.0023949075},
+            2: {&#x27;a&#x27;: 3.2636809068, &#x27;b&#x27;: -0.0353192223, &#x27;eps&#x27;: 0.0027325293},
+            3: {&#x27;a&#x27;: 2.6179153875, &#x27;b&#x27;: -0.0924472969, &#x27;eps&#x27;: 0.0007308092},
+            4: {&#x27;a&#x27;: 1.1944779835, &#x27;b&#x27;: -0.1233168892, &#x27;eps&#x27;: 0.0019650546},
+            5: {&#x27;a&#x27;: 3.0846022090, &#x27;b&#x27;: -0.1417331522, &#x27;eps&#x27;: 0.0274723768},
+        },
+        &#x27;305M&#x27;: {
+            1: {&#x27;a&#x27;: 2.1168108211, &#x27;b&#x27;: -0.1266964846, &#x27;eps&#x27;: 0.0020990011},
+            2: {&#x27;a&#x27;: 3.0996329693, &#x27;b&#x27;: -0.0384297964, &#x27;eps&#x27;: 0.0046309399},
+            3: {&#x27;a&#x27;: 2.4992568493, &#x27;b&#x27;: -0.0832862054, &#x27;eps&#x27;: 0.0003779407},
+            4: {&#x27;a&#x27;: 1.1005269460, &#x27;b&#x27;: -0.1163058210, &#x27;eps&#x27;: 0.0018396558},
+            5: {&#x27;a&#x27;: 2.9190563483, &#x27;b&#x27;: -0.1362346592, &#x27;eps&#x27;: 0.0225414637},
+        },
+        &#x27;410M&#x27;: {
+            1: {&#x27;a&#x27;: 2.0629628567, &#x27;b&#x27;: -0.1220476872, &#x27;eps&#x27;: 0.0018396558},
+            2: {&#x27;a&#x27;: 3.0486794047, &#x27;b&#x27;: -0.0271283688, &#x27;eps&#x27;: 0.0012385352},
+            3: {&#x27;a&#x27;: 2.4325992818, &#x27;b&#x27;: -0.0837640232, &#x27;eps&#x27;: 0.0003538226},
+            4: {&#x27;a&#x27;: 1.0631159333, &#x27;b&#x27;: -0.1149495630, &#x27;eps&#x27;: 0.0019650546},
+            5: {&#x27;a&#x27;: 2.8414721314, &#x27;b&#x27;: -0.1401158009, &#x27;eps&#x27;: 0.0225414637},
+        },
+        &#x27;70M&#x27;: {
+            1: {&#x27;a&#x27;: 2.5360441935, &#x27;b&#x27;: -0.1540029694, &#x27;eps&#x27;: 0.0033302662},
+            2: {&#x27;a&#x27;: 3.5682949842, &#x27;b&#x27;: -0.0515955155, &#x27;eps&#x27;: 0.0078482616},
+            3: {&#x27;a&#x27;: 2.8873239058, &#x27;b&#x27;: -0.1015557222, &#x27;eps&#x27;: 0.0008906727},
+            4: {&#x27;a&#x27;: 1.4042502135, &#x27;b&#x27;: -0.1383351096, &#x27;eps&#x27;: 0.0019650546},
+            5: {&#x27;a&#x27;: 3.4357662053, &#x27;b&#x27;: -0.1381350881, &#x27;eps&#x27;: 0.0274723768},
+        },
+    }
+
+    # Build per-domain average fallback in case of unknown group
+    if group not in _PARAMS:
+        # compute averages across known groups for each domain
+        avg_params = {}
+        for i in range(1, 6):
+            a_vals = [gparams[i][&#x27;a&#x27;] for gparams in _PARAMS.values()]
+            b_vals = [gparams[i][&#x27;b&#x27;] for gparams in _PARAMS.values()]
+            eps_vals = [gparams[i][&#x27;eps&#x27;] for gparams in _PARAMS.values()]
+            avg_params[i] = {
+                &#x27;a&#x27;: sum(a_vals) / len(a_vals),
+                &#x27;b&#x27;: sum(b_vals) / len(b_vals),
+                &#x27;eps&#x27;: sum(eps_vals) / len(eps_vals),
+            }
+        params = avg_params
+    else:
+        params = _PARAMS[group]
+
+    predictions: list[dict[str, float]] = []
+    for row in input_data:
+        out: dict[str, float] = {}
+        for i in range(1, 6):
+            p = float(row.get(f&quot;proportion_domain_{i}&quot;, 0.0))
+            # numerical safety for log at extremely small or slightly negative due to noise
+            if p &lt; 0.0:
+                p = 0.0
+            a = params[i][&#x27;a&#x27;]
+            b = params[i][&#x27;b&#x27;]
+            eps = params[i][&#x27;eps&#x27;]
+            y = a + b * math.log(p + eps)
+            out[f&quot;loss_domain_{i}&quot;] = float(y)
+        predictions.append(out)
+
+    return predictions</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#2</span>
+                    <span class="run-label">Run 2</span>
+                    <span class="r2-badge" style="background-color: #006400; color: white;">
+                        R² = 0.971072
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-1')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-1">import math
+
+
+def law(input_data: list[dict[str, float]], group: str) -&gt; list[dict[str, float]]:
+    &quot;&quot;&quot;
+    Predicts output variables based on input variables according to a discovered scaling law.
+
+    Args:
+        input_data: A list of dictionaries, where each dictionary is a single data
+                    point containing input variable names as keys and their
+                    corresponding values.
+        group: The name of the experimental group for which to make predictions.
+                The functional form of the law is the same for all groups, but
+                the constant parameters/coefficients differ per group.
+
+    Returns:
+        A list of dictionaries, corresponding to the input_data list, with each
+        dictionary containing the predicted output variable(s).
+    &quot;&quot;&quot;
+    # Discovered scaling law parameters per group and domain
+    # Model: loss_domain_i = a + b * ln(proportion_domain_i + c)
+    # Coefficients were fitted on the provided dataset.
+    COEFFS: dict[str, dict[int, dict[str, float]]] = {
+        &quot;160M&quot;: {
+            1: {&quot;a&quot;: 2.255463034657955, &quot;b&quot;: -0.1322014387664249, &quot;c&quot;: 0.0022579423766059038},
+            2: {&quot;a&quot;: 3.2627500668798435, &quot;b&quot;: -0.035825707556857135, &quot;c&quot;: 0.002896657450965321},
+            3: {&quot;a&quot;: 2.6244424847304453, &quot;b&quot;: -0.09009357911542895, &quot;c&quot;: 0.0006498175348279338},
+            4: {&quot;a&quot;: 1.2003470092201818, &quot;b&quot;: -0.12033532343430565, &quot;c&quot;: 0.0017600644406102247},
+            5: {&quot;a&quot;: 3.0846622790213734, &quot;b&quot;: -0.14149413638165387, &quot;c&quot;: 0.027261874278143278},
+        },
+        &quot;305M&quot;: {
+            1: {&quot;a&quot;: 2.114124254258875, &quot;b&quot;: -0.12852626852708746, &quot;c&quot;: 0.0022579423766059038},
+            2: {&quot;a&quot;: 3.099085405020726, &quot;b&quot;: -0.03873697421213334, &quot;c&quot;: 0.004767225673466724},
+            3: {&quot;a&quot;: 2.4972468378996573, &quot;b&quot;: -0.08400352953211676, &quot;c&quot;: 0.0003948415562753178},
+            4: {&quot;a&quot;: 1.1027537337452233, &quot;b&quot;: -0.1151761426543334, &quot;c&quot;: 0.0017600644406102247},
+            5: {&quot;a&quot;: 2.919559840422695, &quot;b&quot;: -0.13456190779289226, &quot;c&quot;: 0.021250611175238732},
+        },
+        &quot;410M&quot;: {
+            1: {&quot;a&quot;: 2.0644864248236448, &quot;b&quot;: -0.1210234418135825, &quot;c&quot;: 0.0017600644406102247},
+            2: {&quot;a&quot;: 3.0475764758867196, &quot;b&quot;: -0.027711888083369603, &quot;c&quot;: 0.0013719689515536608},
+            3: {&quot;a&quot;: 2.4275273847120293, &quot;b&quot;: -0.08557331062431346, &quot;c&quot;: 0.0003948415562753178},
+            4: {&quot;a&quot;: 1.0558984541830227, &quot;b&quot;: -0.11864017408189217, &quot;c&quot;: 0.0022579423766059038},
+            5: {&quot;a&quot;: 2.8419851362063593, &quot;b&quot;: -0.13840170983545286, &quot;c&quot;: 0.021250611175238732},
+        },
+        &quot;70M&quot;: {
+            1: {&quot;a&quot;: 2.5423740680906737, &quot;b&quot;: -0.14957785135641832, &quot;c&quot;: 0.002896657450965321},
+            2: {&quot;a&quot;: 3.568303753809257, &quot;b&quot;: -0.0515903682298029, &quot;c&quot;: 0.007845746694759024},
+            3: {&quot;a&quot;: 2.891555035928987, &quot;b&quot;: -0.1000216033928399, &quot;c&quot;: 0.0008336345619486921},
+            4: {&quot;a&quot;: 1.4108355902865883, &quot;b&quot;: -0.13498993068037493, &quot;c&quot;: 0.0017600644406102247},
+            5: {&quot;a&quot;: 3.435824595629432, &quot;b&quot;: -0.1379023492163919, &quot;c&quot;: 0.027261874278143278},
+        },
+    }
+    DEFAULT_GROUP = &quot;70M&quot;
+
+    outputs: list[dict[str, float]] = []
+    for row in input_data:
+        pred: dict[str, float] = {}
+        for i in range(1, 6):
+            p = float(row.get(f&quot;proportion_domain_{i}&quot;, 0.0))
+            g = group if group in COEFFS else DEFAULT_GROUP
+            params = COEFFS[g][i]
+            a = params[&quot;a&quot;]
+            b = params[&quot;b&quot;]
+            c = params[&quot;c&quot;]
+            # Ensure numerical stability for very small/negative p
+            if p &lt; 0:
+                p = 0.0
+            y = a + b * math.log(p + c)
+            pred[f&quot;loss_domain_{i}&quot;] = float(y)
+        outputs.append(pred)
+    return outputs</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#3</span>
+                    <span class="run-label">Run 3</span>
+                    <span class="r2-badge" style="background-color: #006400; color: white;">
+                        R² = 0.970426
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-2')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-2">from __future__ import annotations
+from typing import List, Dict
+import math
+
+# Discovered functional form (per-domain, per-group parameters):
+#   loss_domain_i = a_{g,i} + b_{g,i} * (proportion_domain_i + c_{g,i}) ** (-alpha_{g,i})
+# The same functional form is used for all groups g; parameters differ by group and domain.
+#
+# We fitted these parameters on the provided dataset. For the four observed groups
+# (&#x27;70M&#x27;,&#x27;160M&#x27;,&#x27;305M&#x27;,&#x27;410M&#x27;), we hard-code the best parameters found via a coarse grid
+# over (alpha, c) and least-squares fit for (a, b). For unseen groups, we linearly
+# regress each parameter versus log(model_size) and use that trend to extrapolate.
+
+# Parameters per observed group (a, b, alpha, c) per domain index 1..5
+_PARAMS_BY_GROUP: Dict[str, Dict[int, Dict[str, float]]] = {
+    &#x27;70M&#x27;: {
+        1: {&#x27;a&#x27;: 1.9887972995594814, &#x27;b&#x27;: 0.5747539023729472, &#x27;alpha&#x27;: 0.2, &#x27;c&#x27;: 0.010628090822653227},
+        2: {&#x27;a&#x27;: 3.478375647232149,  &#x27;b&#x27;: 0.10946818216563689,&#x27;alpha&#x27;: 0.29743589743589743, &#x27;c&#x27;: 0.022132450145006925},
+        3: {&#x27;a&#x27;: 2.662255623173122,  &#x27;b&#x27;: 0.29249248967351243,&#x27;alpha&#x27;: 0.2, &#x27;c&#x27;: 0.002944084977655257},
+        4: {&#x27;a&#x27;: 1.3106586089315084, &#x27;b&#x27;: 0.17087362129489647,&#x27;alpha&#x27;: 0.3948717948717949, &#x27;c&#x27;: 0.012767292740982497},
+        5: {&#x27;a&#x27;: 3.269825262023636,  &#x27;b&#x27;: 0.18572717232438435,&#x27;alpha&#x27;: 0.5897435897435898, &#x27;c&#x27;: 0.11529793501972682},
+    },
+    &#x27;160M&#x27;: {
+        1: {&#x27;a&#x27;: 1.7790306985292368, &#x27;b&#x27;: 0.49777281762832476,&#x27;alpha&#x27;: 0.2, &#x27;c&#x27;: 0.008847319226258555},
+        2: {&#x27;a&#x27;: 3.147643888465916,  &#x27;b&#x27;: 0.12605528549680592,&#x27;alpha&#x27;: 0.2, &#x27;c&#x27;: 0.008847319226258555},
+        3: {&#x27;a&#x27;: 2.426971402916676,  &#x27;b&#x27;: 0.25800433609650775,&#x27;alpha&#x27;: 0.2, &#x27;c&#x27;: 0.002450793850108051},
+        4: {&#x27;a&#x27;: 0.7868481183561111, &#x27;b&#x27;: 0.4401977738333642, &#x27;alpha&#x27;: 0.2, &#x27;c&#x27;: 0.007364921771696289},
+        5: {&#x27;a&#x27;: 2.453268819807029,  &#x27;b&#x27;: 0.6393110153314099, &#x27;alpha&#x27;: 0.2, &#x27;c&#x27;: 0.05536652819843693},
+    },
+    &#x27;305M&#x27;: {
+        1: {&#x27;a&#x27;: 1.650844002886236,  &#x27;b&#x27;: 0.48398936723908575,&#x27;alpha&#x27;: 0.2, &#x27;c&#x27;: 0.008847319226258555},
+        2: {&#x27;a&#x27;: 3.145345522432937,  &#x27;b&#x27;: 0.000842624257026407,&#x27;alpha&#x27;: 2.9282051282051285, &#x27;c&#x27;: 0.16638288403323945},
+        3: {&#x27;a&#x27;: 2.329970918889095,  &#x27;b&#x27;: 0.2305617062841119, &#x27;alpha&#x27;: 0.2, &#x27;c&#x27;: 0.0016983205437168204},
+        4: {&#x27;a&#x27;: 0.7519113608459367, &#x27;b&#x27;: 0.39047606538528545,&#x27;alpha&#x27;: 0.2, &#x27;c&#x27;: 0.006130904889496624},
+        5: {&#x27;a&#x27;: 2.3271583641121616, &#x27;b&#x27;: 0.5999351396187924, &#x27;alpha&#x27;: 0.2, &#x27;c&#x27;: 0.046089684177061926},
+    },
+    &#x27;410M&#x27;: {
+        1: {&#x27;a&#x27;: 1.6401646612679839, &#x27;b&#x27;: 0.4464062192995915, &#x27;alpha&#x27;: 0.2, &#x27;c&#x27;: 0.007364921771696289},
+        2: {&#x27;a&#x27;: 3.0569561734470225, &#x27;b&#x27;: 0.012635254264443395,&#x27;alpha&#x27;: 0.6871794871794872, &#x27;c&#x27;: 0.022132450145006925},
+        3: {&#x27;a&#x27;: 2.257122316003787,  &#x27;b&#x27;: 0.23487158519383375,&#x27;alpha&#x27;: 0.2, &#x27;c&#x27;: 0.0016983205437168204},
+        4: {&#x27;a&#x27;: 0.6830677895878933, &#x27;b&#x27;: 0.4103719579323839, &#x27;alpha&#x27;: 0.2, &#x27;c&#x27;: 0.007364921771696289},
+        5: {&#x27;a&#x27;: 2.2329632735094207, &#x27;b&#x27;: 0.6168094915316678, &#x27;alpha&#x27;: 0.2, &#x27;c&#x27;: 0.046089684177061926},
+    },
+}
+
+# Linear-in-log(size) trend for unseen groups: parameter ~= u + v * log(model_size)
+# model_size parsed from group string (e.g., &#x27;70M&#x27; -&gt; 70e6). Values fitted from the same training data.
+# Structure: FITS[domain][param] = (u, v)
+_FITS_BY_LOGSIZE: Dict[int, Dict[str, tuple[float, float]]] = {
+    1: {
+        &#x27;a&#x27;: (5.660934950865894, -0.20419887240098242),
+        &#x27;b&#x27;: (1.7767893971925035, -0.0668774826289396),
+        &#x27;alpha&#x27;: (0.2, 0.0),
+        &#x27;c&#x27;: (0.03922594390798102, -0.0015882162200686668),
+    },
+    2: {
+        &#x27;a&#x27;: (7.408699678416423, -0.22020436827726178),
+        &#x27;b&#x27;: (1.3613732788033166, -0.06808625950778105),
+        &#x27;alpha&#x27;: (-14.612320116647743, 0.8197106109208487),
+        &#x27;c&#x27;: (-0.6519810182884438, 0.03704583868478927),
+    },
+    3: {
+        &#x27;a&#x27;: (6.678219554420149, -0.2232189634307364),
+        &#x27;b&#x27;: (0.9269627425670832, -0.035270492078040415),
+        &#x27;alpha&#x27;: (0.2, 0.0),
+        &#x27;c&#x27;: (0.016804595335682817, -0.0007655292505396046),
+    },
+    4: {
+        &#x27;a&#x27;: (7.3750527374798045, -0.34023825047309186),
+        &#x27;b&#x27;: (-2.0178969199781505, 0.12425623940963766),
+        &#x27;alpha&#x27;: (2.3019722108868343, -0.10760983274344801),
+        &#x27;c&#x27;: (0.07115201468643739, -0.0032884283026312243),
+    },
+    5: {
+        &#x27;a&#x27;: (13.48467303818107, -0.5719893785046406),
+        &#x27;b&#x27;: (-3.9077155402955737, 0.2315531989231151),
+        &#x27;alpha&#x27;: (4.4039444217736685, -0.21521966548689597),
+        &#x27;c&#x27;: (0.8131752563511551, -0.039174158612878644),
+    },
+}
+
+
+def _parse_group_size(group: str) -&gt; float | None:
+    &quot;&quot;&quot;Parse group string like &#x27;70M&#x27;, &#x27;1.3B&#x27; into a numeric size in tokens.
+
+    Returns None if parsing fails.
+    &quot;&quot;&quot;
+    if not isinstance(group, str) or not group:
+        return None
+    s = group.strip().upper()
+    try:
+        if s.endswith(&#x27;B&#x27;):
+            return float(s[:-1]) * 1e9
+        if s.endswith(&#x27;M&#x27;):
+            return float(s[:-1]) * 1e6
+        if s.endswith(&#x27;K&#x27;):
+            return float(s[:-1]) * 1e3
+        # Fallback: raw number
+        return float(s)
+    except Exception:
+        return None
+
+
+def _get_params_for_group(group: str) -&gt; Dict[int, Dict[str, float]]:
+    # If we have exact parameters for this group, return them.
+    if group in _PARAMS_BY_GROUP:
+        return _PARAMS_BY_GROUP[group]
+
+    # Otherwise, extrapolate/interpolate using linear fit versus log(size).
+    size = _parse_group_size(group)
+    if size is None or size &lt;= 0:
+        # Fallback to median known group parameters (use 160M as a reasonable default)
+        return _PARAMS_BY_GROUP[&#x27;160M&#x27;]
+
+    logn = math.log(size)
+    params: Dict[int, Dict[str, float]] = {}
+    for d, fits in _FITS_BY_LOGSIZE.items():
+        a_u, a_v = fits[&#x27;a&#x27;]
+        b_u, b_v = fits[&#x27;b&#x27;]
+        al_u, al_v = fits[&#x27;alpha&#x27;]
+        c_u, c_v = fits[&#x27;c&#x27;]
+        a = a_u + a_v * logn
+        b = b_u + b_v * logn
+        alpha = al_u + al_v * logn
+        c = c_u + c_v * logn
+        # Guardrails: keep parameters in reasonable ranges
+        alpha = max(0.05, float(alpha))
+        c = max(1e-6, float(c))
+        b = max(1e-8, float(b))
+        params[d] = {&#x27;a&#x27;: float(a), &#x27;b&#x27;: float(b), &#x27;alpha&#x27;: float(alpha), &#x27;c&#x27;: float(c)}
+    return params
+
+
+def law(input_data: List[Dict[str, float]], group: str) -&gt; List[Dict[str, float]]:
+    &quot;&quot;&quot;
+    Predicts output variables based on input variables according to a discovered scaling law.
+
+    Args:
+        input_data: A list of dictionaries, where each dictionary is a single data
+                    point containing input variable names as keys and their
+                    corresponding values. Expected keys: &#x27;proportion_domain_1&#x27;..&#x27;_5&#x27;.
+        group: The name of the experimental group for which to make predictions.
+                The functional form of the law is the same for all groups,
+                but the constant parameters/coefficients can differ per group.
+
+    Returns:
+        A list of dictionaries, corresponding to the input_data list, with each
+        dictionary containing the predicted output variable(s):
+        &#x27;loss_domain_1&#x27;..&#x27;_5&#x27;.
+    &quot;&quot;&quot;
+    params_by_domain = _get_params_for_group(group)
+
+    outputs: List[Dict[str, float]] = []
+    for row in input_data:
+        out: Dict[str, float] = {}
+        for d in range(1, 6):
+            p = float(row.get(f&#x27;proportion_domain_{d}&#x27;, 0.0))
+            par = params_by_domain[d]
+            a = par[&#x27;a&#x27;]
+            b = par[&#x27;b&#x27;]
+            alpha = par[&#x27;alpha&#x27;]
+            c = par[&#x27;c&#x27;]
+            # Ensure numerical stability
+            x = max(0.0, p) + c
+            y = a + b * (x ** (-alpha))
+            out[f&#x27;loss_domain_{d}&#x27;] = float(y)
+        outputs.append(out)
+    return outputs</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#4</span>
+                    <span class="run-label">Run 4</span>
+                    <span class="r2-badge" style="background-color: #006400; color: white;">
+                        R² = 0.965021
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-3')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-3">from __future__ import annotations
+
+from typing import Dict, List
+
+# Discovered scaling law (same functional form for all groups):
+#   loss_domain_i(p) = a_i + b_i * p + c_i * sqrt(p_eps) + d_i / sqrt(p_eps)
+# where p_eps = max(p, eps) with eps = 1e-8 for numerical stability at p=0.
+# Coefficients (a_i, b_i, c_i, d_i) vary by experimental group and by domain i.
+# These were fit via least squares on the provided dataset.
+
+import math
+
+# Group- and domain-specific parameters (a, b, c, d)
+_PARAMS: Dict[str, Dict[int, List[float]]] = {
+    # 160M
+    &quot;160M&quot;: {
+        1: [2.852643507112996, 0.5079373888086807, -1.0796605253398814, 2.0787176420883635e-05],
+        2: [3.354383873226113, -0.37869509907848437, 0.0896600728386695, 1.177445603007801e-05],
+        3: [2.347377598500148, -13.805640202637328, 5.641670151072003, 9.376136946540265e-05],
+        4: [1.8042334785143834, 0.8353298815978365, -1.2981302396786871, 1.589539097983332e-05],
+        5: [3.5849119562787277, 0.2559696004923059, -0.758695672520524, 1.0076550902818928e-06],
+    },
+    # 305M
+    &quot;305M&quot;: {
+        1: [2.706834215254821, 0.5880677740198962, -1.1276437000774089, 1.9130955209367118e-05],
+        2: [3.2017362691741527, -0.37187187552261475, 0.07149899259874355, 1.0444032008682824e-05],
+        3: [2.169244558185138, -14.140803471052271, 5.865028311622053, 9.857923560960747e-05],
+        4: [1.7004746672414206, 0.9689402903601732, -1.3627948240241132, 1.326360669137494e-05],
+        5: [3.4565779916529773, 0.38064813646972745, -0.9095505284674135, -2.207395814670825e-06],
+    },
+    # 410M
+    &quot;410M&quot;: {
+        1: [2.6309647984255844, 0.5673263318126346, -1.085609650668732, 2.010250371618536e-05],
+        2: [3.112610624866361, -0.3369700553653706, 0.10271603621695127, 1.1765535009316992e-05],
+        3: [2.090987095821702, -14.41194746580547, 5.986201940650726, 0.00010066659956643521],
+        4: [1.6814138568367192, 1.1507555128736286, -1.4921179761773755, 9.810216859529726e-06],
+        5: [3.3436836877501346, 0.2595236072021162, -0.7633518960486015, 3.100351755000551e-06],
+    },
+    # 70M
+    &quot;70M&quot;: {
+        1: [3.232089856516487, 0.6342384359826007, -1.284813531062777, 1.8294673741495497e-05],
+        2: [3.7081016310626413, -0.444398338713182, 0.06425723222437253, 1.1032071859421705e-05],
+        3: [2.727368677530126, -12.547994180570411, 4.978112989985035, 8.727731059550263e-05],
+        4: [2.1695959734275863, 1.5585707751928726, -1.9218402484504162, 9.693091047463545e-06],
+        5: [4.009115069855263, 0.48733821145363176, -1.042620301077381, -7.726820572537514e-06],
+    },
+}
+
+# Fallback parameters if group not found: fit across all groups jointly per domain.
+_DEFAULT_PARAMS: Dict[int, List[float]] = {
+    1: [2.8556330943274784, 0.5743924826559886, -1.1444318517872365, 1.9578827271952478e-05],
+    2: [3.3442080995823162, -0.3829838421699124, 0.08203308346968709, 1.1254023726860987e-05],
+    3: [2.3337444824927815, -13.726596330795772, 5.617753348542388, 9.507112880974419e-05],
+    4: [1.838929494005038, 1.1283991150062023, -1.5187208220827102, 1.2165576394408536e-05],
+    5: [3.5985721763843057, 0.34586988890451575, -0.8685545995285723, -1.4565523854500717e-06],
+}
+
+
+def _predict_loss_for_domain(p: float, coeffs: List[float]) -&gt; float:
+    eps = 1e-8
+    p_clamped = max(min(float(p), 1.0), 0.0)
+    r = math.sqrt(max(p_clamped, eps))
+    a, b, c, d = coeffs
+    return a + b * p_clamped + c * r + d / r
+
+
+def law(input_data: List[Dict[str, float]], group: str) -&gt; List[Dict[str, float]]:
+    &quot;&quot;&quot;
+    Predicts output variables based on input variables according to a discovered scaling law.
+
+    Args:
+        input_data: A list of dictionaries, where each dictionary is a single data
+                    point containing input variable names as keys and their
+                    corresponding values.
+        group: The name of the experimental group for which to make predictions.
+                The functional form of the law is the same for all groups,
+                but the constant parameters/coefficients differ per group.
+
+    Returns:
+        A list of dictionaries, corresponding to the input_data list, with each
+        dictionary containing the predicted output variable(s):
+        loss_domain_1 .. loss_domain_5.
+    &quot;&quot;&quot;
+    group_params = _PARAMS.get(group, None)
+    if group_params is None:
+        group_params = _DEFAULT_PARAMS
+    outputs: List[Dict[str, float]] = []
+    for row in input_data:
+        pred: Dict[str, float] = {}
+        for i in range(1, 6):
+            p = row.get(f&quot;proportion_domain_{i}&quot;)
+            if p is None:
+                # If missing, assume zero contribution for that domain.
+                p = 0.0
+            coeffs = group_params.get(i, _DEFAULT_PARAMS[i])
+            pred[f&quot;loss_domain_{i}&quot;] = _predict_loss_for_domain(p, coeffs)
+        outputs.append(pred)
+    return outputs</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#5</span>
+                    <span class="run-label">Run 5</span>
+                    <span class="r2-badge" style="background-color: #228B22; color: white;">
+                        R² = 0.842023
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-4')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-4">from __future__ import annotations
+
+from math import log
+from typing import Dict, List
+
+# Discovered scaling law:
+#   For each output loss_domain_i, predict as a linear function of the
+#   logarithms of all five domain proportions (with a tiny epsilon for stability):
+#       \hat{L}_{g,i} = bias_{g,i} + sum_j w_{g,i,j} * log(p_j + eps)
+#   The functional form is fixed; parameters (biases and weights) depend on group g.
+#   Coefficients were fit by ordinary least squares on the provided dataset.
+
+EPS = 1e-12
+
+# Per-group, per-output coefficients learned on the provided dataset.
+# Keys: group -&gt; domain_{i} -&gt; {bias, log_p1..log_p5}
+COEFFS: Dict[str, Dict[str, Dict[str, float]]] = {
+    &quot;160M&quot;: {
+        &quot;domain_1&quot;: {
+            &quot;bias&quot;: 2.4422650614387416,
+            &quot;log_p1&quot;: -0.02277638164592572,
+            &quot;log_p2&quot;: -0.0010526071930561662,
+            &quot;log_p3&quot;: 0.0023643145622796475,
+            &quot;log_p4&quot;: -0.0025583225480046595,
+            &quot;log_p5&quot;: 0.004378832847069199,
+        },
+        &quot;domain_2&quot;: {
+            &quot;bias&quot;: 3.3408696428701075,
+            &quot;log_p1&quot;: 0.0012198254051165147,
+            &quot;log_p2&quot;: -0.005388376734279845,
+            &quot;log_p3&quot;: 3.717373734748179e-05,
+            &quot;log_p4&quot;: 0.001569209092862663,
+            &quot;log_p5&quot;: -0.002615879540461004,
+        },
+        &quot;domain_3&quot;: {
+            &quot;bias&quot;: 2.8574312884633413,
+            &quot;log_p1&quot;: 0.0018047356370065415,
+            &quot;log_p2&quot;: 0.0005929693186934749,
+            &quot;log_p3&quot;: -0.016974557643524405,
+            &quot;log_p4&quot;: 0.0016523205850350147,
+            &quot;log_p5&quot;: -0.0022616680413822805,
+        },
+        &quot;domain_4&quot;: {
+            &quot;bias&quot;: 1.4313732131696744,
+            &quot;log_p1&quot;: -5.1765954939435764e-05,
+            &quot;log_p2&quot;: 0.00089014156596828,
+            &quot;log_p3&quot;: 0.00025768087959735246,
+            &quot;log_p4&quot;: -0.019712789545137503,
+            &quot;log_p5&quot;: 0.0031631020272182907,
+        },
+        &quot;domain_5&quot;: {
+            &quot;bias&quot;: 3.2257864919233756,
+            &quot;log_p1&quot;: 0.0029557696510542136,
+            &quot;log_p2&quot;: 0.0026611908853740054,
+            &quot;log_p3&quot;: -0.0008885188514808986,
+            &quot;log_p4&quot;: 0.002963471212841412,
+            &quot;log_p5&quot;: -0.014216518710413713,
+        },
+    },
+    &quot;305M&quot;: {
+        &quot;domain_1&quot;: {
+            &quot;bias&quot;: 2.2924869661791267,
+            &quot;log_p1&quot;: -0.022229067565166443,
+            &quot;log_p2&quot;: -0.001013806799899392,
+            &quot;log_p3&quot;: 0.00223467186554643,
+            &quot;log_p4&quot;: -0.002645873902860267,
+            &quot;log_p5&quot;: 0.003982864991197694,
+        },
+        &quot;domain_2&quot;: {
+            &quot;bias&quot;: 3.178656522099369,
+            &quot;log_p1&quot;: 0.001107302828752052,
+            &quot;log_p2&quot;: -0.005157973767038715,
+            &quot;log_p3&quot;: 2.3050110124257784e-05,
+            &quot;log_p4&quot;: 0.001316251689675477,
+            &quot;log_p5&quot;: -0.0028425410208344046,
+        },
+        &quot;domain_3&quot;: {
+            &quot;bias&quot;: 2.709373598108862,
+            &quot;log_p1&quot;: 0.0016635063654583334,
+            &quot;log_p2&quot;: 0.0006628818961311013,
+            &quot;log_p3&quot;: -0.017547370822364454,
+            &quot;log_p4&quot;: 0.0014206959628518868,
+            &quot;log_p5&quot;: -0.002139388852229081,
+        },
+        &quot;domain_4&quot;: {
+            &quot;bias&quot;: 1.3211315997161879,
+            &quot;log_p1&quot;: -0.00024768872185789104,
+            &quot;log_p2&quot;: 0.0007428895039710641,
+            &quot;log_p3&quot;: 0.0002693184497085781,
+            &quot;log_p4&quot;: -0.01890218970791502,
+            &quot;log_p5&quot;: 0.0030105938208213993,
+        },
+        &quot;domain_5&quot;: {
+            &quot;bias&quot;: 3.0545845875446473,
+            &quot;log_p1&quot;: 0.002854476470176697,
+            &quot;log_p2&quot;: 0.0026446139943498434,
+            &quot;log_p3&quot;: -0.0008847006391603586,
+            &quot;log_p4&quot;: 0.002650748867952872,
+            &quot;log_p5&quot;: -0.014590961474216001,
+        },
+    },
+    &quot;410M&quot;: {
+        &quot;domain_1&quot;: {
+            &quot;bias&quot;: 2.2343717924971283,
+            &quot;log_p1&quot;: -0.021983874135919367,
+            &quot;log_p2&quot;: -0.0006526879839640017,
+            &quot;log_p3&quot;: 0.0019063557364627178,
+            &quot;log_p4&quot;: -0.0022375323165275815,
+            &quot;log_p5&quot;: 0.003693691571213775,
+        },
+        &quot;domain_2&quot;: {
+            &quot;bias&quot;: 3.1081386488108924,
+            &quot;log_p1&quot;: 0.0012757792324108383,
+            &quot;log_p2&quot;: -0.004861060292668727,
+            &quot;log_p3&quot;: -0.00025971561825861964,
+            &quot;log_p4&quot;: 0.0015980855298738693,
+            &quot;log_p5&quot;: -0.003151617877548417,
+        },
+        &quot;domain_3&quot;: {
+            &quot;bias&quot;: 2.6457079548318867,
+            &quot;log_p1&quot;: 0.0017179901900188285,
+            &quot;log_p2&quot;: 0.0008184656194115004,
+            &quot;log_p3&quot;: -0.017971019588506255,
+            &quot;log_p4&quot;: 0.0016870680564514456,
+            &quot;log_p5&quot;: -0.0023896692822175354,
+        },
+        &quot;domain_4&quot;: {
+            &quot;bias&quot;: 1.2820975851894605,
+            &quot;log_p1&quot;: -0.00043994437500341244,
+            &quot;log_p2&quot;: 0.0010961729632694766,
+            &quot;log_p3&quot;: 0.00016179126609633246,
+            &quot;log_p4&quot;: -0.01836235643857456,
+            &quot;log_p5&quot;: 0.0027422260133483827,
+        },
+        &quot;domain_5&quot;: {
+            &quot;bias&quot;: 2.9806037129271403,
+            &quot;log_p1&quot;: 0.0028948032957862636,
+            &quot;log_p2&quot;: 0.002904176943938192,
+            &quot;log_p3&quot;: -0.0011826414336436638,
+            &quot;log_p4&quot;: 0.00291564957025589,
+            &quot;log_p5&quot;: -0.015090031561988756,
+        },
+    },
+    &quot;70M&quot;: {
+        &quot;domain_1&quot;: {
+            &quot;bias&quot;: 2.7516102214862785,
+            &quot;log_p1&quot;: -0.024366773302687862,
+            &quot;log_p2&quot;: -0.00140949302483008,
+            &quot;log_p3&quot;: 0.0026992835128934697,
+            &quot;log_p4&quot;: -0.0031027937470278375,
+            &quot;log_p5&quot;: 0.0048722418014892025,
+        },
+        &quot;domain_2&quot;: {
+            &quot;bias&quot;: 3.6719317859686043,
+            &quot;log_p1&quot;: 0.0011625721914211736,
+            &quot;log_p2&quot;: -0.005916469283232795,
+            &quot;log_p3&quot;: 0.0001159058459700631,
+            &quot;log_p4&quot;: 0.001253484647821796,
+            &quot;log_p5&quot;: -0.0023991782312973043,
+        },
+        &quot;domain_3&quot;: {
+            &quot;bias&quot;: 3.148901142003107,
+            &quot;log_p1&quot;: 0.0019476114702619417,
+            &quot;log_p2&quot;: 0.0005957023862280053,
+            &quot;log_p3&quot;: -0.01776813563794145,
+            &quot;log_p4&quot;: 0.0013179243483677264,
+            &quot;log_p5&quot;: -0.002183184626543552,
+        },
+        &quot;domain_4&quot;: {
+            &quot;bias&quot;: 1.6665569458710474,
+            &quot;log_p1&quot;: -0.00025847451148676925,
+            &quot;log_p2&quot;: 0.0008758521651152874,
+            &quot;log_p3&quot;: 0.00029735558927713497,
+            &quot;log_p4&quot;: -0.022152540972955964,
+            &quot;log_p5&quot;: 0.0033608606565960417,
+        },
+        &quot;domain_5&quot;: {
+            &quot;bias&quot;: 3.5732020332438177,
+            &quot;log_p1&quot;: 0.003066036404538771,
+            &quot;log_p2&quot;: 0.002572530514690887,
+            &quot;log_p3&quot;: -0.0008951939451058563,
+            &quot;log_p4&quot;: 0.0027436364335349703,
+            &quot;log_p5&quot;: -0.013811286335446366,
+        },
+    },
+}
+
+# Fallback pooled coefficients (across all groups) in case an unknown group is requested.
+FALLBACK: Dict[str, Dict[str, float]] = {
+    &quot;domain_1&quot;: {
+        &quot;bias&quot;: 2.4301835104003184,
+        &quot;log_p1&quot;: -0.02283902416242487,
+        &quot;log_p2&quot;: -0.001032148750437415,
+        &quot;log_p3&quot;: 0.002301156419295567,
+        &quot;log_p4&quot;: -0.0026361306286050916,
+        &quot;log_p5&quot;: 0.004231907802742471,
+    },
+    &quot;domain_2&quot;: {
+        &quot;bias&quot;: 3.3248991499372433,
+        &quot;log_p1&quot;: 0.0011913699144251472,
+        &quot;log_p2&quot;: -0.005330970019305012,
+        &quot;log_p3&quot;: -2.0896481204204573e-05,
+        &quot;log_p4&quot;: 0.001434257740058452,
+        &quot;log_p5&quot;: -0.0027523041675352787,
+    },
+    &quot;domain_3&quot;: {
+        &quot;bias&quot;: 2.8403534958517995,
+        &quot;log_p1&quot;: 0.0017834609156864088,
+        &quot;log_p2&quot;: 0.00066750480511602,
+        &quot;log_p3&quot;: -0.01756527092308412,
+        &quot;log_p4&quot;: 0.0015195022381765178,
+        &quot;log_p5&quot;: -0.0022434777005931115,
+    },
+    &quot;domain_4&quot;: {
+        &quot;bias&quot;: 1.4252898359865924,
+        &quot;log_p1&quot;: -0.0002494683908218775,
+        &quot;log_p2&quot;: 0.0009012640495810252,
+        &quot;log_p3&quot;: 0.0002465365461698426,
+        &quot;log_p4&quot;: -0.019782469166145775,
+        &quot;log_p5&quot;: 0.003069195629496027,
+    },
+    &quot;domain_5&quot;: {
+        &quot;bias&quot;: 3.208544206409745,
+        &quot;log_p1&quot;: 0.0029427714553889924,
+        &quot;log_p2&quot;: 0.0026956280845882408,
+        &quot;log_p3&quot;: -0.0009627637173476962,
+        &quot;log_p4&quot;: 0.0028183765211462894,
+        &quot;log_p5&quot;: -0.014427199520516213,
+    },
+}
+
+
+def _predict_one(row: Dict[str, float], coeffs: Dict[str, Dict[str, float]]) -&gt; Dict[str, float]:
+    # Build log-proportion features with numerical stability for zeros
+    logs = [log(float(row.get(f&quot;proportion_domain_{j}&quot;, 0.0)) + EPS) for j in range(1, 6)]
+    out: Dict[str, float] = {}
+    for i in range(1, 6):
+        c = coeffs.get(f&quot;domain_{i}&quot;)
+        if c is None:
+            # If missing, fall back to pooled per-domain coefficients
+            c = FALLBACK[f&quot;domain_{i}&quot;]
+        val = c[&quot;bias&quot;]
+        for j in range(1, 6):
+            val += c[f&quot;log_p{j}&quot;] * logs[j - 1]
+        out[f&quot;loss_domain_{i}&quot;] = float(val)
+    return out
+
+
+def law(input_data: List[Dict[str, float]], group: str) -&gt; List[Dict[str, float]]:
+    &quot;&quot;&quot;
+    Predicts output variables based on input variables according to a discovered scaling law.
+
+    Args:
+        input_data: A list of dictionaries, where each dictionary is a single data
+                    point containing input variable names as keys and their
+                    corresponding values.
+        group: The name of the experimental group for which to make predictions.
+                The functional form of the law is the same for all groups,
+                but the constant parameters/coefficients can differ per group.
+
+    Returns:
+        A list of dictionaries, corresponding to the input_data list, with each
+        dictionary containing the predicted output variable(s): loss_domain_1..5.
+    &quot;&quot;&quot;
+    # Select coefficients for the provided group (fallback if unknown)
+    coeffs = COEFFS.get(group)
+    if coeffs is None:
+        # Unknown group: use pooled (group-agnostic) coefficients for all domains
+        coeffs = FALLBACK
+    return [_predict_one(row, coeffs) for row in input_data]</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        </div>
+        
+        <footer class="footer">
+            <p>SLDBench | <a href="https://arxiv.org/abs/2507.21184" target="_blank">arXiv:2507.21184</a> | <a href="https://github.com/linhaowei1/SLD" target="_blank">GitHub</a></p>
+        </footer>
+    </div>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script>
+        function toggleRun(header) {
+            const content = header.nextElementSibling;
+            const isExpanded = content.style.display === 'block';
+            content.style.display = isExpanded ? 'none' : 'block';
+            header.classList.toggle('expanded', !isExpanded);
+        }
+        
+        function copyCode(event, codeId) {
+            event.stopPropagation();
+            const code = document.getElementById(codeId).textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                const btn = event.target;
+                btn.textContent = 'Copied!';
+                setTimeout(() => btn.textContent = 'Copy', 2000);
+            });
+        }
+        
+        Prism.highlightAll();
+    </script>
+</body>
+</html>

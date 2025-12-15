@@ -1,0 +1,2126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>SLD - Can Language Models Discover Scaling Laws?</title>
+    <link rel="icon" type="image/png" href="assets/sld_logo.png">
+    
+    <!-- Social Preview Tags -->
+    <meta property="og:title" content="Can Language Models Discover Scaling Laws?">
+    <meta property="og:description" content="SLDBench: A benchmark for evaluating AI agents on scaling law discovery. Introducing SLDAgent, an evolution-based agent that discovers scaling laws more accurately than human-derived laws.">
+    <meta property="og:type" content="website">
+    <meta property="og:image" content="assets/sld_logo.png">
+    <meta name="description" content="SLDBench: A benchmark for evaluating AI agents on scaling law discovery. Introducing SLDAgent for automated scaling law discovery.">
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    
+    <style>
+        :root {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8f9fa;
+            --bg-tertiary: #f1f3f4;
+            --accent-primary: #2563eb;
+            --accent-secondary: #3b82f6;
+            --accent-gradient: linear-gradient(135deg, #2563eb 0%, #3b82f6 50%, #60a5fa 100%);
+            --text-primary: #1f2937;
+            --text-secondary: #4b5563;
+            --text-muted: #6b7280;
+            --border-subtle: rgba(0, 0, 0, 0.1);
+            --glass-bg: rgba(0, 0, 0, 0.02);
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Sora', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+        
+        /* Subtle Background Pattern */
+        .bg-pattern {
+            display: none;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 2rem;
+            position: relative;
+            z-index: 1;
+        }
+        
+        /* Header Section */
+        .header-section {
+            padding: 4rem 0 3rem;
+            text-align: center;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        
+        .title-container {
+            margin-bottom: 1.5rem;
+        }
+        
+        .main-title {
+            font-size: 3.5rem;
+            font-weight: 700;
+            background: var(--accent-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: -0.02em;
+            margin-bottom: 0.5rem;
+        }
+        
+        .subtitle {
+            font-size: 1.5rem;
+            color: var(--text-secondary);
+            font-weight: 400;
+            margin-bottom: 1rem;
+        }
+        
+        .conference-badge {
+            display: inline-block;
+            padding: 0.5rem 1.25rem;
+            background: var(--glass-bg);
+            border: 1px solid var(--border-subtle);
+            border-radius: 999px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 2rem;
+        }
+        
+        /* Authors */
+        .authors-container {
+            margin-bottom: 2rem;
+        }
+        
+        .author-name {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            margin: 0 0.5rem;
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+        
+        .author-name:hover {
+            color: var(--accent-primary);
+        }
+        
+        /* Buttons */
+        .buttons-container {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+        
+        .button {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            border-radius: 10px;
+            font-size: 0.95rem;
+            font-weight: 500;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+        
+        .button-primary {
+            background: var(--accent-gradient);
+            color: white;
+            border: none;
+        }
+        
+        .button-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(99, 102, 241, 0.3);
+        }
+        
+        .button-secondary {
+            background: var(--glass-bg);
+            color: var(--text-primary);
+            border: 1px solid var(--border-subtle);
+        }
+        
+        .button-secondary:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: var(--accent-primary);
+        }
+        
+        /* Overview Section */
+        .overview-section {
+            padding: 4rem 0;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        
+        .section-title {
+            font-size: 1.75rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            color: var(--text-primary);
+        }
+        
+        .overview-text {
+            font-size: 1.1rem;
+            color: var(--text-secondary);
+            line-height: 1.8;
+            max-width: 800px;
+        }
+        
+        .task-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+        
+        .task-card-link {
+            text-decoration: none;
+            display: block;
+        }
+        
+        .task-card {
+            background: var(--glass-bg);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            padding: 1.25rem;
+            transition: all 0.2s;
+            height: 100%;
+        }
+        
+        .task-card-link:hover .task-card {
+            border-color: var(--accent-primary);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(37, 99, 235, 0.12);
+        }
+        
+        .task-card h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .task-card p {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+        
+        .task-card p strong {
+            color: var(--accent-primary);
+            font-weight: 600;
+        }
+        
+        /* Leaderboard Section */
+        .leaderboard-section {
+            padding: 4rem 0;
+        }
+        
+        .leaderboard-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        
+        .filter-controls {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+        
+        .filter-btn {
+            padding: 0.5rem 1rem;
+            background: var(--glass-bg);
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        
+        .filter-btn:hover {
+            background: rgba(0, 0, 0, 0.05);
+        }
+        
+        .filter-btn.active {
+            background: var(--accent-primary);
+            border-color: var(--accent-primary);
+            color: white;
+        }
+        
+        /* Table Styles */
+        .table-container {
+            overflow-x: auto;
+            border-radius: 16px;
+            border: 1px solid var(--border-subtle);
+            background: var(--glass-bg);
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+        
+        thead {
+            background: var(--bg-secondary);
+        }
+        
+        th {
+            padding: 1rem;
+            text-align: left;
+            font-weight: 600;
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--border-subtle);
+            white-space: nowrap;
+        }
+        
+        td {
+            padding: 0.875rem 1rem;
+            border-bottom: 1px solid var(--border-subtle);
+            color: var(--text-primary);
+        }
+        
+        tbody tr:hover {
+            background: var(--bg-secondary);
+        }
+        
+        tbody tr:last-child td {
+            border-bottom: none;
+        }
+        
+        .model-cell {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        
+        .model-logo {
+            width: 24px;
+            height: 24px;
+            border-radius: 6px;
+            object-fit: contain;
+        }
+        
+        .r2-badge {
+            display: inline-block;
+            padding: 0.3rem 0.6rem;
+            border-radius: 6px;
+            font-weight: 500;
+            font-size: 0.85rem;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        .r2-excellent { background: rgba(16, 185, 129, 0.15); color: #059669; }
+        .r2-good { background: rgba(34, 197, 94, 0.15); color: #16a34a; }
+        .r2-moderate { background: rgba(245, 158, 11, 0.15); color: #d97706; }
+        .r2-poor { background: rgba(239, 68, 68, 0.15); color: #dc2626; }
+        .r2-negative { background: rgba(220, 38, 38, 0.15); color: #b91c1c; }
+        
+        .solution-link {
+            color: var(--accent-primary);
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+        
+        .solution-link:hover {
+            color: var(--accent-secondary);
+            text-decoration: underline;
+        }
+        
+        /* Task Tabs */
+        .task-tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        
+        .task-tab {
+            padding: 0.6rem 1rem;
+            background: transparent;
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        
+        .task-tab:hover {
+            background: var(--glass-bg);
+            color: var(--text-primary);
+        }
+        
+        .task-tab.active {
+            background: var(--accent-primary);
+            border-color: var(--accent-primary);
+            color: white;
+        }
+        
+        /* Footer */
+        .footer {
+            padding: 3rem 0;
+            text-align: center;
+            border-top: 1px solid var(--border-subtle);
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .main-title {
+                font-size: 2.5rem;
+            }
+            
+            .subtitle {
+                font-size: 1.2rem;
+            }
+            
+            .container {
+                padding: 0 1rem;
+            }
+            
+            .header-section {
+                padding: 2rem 0;
+            }
+            
+            th, td {
+                padding: 0.75rem 0.5rem;
+                font-size: 0.8rem;
+            }
+        }
+        
+        /* Summary Cards */
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin: 2rem 0;
+        }
+        
+        .summary-card {
+            background: var(--glass-bg);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            padding: 1.5rem;
+            text-align: center;
+        }
+        
+        .summary-card .value {
+            font-size: 2rem;
+            font-weight: 700;
+            background: var(--accent-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .summary-card .label {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            margin-top: 0.25rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-pattern"></div>
+    
+    <div class="container">
+        <header class="header-section">
+            <div class="title-container">
+                <h1 class="main-title">Can Language Models Discover Scaling Laws?</h1>
+                <p class="subtitle">SLDBench & SLDAgent: Automated Scaling Law Discovery</p>
+            </div>
+            
+            <div class="conference-badge">
+                arXiv 2025
+            </div>
+            
+            <div class="authors-container" style="line-height: 2;">
+                <a href="https://linhaowei1.github.io/" target="_blank" class="author-name">Haowei Lin<sup style="color: var(--accent-primary);">*</sup></a>
+                <a href="https://haotianye.com/" target="_blank" class="author-name">Haotian Ye<sup style="color: var(--accent-primary);">*</sup></a>
+                <a href="https://scholar.google.com/citations?hl=zh-CN&user=cjRV2IsAAAAJ" target="_blank" class="author-name">Wenzheng Feng</a>
+                <a href="https://andrewzhe.github.io/" target="_blank" class="author-name">Quzhe Huang</a>
+                <span class="author-name">Yujun Li</span>
+                <span class="author-name">Hubert Lim</span>
+                <span class="author-name">Zhengrui Li</span>
+                <span class="author-name">Xiangyu Wang</span>
+                <a href="https://majianzhu.com/" target="_blank" class="author-name">Jianzhu Ma</a>
+                <a href="https://www.ai.pku.edu.cn/en/info/1409/1829.htm" target="_blank" class="author-name">Yitao Liang</a>
+                <a href="https://www.james-zou.com/" target="_blank" class="author-name">James Zou</a>
+            </div>
+            
+            <div class="affiliations-container" style="margin-bottom: 0.5rem;">
+                <span style="color: var(--text-muted); font-size: 0.9rem;">Peking University · Stanford University · Wizard Quant · Tsinghua University</span>
+            </div>
+            <div style="margin-bottom: 1.5rem;">
+                <span style="color: var(--text-muted); font-size: 0.8rem;"><sup style="color: var(--accent-primary);">*</sup> Equal contribution</span>
+            </div>
+            
+            <div class="buttons-container">
+                <a href="https://arxiv.org/abs/2507.21184" class="button button-primary" target="_blank">
+                    <i class="fas fa-file-pdf"></i> Paper
+                </a>
+                <a href="https://github.com/linhaowei1/SLD" class="button button-secondary" target="_blank">
+                    <i class="fab fa-github"></i> Code
+                </a>
+                <a href="https://huggingface.co/datasets/pkuHaowei/sldbench" class="button button-secondary" target="_blank">
+                    <i class="fas fa-database"></i> Dataset
+                </a>
+                <a href="https://algorithmicsuperintelligence.ai/blog/openevolve-sldagent/index.html" class="button button-secondary" target="_blank">
+                    <i class="fas fa-blog"></i> Blog
+                </a>
+                <a href="https://github.com/laude-institute/harbor-datasets/tree/main/datasets/sldbench" class="button button-secondary" target="_blank">
+                    <i class="fas fa-anchor"></i> Harbor
+                </a>
+                <a href="#leaderboard" class="button button-secondary">
+                    <i class="fas fa-trophy"></i> Leaderboard
+                </a>
+            </div>
+        </header>
+        
+        <section class="overview-section">
+            <h2 class="section-title">Overview</h2>
+            <p class="overview-text">
+                We frame <strong>scaling law discovery</strong> as a benchmarked "scientific agent" task by curating thousands of experiments across diverse settings. 
+                We introduce <strong>SLDAgent</strong>, an evolution-based agent that jointly searches scaling-law functional forms and fits parameters. 
+                Across tasks, the discovered laws extrapolate more accurately than established human-derived laws, validating usefulness in both pretraining and finetuning scenarios.
+            </p>
+            
+            <h3 class="section-title" style="margin-top: 2rem;">Benchmark Tasks</h3>
+            <div class="task-grid">
+                <a href="https://arxiv.org/abs/2505.10475" target="_blank" class="task-card-link">
+                    <div class="task-card">
+                        <h3>Parallel Scaling Law <i class="fas fa-external-link-alt" style="font-size: 0.7rem; opacity: 0.6;"></i></h3>
+                        <p>Predicts language-modeling loss as a function of model size <strong>N</strong> and inference parallelism <strong>P</strong>.</p>
+                    </div>
+                </a>
+                <a href="https://arxiv.org/abs/2407.13623" target="_blank" class="task-card-link">
+                    <div class="task-card">
+                        <h3>Vocabulary Scaling Law <i class="fas fa-external-link-alt" style="font-size: 0.7rem; opacity: 0.6;"></i></h3>
+                        <p>Models unigram-normalized loss as a function of non-vocabulary model size <strong>N</strong>, vocabulary size <strong>V</strong>, and dataset size <strong>D</strong>.</p>
+                    </div>
+                </a>
+                <a href="https://arxiv.org/abs/2402.02314" target="_blank" class="task-card-link">
+                    <div class="task-card">
+                        <h3>SFT Scaling Law <i class="fas fa-external-link-alt" style="font-size: 0.7rem; opacity: 0.6;"></i></h3>
+                        <p>Models finetuning loss based on the supervised fine-tuning dataset size <strong>D</strong>.</p>
+                    </div>
+                </a>
+                <a href="https://arxiv.org/abs/2403.16952" target="_blank" class="task-card-link">
+                    <div class="task-card">
+                        <h3>Domain Mixture Scaling Law <i class="fas fa-external-link-alt" style="font-size: 0.7rem; opacity: 0.6;"></i></h3>
+                        <p>Models each domain's pre-training loss based on that domain's proportion in the training mixture.</p>
+                    </div>
+                </a>
+                <a href="https://arxiv.org/abs/2402.07871" target="_blank" class="task-card-link">
+                    <div class="task-card">
+                        <h3>MoE Scaling Law <i class="fas fa-external-link-alt" style="font-size: 0.7rem; opacity: 0.6;"></i></h3>
+                        <p>Models loss in relation to network size <strong>N</strong> and number of experts <strong>E</strong>.</p>
+                    </div>
+                </a>
+                <a href="https://arxiv.org/abs/2305.16264" target="_blank" class="task-card-link">
+                    <div class="task-card">
+                        <h3>Data-Constrained Scaling Law <i class="fas fa-external-link-alt" style="font-size: 0.7rem; opacity: 0.6;"></i></h3>
+                        <p>Models pre-training loss as a function of network size <strong>N</strong>, dataset size <strong>D</strong>, and number of unique tokens <strong>U</strong>.</p>
+                    </div>
+                </a>
+                <a href="https://arxiv.org/abs/2503.04715" target="_blank" class="task-card-link">
+                    <div class="task-card">
+                        <h3>LR & Batch Size Scaling Law <i class="fas fa-external-link-alt" style="font-size: 0.7rem; opacity: 0.6;"></i></h3>
+                        <p>Models pre-training loss based on learning rate <strong>l</strong>, batch size <strong>b</strong>, dataset size <strong>D</strong>, and network size <strong>N</strong>.</p>
+                    </div>
+                </a>
+                <a href="https://arxiv.org/abs/2410.01692" target="_blank" class="task-card-link">
+                    <div class="task-card">
+                        <h3>U-shaped Scaling Law <i class="fas fa-external-link-alt" style="font-size: 0.7rem; opacity: 0.6;"></i></h3>
+                        <p>Models performance (Brier score) as a non-monotonic function of compute measured in FLOPs <strong>C</strong>.</p>
+                    </div>
+                </a>
+            </div>
+        </section>
+        
+        <section class="leaderboard-section" id="leaderboard">
+            <div class="leaderboard-header">
+                <h2 class="section-title" style="margin-bottom: 0;">Leaderboard</h2>
+                <div class="filter-controls">
+                    <button class="filter-btn active" onclick="showTable('all')">All Tasks</button>
+                    <button class="filter-btn" onclick="showTable('sldagent')">SLDAgent Only</button>
+                    <button class="filter-btn" onclick="showTable('general')">General Agents</button>
+                </div>
+            </div>
+            
+            <div class="task-tabs" id="taskTabs">
+                <button class="task-tab active" data-task="all">All Tasks (Avg)</button>
+                <button class="task-tab" data-task="parallel_scaling_law">Parallel</button>
+                <button class="task-tab" data-task="vocab_scaling_law">Vocabulary</button>
+                <button class="task-tab" data-task="sft_scaling_law">SFT</button>
+                <button class="task-tab" data-task="domain_mixture_scaling_law">Domain Mixture</button>
+                <button class="task-tab" data-task="moe_scaling_law">MoE</button>
+                <button class="task-tab" data-task="data_constrained_scaling_law">Data-Constrained</button>
+                <button class="task-tab" data-task="lr_bsz_scaling_law">LR & Batch Size</button>
+                <button class="task-tab" data-task="easy_question_scaling_law">U-shaped</button>
+            </div>
+            
+            <div class="table-container">
+                <table id="leaderboardTable">
+                    <thead>
+                        <tr>
+                            <th>Rank</th>
+                            <th>Agent</th>
+                            <th>Model</th>
+                            <th>Mean R²</th>
+                            <th>Max R²</th>
+                            <th>Runs</th>
+                            <th>Solution</th>
+                        </tr>
+                    </thead>
+                    <tbody id="leaderboardBody">
+                        <!-- Will be populated by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+        
+        <!-- Citation Section -->
+        <section class="citation-section" style="padding: 3rem 0; border-top: 1px solid var(--border-subtle);">
+            <h2 style="font-size: 1.5rem; font-weight: 600; margin-bottom: 1.5rem; text-align: center;">Citation</h2>
+            <div class="citation-box" style="background: var(--bg-secondary); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 1.5rem; position: relative;">
+                <button onclick="copyCitation()" style="position: absolute; top: 1rem; right: 1rem; padding: 0.5rem 1rem; background: var(--accent-primary); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-family: inherit;">Copy</button>
+                <pre style="font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; line-height: 1.6; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word; color: var(--text-secondary); margin: 0;">@article{lin2025sld,
+  title={Can Language Models Discover Scaling Laws?},
+  author={Lin, Haowei and Ye, Haotian and Feng, Wenzheng and Huang, Quzhe and Li, Yujun and Lim, Hubert and Li, Zhengrui and Wang, Xiangyu and Ma, Jianzhu and Liang, Yitao and Zou, James},
+  journal={arXiv preprint arXiv:2507.21184},
+  year={2025}
+}</pre>
+            </div>
+        </section>
+
+        <!-- Contact Section -->
+        <section class="contact-section" style="padding: 2rem 0 3rem; text-align: center;">
+            <h2 style="font-size: 1.5rem; font-weight: 600; margin-bottom: 1rem;">Contribute</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 1rem;">Want to connect or contribute new scaling law tasks to SLDBench?</p>
+            <p style="color: var(--text-primary);">
+                Contact: <a href="mailto:linhaowei@pku.edu.cn" style="color: var(--accent-primary); text-decoration: none; font-weight: 500;">Haowei Lin (linhaowei@pku.edu.cn)</a>
+            </p>
+        </section>
+
+        <footer class="footer">
+            <p>SLDBench © 2025 | Peking University · Stanford University · Wizard Quant · Tsinghua University</p>
+            <p style="margin-top: 0.5rem;">
+                <a href="https://arxiv.org/abs/2507.21184" target="_blank" style="color: var(--accent-primary); text-decoration: none;">arXiv</a>
+                · <a href="https://algorithmicsuperintelligence.ai/blog/openevolve-sldagent/index.html" target="_blank" style="color: var(--accent-primary); text-decoration: none;">Blog</a>
+                · <a href="https://github.com/laude-institute/harbor-datasets/tree/main/datasets/sldbench" target="_blank" style="color: var(--accent-primary); text-decoration: none;">Harbor</a>
+            </p>
+        </footer>
+    </div>
+    
+    <script>
+        // Leaderboard data (will be populated from JSON)
+        const leaderboardData = [
+  {
+    "task": "parallel_scaling_law",
+    "agent": "SLDAgent",
+    "model": "gemini-3-pro-preview",
+    "mean_r2": 0.9996588,
+    "max_r2": 0.999659,
+    "min_r2": 0.999658,
+    "count": 5
+  },
+  {
+    "task": "parallel_scaling_law",
+    "agent": "SLDAgent",
+    "model": "claude-haiku-4-5-20251001",
+    "mean_r2": 0.9998647999999999,
+    "max_r2": 0.99996,
+    "min_r2": 0.999731,
+    "count": 5
+  },
+  {
+    "task": "parallel_scaling_law",
+    "agent": "SLDAgent",
+    "model": "o4-mini",
+    "mean_r2": 0.9996601999999999,
+    "max_r2": 0.999667,
+    "min_r2": 0.999658,
+    "count": 5
+  },
+  {
+    "task": "parallel_scaling_law",
+    "agent": "SLDAgent",
+    "model": "gemini-2.5-flash",
+    "mean_r2": 0.9996662000000001,
+    "max_r2": 0.999695,
+    "min_r2": 0.999658,
+    "count": 5
+  },
+  {
+    "task": "parallel_scaling_law",
+    "agent": "SLDAgent",
+    "model": "claude-sonnet-4-5-20250929",
+    "mean_r2": 0.9998998,
+    "max_r2": 0.99997,
+    "min_r2": 0.99987,
+    "count": 5
+  },
+  {
+    "task": "parallel_scaling_law",
+    "agent": "SLDAgent",
+    "model": "gpt-5",
+    "mean_r2": 0.9997603999999999,
+    "max_r2": 0.999912,
+    "min_r2": 0.99966,
+    "count": 5
+  },
+  {
+    "task": "vocab_scaling_law",
+    "agent": "SLDAgent",
+    "model": "gemini-3-pro-preview",
+    "mean_r2": 0.98235075,
+    "max_r2": 0.988201,
+    "min_r2": 0.975751,
+    "count": 4
+  },
+  {
+    "task": "vocab_scaling_law",
+    "agent": "SLDAgent",
+    "model": "claude-haiku-4-5-20251001",
+    "mean_r2": 0.9574076,
+    "max_r2": 0.972263,
+    "min_r2": 0.949266,
+    "count": 5
+  },
+  {
+    "task": "vocab_scaling_law",
+    "agent": "SLDAgent",
+    "model": "o4-mini",
+    "mean_r2": 0.9806608000000001,
+    "max_r2": 0.985849,
+    "min_r2": 0.971575,
+    "count": 5
+  },
+  {
+    "task": "vocab_scaling_law",
+    "agent": "SLDAgent",
+    "model": "gemini-2.5-flash",
+    "mean_r2": 0.767992,
+    "max_r2": 0.987151,
+    "min_r2": 0.01696,
+    "count": 5
+  },
+  {
+    "task": "vocab_scaling_law",
+    "agent": "SLDAgent",
+    "model": "claude-sonnet-4-5-20250929",
+    "mean_r2": 0.9803414,
+    "max_r2": 0.984953,
+    "min_r2": 0.976718,
+    "count": 5
+  },
+  {
+    "task": "vocab_scaling_law",
+    "agent": "SLDAgent",
+    "model": "gpt-5",
+    "mean_r2": 0.9876962,
+    "max_r2": 0.989298,
+    "min_r2": 0.985422,
+    "count": 5
+  },
+  {
+    "task": "sft_scaling_law",
+    "agent": "SLDAgent",
+    "model": "gemini-3-pro-preview",
+    "mean_r2": 0.9920244,
+    "max_r2": 0.993071,
+    "min_r2": 0.991557,
+    "count": 5
+  },
+  {
+    "task": "sft_scaling_law",
+    "agent": "SLDAgent",
+    "model": "claude-haiku-4-5-20251001",
+    "mean_r2": 0.9767526,
+    "max_r2": 0.992046,
+    "min_r2": 0.967566,
+    "count": 5
+  },
+  {
+    "task": "sft_scaling_law",
+    "agent": "SLDAgent",
+    "model": "o4-mini",
+    "mean_r2": 0.9934662,
+    "max_r2": 0.994732,
+    "min_r2": 0.99157,
+    "count": 5
+  },
+  {
+    "task": "sft_scaling_law",
+    "agent": "SLDAgent",
+    "model": "gemini-2.5-flash",
+    "mean_r2": 0.9811182,
+    "max_r2": 0.982485,
+    "min_r2": 0.980766,
+    "count": 5
+  },
+  {
+    "task": "sft_scaling_law",
+    "agent": "SLDAgent",
+    "model": "claude-sonnet-4-5-20250929",
+    "mean_r2": 0.983403,
+    "max_r2": 0.994992,
+    "min_r2": 0.959688,
+    "count": 5
+  },
+  {
+    "task": "sft_scaling_law",
+    "agent": "SLDAgent",
+    "model": "gpt-5",
+    "mean_r2": 0.9931324,
+    "max_r2": 0.99503,
+    "min_r2": 0.991851,
+    "count": 5
+  },
+  {
+    "task": "domain_mixture_scaling_law",
+    "agent": "SLDAgent",
+    "model": "gemini-3-pro-preview",
+    "mean_r2": 0.9896405999999999,
+    "max_r2": 0.989908,
+    "min_r2": 0.989378,
+    "count": 5
+  },
+  {
+    "task": "domain_mixture_scaling_law",
+    "agent": "SLDAgent",
+    "model": "claude-haiku-4-5-20251001",
+    "mean_r2": 0.9594938,
+    "max_r2": 0.986123,
+    "min_r2": 0.930786,
+    "count": 5
+  },
+  {
+    "task": "domain_mixture_scaling_law",
+    "agent": "SLDAgent",
+    "model": "o4-mini",
+    "mean_r2": 0.9791567999999999,
+    "max_r2": 0.9918,
+    "min_r2": 0.94959,
+    "count": 5
+  },
+  {
+    "task": "domain_mixture_scaling_law",
+    "agent": "SLDAgent",
+    "model": "gemini-2.5-flash",
+    "mean_r2": 0.9904168,
+    "max_r2": 0.99046,
+    "min_r2": 0.990382,
+    "count": 5
+  },
+  {
+    "task": "domain_mixture_scaling_law",
+    "agent": "SLDAgent",
+    "model": "claude-sonnet-4-5-20250929",
+    "mean_r2": 0.9151897999999999,
+    "max_r2": 0.994208,
+    "min_r2": 0.813832,
+    "count": 5
+  },
+  {
+    "task": "domain_mixture_scaling_law",
+    "agent": "SLDAgent",
+    "model": "gpt-5",
+    "mean_r2": 0.9096681999999999,
+    "max_r2": 0.989346,
+    "min_r2": 0.870736,
+    "count": 5
+  },
+  {
+    "task": "moe_scaling_law",
+    "agent": "SLDAgent",
+    "model": "gemini-3-pro-preview",
+    "mean_r2": 0.8442923999999999,
+    "max_r2": 0.850315,
+    "min_r2": 0.841581,
+    "count": 5
+  },
+  {
+    "task": "moe_scaling_law",
+    "agent": "SLDAgent",
+    "model": "claude-haiku-4-5-20251001",
+    "mean_r2": 0.8279476000000001,
+    "max_r2": 0.863257,
+    "min_r2": 0.763915,
+    "count": 5
+  },
+  {
+    "task": "moe_scaling_law",
+    "agent": "SLDAgent",
+    "model": "o4-mini",
+    "mean_r2": 0.8693496,
+    "max_r2": 0.911308,
+    "min_r2": 0.850705,
+    "count": 5
+  },
+  {
+    "task": "moe_scaling_law",
+    "agent": "SLDAgent",
+    "model": "gemini-2.5-flash",
+    "mean_r2": 0.6087049999999999,
+    "max_r2": 0.91132,
+    "min_r2": 0.056532,
+    "count": 5
+  },
+  {
+    "task": "moe_scaling_law",
+    "agent": "SLDAgent",
+    "model": "claude-sonnet-4-5-20250929",
+    "mean_r2": 0.873791,
+    "max_r2": 0.91221,
+    "min_r2": 0.832706,
+    "count": 5
+  },
+  {
+    "task": "moe_scaling_law",
+    "agent": "SLDAgent",
+    "model": "gpt-5",
+    "mean_r2": 0.9033592,
+    "max_r2": 0.917117,
+    "min_r2": 0.889433,
+    "count": 5
+  },
+  {
+    "task": "data_constrained_scaling_law",
+    "agent": "SLDAgent",
+    "model": "gemini-3-pro-preview",
+    "mean_r2": 0.916012,
+    "max_r2": 0.963445,
+    "min_r2": 0.90414,
+    "count": 5
+  },
+  {
+    "task": "data_constrained_scaling_law",
+    "agent": "SLDAgent",
+    "model": "claude-haiku-4-5-20251001",
+    "mean_r2": 0.9452731999999999,
+    "max_r2": 0.993752,
+    "min_r2": 0.830042,
+    "count": 5
+  },
+  {
+    "task": "data_constrained_scaling_law",
+    "agent": "SLDAgent",
+    "model": "o4-mini",
+    "mean_r2": 0.9363379999999999,
+    "max_r2": 0.983879,
+    "min_r2": 0.853829,
+    "count": 5
+  },
+  {
+    "task": "data_constrained_scaling_law",
+    "agent": "SLDAgent",
+    "model": "gemini-2.5-flash",
+    "mean_r2": 0.8350044000000001,
+    "max_r2": 0.986048,
+    "min_r2": 0.725164,
+    "count": 5
+  },
+  {
+    "task": "data_constrained_scaling_law",
+    "agent": "SLDAgent",
+    "model": "claude-sonnet-4-5-20250929",
+    "mean_r2": 0.9832854,
+    "max_r2": 0.995271,
+    "min_r2": 0.946354,
+    "count": 5
+  },
+  {
+    "task": "data_constrained_scaling_law",
+    "agent": "SLDAgent",
+    "model": "gpt-5",
+    "mean_r2": 0.9739338,
+    "max_r2": 0.994435,
+    "min_r2": 0.952393,
+    "count": 5
+  },
+  {
+    "task": "lr_bsz_scaling_law",
+    "agent": "SLDAgent",
+    "model": "gemini-3-pro-preview",
+    "mean_r2": 0.639067,
+    "max_r2": 0.803199,
+    "min_r2": 0.404715,
+    "count": 5
+  },
+  {
+    "task": "lr_bsz_scaling_law",
+    "agent": "SLDAgent",
+    "model": "claude-haiku-4-5-20251001",
+    "mean_r2": -0.12343960000000001,
+    "max_r2": 0.337294,
+    "min_r2": -1.0,
+    "count": 5
+  },
+  {
+    "task": "lr_bsz_scaling_law",
+    "agent": "SLDAgent",
+    "model": "o4-mini",
+    "mean_r2": 0.003083,
+    "max_r2": 0.048849,
+    "min_r2": -0.021386,
+    "count": 5
+  },
+  {
+    "task": "lr_bsz_scaling_law",
+    "agent": "SLDAgent",
+    "model": "gemini-2.5-flash",
+    "mean_r2": -0.0746364,
+    "max_r2": 0.063766,
+    "min_r2": -0.348933,
+    "count": 5
+  },
+  {
+    "task": "lr_bsz_scaling_law",
+    "agent": "SLDAgent",
+    "model": "claude-sonnet-4-5-20250929",
+    "mean_r2": -0.0689442,
+    "max_r2": 0.227188,
+    "min_r2": -1.0,
+    "count": 5
+  },
+  {
+    "task": "lr_bsz_scaling_law",
+    "agent": "SLDAgent",
+    "model": "gpt-5",
+    "mean_r2": 0.6900266,
+    "max_r2": 0.888267,
+    "min_r2": 0.428723,
+    "count": 5
+  },
+  {
+    "task": "easy_question_scaling_law",
+    "agent": "SLDAgent",
+    "model": "gemini-3-pro-preview",
+    "mean_r2": -0.5928512,
+    "max_r2": 0.203487,
+    "min_r2": -1.0,
+    "count": 5
+  },
+  {
+    "task": "easy_question_scaling_law",
+    "agent": "SLDAgent",
+    "model": "claude-haiku-4-5-20251001",
+    "mean_r2": 0.5406864,
+    "max_r2": 0.764122,
+    "min_r2": 0.37054,
+    "count": 5
+  },
+  {
+    "task": "easy_question_scaling_law",
+    "agent": "SLDAgent",
+    "model": "o4-mini",
+    "mean_r2": 0.6171874,
+    "max_r2": 0.662093,
+    "min_r2": 0.577087,
+    "count": 5
+  },
+  {
+    "task": "easy_question_scaling_law",
+    "agent": "SLDAgent",
+    "model": "gemini-2.5-flash",
+    "mean_r2": 0.31783,
+    "max_r2": 0.360919,
+    "min_r2": 0.265633,
+    "count": 5
+  },
+  {
+    "task": "easy_question_scaling_law",
+    "agent": "SLDAgent",
+    "model": "claude-sonnet-4-5-20250929",
+    "mean_r2": 0.6399928,
+    "max_r2": 0.729173,
+    "min_r2": 0.488091,
+    "count": 5
+  },
+  {
+    "task": "easy_question_scaling_law",
+    "agent": "SLDAgent",
+    "model": "gpt-5",
+    "mean_r2": 0.47485219999999995,
+    "max_r2": 0.680657,
+    "min_r2": 0.21903,
+    "count": 5
+  },
+  {
+    "task": "parallel_scaling_law",
+    "agent": "codex",
+    "model": "gpt-5",
+    "mean_r2": 0.9987460638550058,
+    "max_r2": 0.999963701769498,
+    "min_r2": 0.9945998203341918,
+    "count": 5
+  },
+  {
+    "task": "parallel_scaling_law",
+    "agent": "codex",
+    "model": "o4-mini",
+    "mean_r2": 0.9995716967095042,
+    "max_r2": 0.9995719008923731,
+    "min_r2": 0.9995716456637871,
+    "count": 5
+  },
+  {
+    "task": "parallel_scaling_law",
+    "agent": "gemini-cli",
+    "model": "gemini-3-pro-preview",
+    "mean_r2": 0.9996581747303507,
+    "max_r2": 0.9996581747303507,
+    "min_r2": 0.9996581747303507,
+    "count": 1
+  },
+  {
+    "task": "parallel_scaling_law",
+    "agent": "gemini-cli",
+    "model": "gemini-2.5-flash",
+    "mean_r2": 0.4996787929012916,
+    "max_r2": 0.999575036868136,
+    "min_r2": -1.0,
+    "count": 4
+  },
+  {
+    "task": "parallel_scaling_law",
+    "agent": "goose",
+    "model": "gpt-5",
+    "mean_r2": 0.9996353481673488,
+    "max_r2": 0.9999581900832513,
+    "min_r2": 0.999386829360554,
+    "count": 5
+  },
+  {
+    "task": "parallel_scaling_law",
+    "agent": "mini-swe-agent",
+    "model": "gpt-5",
+    "mean_r2": 0.9971734952890792,
+    "max_r2": 0.999965683926635,
+    "min_r2": 0.9888637574857715,
+    "count": 5
+  },
+  {
+    "task": "parallel_scaling_law",
+    "agent": "aider",
+    "model": "gpt-5",
+    "mean_r2": 0.9905062938357017,
+    "max_r2": 0.9995716456637871,
+    "min_r2": 0.9553425628038237,
+    "count": 5
+  },
+  {
+    "task": "parallel_scaling_law",
+    "agent": "claude-code",
+    "model": "claude-sonnet-4-5",
+    "mean_r2": 0.9978050730675714,
+    "max_r2": 0.9996642094311177,
+    "min_r2": 0.9904731396048916,
+    "count": 5
+  },
+  {
+    "task": "parallel_scaling_law",
+    "agent": "claude-code",
+    "model": "claude-haiku-4-5",
+    "mean_r2": 0.9995018579225828,
+    "max_r2": 0.9995719008923731,
+    "min_r2": 0.9993350933876335,
+    "count": 5
+  },
+  {
+    "task": "parallel_scaling_law",
+    "agent": "opencode",
+    "model": "gpt-5",
+    "mean_r2": 0.9995536952125399,
+    "max_r2": 0.9999525339137554,
+    "min_r2": 0.9992975937451641,
+    "count": 5
+  },
+  {
+    "task": "parallel_scaling_law",
+    "agent": "openhands",
+    "model": "gpt-5",
+    "mean_r2": 0.9996286781217683,
+    "max_r2": 0.9999686869950699,
+    "min_r2": 0.9993868293605483,
+    "count": 5
+  },
+  {
+    "task": "parallel_scaling_law",
+    "agent": "terminus-2",
+    "model": "gpt-5",
+    "mean_r2": 0.9995980591078177,
+    "max_r2": 0.999963143501211,
+    "min_r2": 0.9994111428853495,
+    "count": 5
+  },
+  {
+    "task": "vocab_scaling_law",
+    "agent": "opencode",
+    "model": "gpt-5",
+    "mean_r2": 0.8893649211221231,
+    "max_r2": 0.9633395290722803,
+    "min_r2": 0.860335976042556,
+    "count": 5
+  },
+  {
+    "task": "vocab_scaling_law",
+    "agent": "codex",
+    "model": "o4-mini",
+    "mean_r2": 0.861120981682294,
+    "max_r2": 0.8611209816822958,
+    "min_r2": 0.8611209816822929,
+    "count": 5
+  },
+  {
+    "task": "vocab_scaling_law",
+    "agent": "codex",
+    "model": "gpt-5",
+    "mean_r2": 0.9773077975712354,
+    "max_r2": 0.9803294597341835,
+    "min_r2": 0.965221185665217,
+    "count": 5
+  },
+  {
+    "task": "vocab_scaling_law",
+    "agent": "goose",
+    "model": "gpt-5",
+    "mean_r2": 0.9616107314040608,
+    "max_r2": 0.9803444595586591,
+    "min_r2": 0.9331217548489369,
+    "count": 5
+  },
+  {
+    "task": "vocab_scaling_law",
+    "agent": "terminus-2",
+    "model": "gpt-5",
+    "mean_r2": 0.5333673256593519,
+    "max_r2": 0.9780303997616716,
+    "min_r2": -1.0,
+    "count": 5
+  },
+  {
+    "task": "vocab_scaling_law",
+    "agent": "claude-code",
+    "model": "claude-haiku-4-5",
+    "mean_r2": 0.8953397174814187,
+    "max_r2": 0.9495816779972813,
+    "min_r2": 0.8611196740809965,
+    "count": 5
+  },
+  {
+    "task": "vocab_scaling_law",
+    "agent": "claude-code",
+    "model": "claude-sonnet-4-5",
+    "mean_r2": 0.9622151990634494,
+    "max_r2": 0.9864474723517275,
+    "min_r2": 0.9008088602634483,
+    "count": 5
+  },
+  {
+    "task": "vocab_scaling_law",
+    "agent": "gemini-cli",
+    "model": "gemini-2.5-flash",
+    "mean_r2": 0.48531691683343403,
+    "max_r2": 0.9336026286000653,
+    "min_r2": -1.0,
+    "count": 5
+  },
+  {
+    "task": "vocab_scaling_law",
+    "agent": "gemini-cli",
+    "model": "gemini-3-pro-preview",
+    "mean_r2": 0.9675316815066236,
+    "max_r2": 0.9675316815066236,
+    "min_r2": 0.9675316815066236,
+    "count": 1
+  },
+  {
+    "task": "vocab_scaling_law",
+    "agent": "mini-swe-agent",
+    "model": "gpt-5",
+    "mean_r2": 0.5542634109353453,
+    "max_r2": 0.9762167727034833,
+    "min_r2": -1.0,
+    "count": 5
+  },
+  {
+    "task": "vocab_scaling_law",
+    "agent": "aider",
+    "model": "gpt-5",
+    "mean_r2": 0.13234521131463622,
+    "max_r2": 0.90463643176696,
+    "min_r2": -1.0,
+    "count": 5
+  },
+  {
+    "task": "vocab_scaling_law",
+    "agent": "openhands",
+    "model": "gpt-5",
+    "mean_r2": 0.9702019227334003,
+    "max_r2": 0.9803294439609564,
+    "min_r2": 0.9600166958283929,
+    "count": 3
+  },
+  {
+    "task": "sft_scaling_law",
+    "agent": "mini-swe-agent",
+    "model": "gpt-5",
+    "mean_r2": 0.8528156371048997,
+    "max_r2": 0.9712278433265641,
+    "min_r2": 0.7214761282485547,
+    "count": 5
+  },
+  {
+    "task": "sft_scaling_law",
+    "agent": "codex",
+    "model": "o4-mini",
+    "mean_r2": 0.8829201187189459,
+    "max_r2": 0.9483637722992666,
+    "min_r2": 0.7872387316864881,
+    "count": 5
+  },
+  {
+    "task": "sft_scaling_law",
+    "agent": "codex",
+    "model": "gpt-5",
+    "mean_r2": 0.8547525968474889,
+    "max_r2": 0.9808284172383123,
+    "min_r2": 0.7087799648207229,
+    "count": 5
+  },
+  {
+    "task": "sft_scaling_law",
+    "agent": "openhands",
+    "model": "gpt-5",
+    "mean_r2": 0.6396592537411797,
+    "max_r2": 0.9807743473850661,
+    "min_r2": 0.26470164744109936,
+    "count": 5
+  },
+  {
+    "task": "sft_scaling_law",
+    "agent": "claude-code",
+    "model": "claude-sonnet-4-5",
+    "mean_r2": 0.9161389099028339,
+    "max_r2": 0.9483641432810792,
+    "min_r2": 0.7872387183534779,
+    "count": 5
+  },
+  {
+    "task": "sft_scaling_law",
+    "agent": "claude-code",
+    "model": "claude-haiku-4-5",
+    "mean_r2": 0.893891219503305,
+    "max_r2": 0.948364143088023,
+    "min_r2": 0.78672749092768,
+    "count": 5
+  },
+  {
+    "task": "sft_scaling_law",
+    "agent": "opencode",
+    "model": "gpt-5",
+    "mean_r2": 0.8454504572377456,
+    "max_r2": 0.8933421464883828,
+    "min_r2": 0.7568889380156899,
+    "count": 5
+  },
+  {
+    "task": "sft_scaling_law",
+    "agent": "gemini-cli",
+    "model": "gemini-2.5-flash",
+    "mean_r2": 0.7872387573011755,
+    "max_r2": 0.7872388481323169,
+    "min_r2": 0.7872385272463132,
+    "count": 5
+  },
+  {
+    "task": "sft_scaling_law",
+    "agent": "gemini-cli",
+    "model": "gemini-3-pro-preview",
+    "mean_r2": 0.9483641432810792,
+    "max_r2": 0.9483641432810792,
+    "min_r2": 0.9483641432810792,
+    "count": 1
+  },
+  {
+    "task": "sft_scaling_law",
+    "agent": "terminus-2",
+    "model": "gpt-5",
+    "mean_r2": 0.8563879326556306,
+    "max_r2": 0.9602806228023233,
+    "min_r2": 0.7872387162572971,
+    "count": 3
+  },
+  {
+    "task": "sft_scaling_law",
+    "agent": "aider",
+    "model": "gpt-5",
+    "mean_r2": 0.13122621071126223,
+    "max_r2": 0.8929712300401905,
+    "min_r2": -1.0,
+    "count": 5
+  },
+  {
+    "task": "sft_scaling_law",
+    "agent": "goose",
+    "model": "gpt-5",
+    "mean_r2": 0.8986272280179619,
+    "max_r2": 0.9675556370398622,
+    "min_r2": 0.7316198430146021,
+    "count": 5
+  },
+  {
+    "task": "domain_mixture_scaling_law",
+    "agent": "terminus-2",
+    "model": "gpt-5",
+    "mean_r2": 0.5016690570842307,
+    "max_r2": 0.9022238569876261,
+    "min_r2": -1.0,
+    "count": 5
+  },
+  {
+    "task": "domain_mixture_scaling_law",
+    "agent": "openhands",
+    "model": "gpt-5",
+    "mean_r2": 0.899080955845065,
+    "max_r2": 0.9714759455458236,
+    "min_r2": 0.7922146054081841,
+    "count": 5
+  },
+  {
+    "task": "domain_mixture_scaling_law",
+    "agent": "aider",
+    "model": "gpt-5",
+    "mean_r2": 0.5136777117141453,
+    "max_r2": 0.9711466282348672,
+    "min_r2": -1.0,
+    "count": 5
+  },
+  {
+    "task": "domain_mixture_scaling_law",
+    "agent": "gemini-cli",
+    "model": "gemini-3-pro-preview",
+    "mean_r2": 0.9801384249563572,
+    "max_r2": 0.9894232423883015,
+    "min_r2": 0.9708536075244129,
+    "count": 2
+  },
+  {
+    "task": "domain_mixture_scaling_law",
+    "agent": "gemini-cli",
+    "model": "gemini-2.5-flash",
+    "mean_r2": 0.5295967258654282,
+    "max_r2": 0.9683293523927846,
+    "min_r2": -1.0,
+    "count": 5
+  },
+  {
+    "task": "domain_mixture_scaling_law",
+    "agent": "claude-code",
+    "model": "claude-haiku-4-5",
+    "mean_r2": 0.905449213026839,
+    "max_r2": 0.9708404106349446,
+    "min_r2": 0.7922146054081852,
+    "count": 5
+  },
+  {
+    "task": "domain_mixture_scaling_law",
+    "agent": "claude-code",
+    "model": "claude-sonnet-4-5",
+    "mean_r2": 0.9705429607490046,
+    "max_r2": 0.9715978378387945,
+    "min_r2": 0.9683363599598951,
+    "count": 5
+  },
+  {
+    "task": "domain_mixture_scaling_law",
+    "agent": "opencode",
+    "model": "gpt-5",
+    "mean_r2": 0.9602455667675395,
+    "max_r2": 0.9894230209470385,
+    "min_r2": 0.8992005438971118,
+    "count": 5
+  },
+  {
+    "task": "domain_mixture_scaling_law",
+    "agent": "codex",
+    "model": "o4-mini",
+    "mean_r2": 0.9417108490233704,
+    "max_r2": 0.9747667014004453,
+    "min_r2": 0.845751889692298,
+    "count": 4
+  },
+  {
+    "task": "domain_mixture_scaling_law",
+    "agent": "codex",
+    "model": "gpt-5",
+    "mean_r2": 0.9332598096775641,
+    "max_r2": 0.9904279621411324,
+    "min_r2": 0.834132477378136,
+    "count": 5
+  },
+  {
+    "task": "domain_mixture_scaling_law",
+    "agent": "mini-swe-agent",
+    "model": "gpt-5",
+    "mean_r2": 0.8725296796323434,
+    "max_r2": 0.9022243523590899,
+    "min_r2": 0.8258876852334336,
+    "count": 5
+  },
+  {
+    "task": "domain_mixture_scaling_law",
+    "agent": "goose",
+    "model": "gpt-5",
+    "mean_r2": 0.9439364184418991,
+    "max_r2": 0.9711402923865737,
+    "min_r2": 0.8420232887107839,
+    "count": 5
+  },
+  {
+    "task": "moe_scaling_law",
+    "agent": "opencode",
+    "model": "gpt-5",
+    "mean_r2": 0.23985286483495782,
+    "max_r2": 0.8326948945403161,
+    "min_r2": -0.2203392724748181,
+    "count": 5
+  },
+  {
+    "task": "moe_scaling_law",
+    "agent": "claude-code",
+    "model": "claude-haiku-4-5",
+    "mean_r2": 0.3942897291510219,
+    "max_r2": 0.690012615694646,
+    "min_r2": -0.12142857050825584,
+    "count": 5
+  },
+  {
+    "task": "moe_scaling_law",
+    "agent": "claude-code",
+    "model": "claude-sonnet-4-5",
+    "mean_r2": 0.8327089885986426,
+    "max_r2": 0.832730383827209,
+    "min_r2": 0.8326947789717778,
+    "count": 5
+  },
+  {
+    "task": "moe_scaling_law",
+    "agent": "goose",
+    "model": "gpt-5",
+    "mean_r2": 0.8129032929402868,
+    "max_r2": 0.8326949506828294,
+    "min_r2": 0.7432219059000413,
+    "count": 5
+  },
+  {
+    "task": "moe_scaling_law",
+    "agent": "codex",
+    "model": "gpt-5",
+    "mean_r2": 0.6493746344296719,
+    "max_r2": 0.8327367228696878,
+    "min_r2": -0.007324169056861285,
+    "count": 5
+  },
+  {
+    "task": "moe_scaling_law",
+    "agent": "codex",
+    "model": "o4-mini",
+    "mean_r2": 0.467622021260557,
+    "max_r2": 0.4676220212605916,
+    "min_r2": 0.467622021260491,
+    "count": 5
+  },
+  {
+    "task": "moe_scaling_law",
+    "agent": "aider",
+    "model": "gpt-5",
+    "mean_r2": 0.11896764636981434,
+    "max_r2": 0.8255653734029562,
+    "min_r2": -1.0,
+    "count": 5
+  },
+  {
+    "task": "moe_scaling_law",
+    "agent": "terminus-2",
+    "model": "gpt-5",
+    "mean_r2": 0.18602176703658746,
+    "max_r2": 0.8232104919912513,
+    "min_r2": -1.0,
+    "count": 5
+  },
+  {
+    "task": "moe_scaling_law",
+    "agent": "mini-swe-agent",
+    "model": "gpt-5",
+    "mean_r2": 0.3520845848902173,
+    "max_r2": 0.8088674102021726,
+    "min_r2": -0.2174120260368131,
+    "count": 5
+  },
+  {
+    "task": "moe_scaling_law",
+    "agent": "gemini-cli",
+    "model": "gemini-2.5-flash",
+    "mean_r2": 0.27254968880655933,
+    "max_r2": 0.8326945403197157,
+    "min_r2": -0.7530567784428743,
+    "count": 5
+  },
+  {
+    "task": "moe_scaling_law",
+    "agent": "gemini-cli",
+    "model": "gemini-3-pro-preview",
+    "mean_r2": 0.8327007315947877,
+    "max_r2": 0.8327068947622238,
+    "min_r2": 0.8326945684273517,
+    "count": 2
+  },
+  {
+    "task": "moe_scaling_law",
+    "agent": "openhands",
+    "model": "gpt-5",
+    "mean_r2": 0.8320659591681903,
+    "max_r2": 0.832695604405338,
+    "min_r2": 0.8301781731293862,
+    "count": 4
+  },
+  {
+    "task": "data_constrained_scaling_law",
+    "agent": "gemini-cli",
+    "model": "gemini-3-pro-preview",
+    "mean_r2": 0.7750650779269981,
+    "max_r2": 0.8629934766010074,
+    "min_r2": 0.6871366792529888,
+    "count": 2
+  },
+  {
+    "task": "data_constrained_scaling_law",
+    "agent": "gemini-cli",
+    "model": "gemini-2.5-flash",
+    "mean_r2": 0.26351784719235805,
+    "max_r2": 0.9839739762975884,
+    "min_r2": -1.0,
+    "count": 4
+  },
+  {
+    "task": "data_constrained_scaling_law",
+    "agent": "aider",
+    "model": "gpt-5",
+    "mean_r2": 0.7177438531727811,
+    "max_r2": 0.9634745415818766,
+    "min_r2": 0.10364952067918853,
+    "count": 5
+  },
+  {
+    "task": "data_constrained_scaling_law",
+    "agent": "terminus-2",
+    "model": "gpt-5",
+    "mean_r2": 0.36647349382950123,
+    "max_r2": 0.9141363121207646,
+    "min_r2": -0.8528135881770655,
+    "count": 5
+  },
+  {
+    "task": "data_constrained_scaling_law",
+    "agent": "codex",
+    "model": "o4-mini",
+    "mean_r2": 0.8046440001732151,
+    "max_r2": 0.8046440001732258,
+    "min_r2": 0.8046440001732089,
+    "count": 5
+  },
+  {
+    "task": "data_constrained_scaling_law",
+    "agent": "codex",
+    "model": "gpt-5",
+    "mean_r2": 0.7634595569132717,
+    "max_r2": 0.9146078334760895,
+    "min_r2": 0.26746113817506945,
+    "count": 5
+  },
+  {
+    "task": "data_constrained_scaling_law",
+    "agent": "goose",
+    "model": "gpt-5",
+    "mean_r2": 0.8935198696824717,
+    "max_r2": 0.9135283064888177,
+    "min_r2": 0.8668732888156546,
+    "count": 5
+  },
+  {
+    "task": "data_constrained_scaling_law",
+    "agent": "claude-code",
+    "model": "claude-haiku-4-5",
+    "mean_r2": 0.7782188841330568,
+    "max_r2": 0.9141388739397632,
+    "min_r2": 0.4535053806129923,
+    "count": 5
+  },
+  {
+    "task": "data_constrained_scaling_law",
+    "agent": "claude-code",
+    "model": "claude-sonnet-4-5",
+    "mean_r2": 0.9155053127347091,
+    "max_r2": 0.9209736489464382,
+    "min_r2": 0.9141265482606495,
+    "count": 5
+  },
+  {
+    "task": "data_constrained_scaling_law",
+    "agent": "opencode",
+    "model": "gpt-5",
+    "mean_r2": 0.9196200087855875,
+    "max_r2": 0.9361348825951996,
+    "min_r2": 0.9141364335503527,
+    "count": 5
+  },
+  {
+    "task": "data_constrained_scaling_law",
+    "agent": "mini-swe-agent",
+    "model": "gpt-5",
+    "mean_r2": 0.9028564438076627,
+    "max_r2": 0.9429629724114367,
+    "min_r2": 0.8435283091253291,
+    "count": 5
+  },
+  {
+    "task": "data_constrained_scaling_law",
+    "agent": "openhands",
+    "model": "gpt-5",
+    "mean_r2": 0.9173448788616427,
+    "max_r2": 0.9781099040907586,
+    "min_r2": 0.8629969706966466,
+    "count": 4
+  },
+  {
+    "task": "lr_bsz_scaling_law",
+    "agent": "claude-code",
+    "model": "claude-sonnet-4-5",
+    "mean_r2": -0.845783207562234,
+    "max_r2": -0.5002951848232313,
+    "min_r2": -1.0,
+    "count": 5
+  },
+  {
+    "task": "lr_bsz_scaling_law",
+    "agent": "claude-code",
+    "model": "claude-haiku-4-5",
+    "mean_r2": -0.511462162270773,
+    "max_r2": 0.7631368760049485,
+    "min_r2": -1.0,
+    "count": 5
+  },
+  {
+    "task": "lr_bsz_scaling_law",
+    "agent": "terminus-2",
+    "model": "gpt-5",
+    "mean_r2": -0.6929408100958947,
+    "max_r2": -0.45131555384703703,
+    "min_r2": -0.7734825621788497,
+    "count": 4
+  },
+  {
+    "task": "lr_bsz_scaling_law",
+    "agent": "aider",
+    "model": "gpt-5",
+    "mean_r2": -0.6590424716681464,
+    "max_r2": 0.025235327927412232,
+    "min_r2": -1.0,
+    "count": 5
+  },
+  {
+    "task": "lr_bsz_scaling_law",
+    "agent": "openhands",
+    "model": "gpt-5",
+    "mean_r2": -0.8489883747858796,
+    "max_r2": -0.7734825621788195,
+    "min_r2": -1.0,
+    "count": 3
+  },
+  {
+    "task": "lr_bsz_scaling_law",
+    "agent": "opencode",
+    "model": "gpt-5",
+    "mean_r2": -0.36800807203230734,
+    "max_r2": 0.38067431196726,
+    "min_r2": -1.0,
+    "count": 5
+  },
+  {
+    "task": "lr_bsz_scaling_law",
+    "agent": "gemini-cli",
+    "model": "gemini-2.5-flash",
+    "mean_r2": -0.8727332962449005,
+    "max_r2": -0.7734825621789003,
+    "min_r2": -1.0,
+    "count": 5
+  },
+  {
+    "task": "lr_bsz_scaling_law",
+    "agent": "gemini-cli",
+    "model": "gemini-3-pro-preview",
+    "mean_r2": 0.40872232381959583,
+    "max_r2": 0.7631368759959467,
+    "min_r2": 0.05430777164324496,
+    "count": 2
+  },
+  {
+    "task": "lr_bsz_scaling_law",
+    "agent": "mini-swe-agent",
+    "model": "gpt-5",
+    "mean_r2": -0.2687178971546145,
+    "max_r2": 0.3735249092781414,
+    "min_r2": -1.0,
+    "count": 5
+  },
+  {
+    "task": "lr_bsz_scaling_law",
+    "agent": "codex",
+    "model": "o4-mini",
+    "mean_r2": -0.773482639279657,
+    "max_r2": -0.7734825621788461,
+    "min_r2": -0.7734829476828933,
+    "count": 5
+  },
+  {
+    "task": "lr_bsz_scaling_law",
+    "agent": "codex",
+    "model": "gpt-5",
+    "mean_r2": -0.03921055671793472,
+    "max_r2": 0.5457665098088457,
+    "min_r2": -1.0,
+    "count": 5
+  },
+  {
+    "task": "lr_bsz_scaling_law",
+    "agent": "goose",
+    "model": "gpt-5",
+    "mean_r2": 0.2795121300051201,
+    "max_r2": 0.35368210221902185,
+    "min_r2": -0.01597885950900646,
+    "count": 5
+  },
+  {
+    "task": "easy_question_scaling_law",
+    "agent": "mini-swe-agent",
+    "model": "gpt-5",
+    "mean_r2": -0.49119852970813493,
+    "max_r2": 0.3025098978565248,
+    "min_r2": -1.0,
+    "count": 5
+  },
+  {
+    "task": "easy_question_scaling_law",
+    "agent": "goose",
+    "model": "gpt-5",
+    "mean_r2": -0.2316104841056653,
+    "max_r2": 0.3765961789922039,
+    "min_r2": -1.0,
+    "count": 5
+  },
+  {
+    "task": "easy_question_scaling_law",
+    "agent": "aider",
+    "model": "gpt-5",
+    "mean_r2": -0.47449393885510505,
+    "max_r2": 0.38070320345369735,
+    "min_r2": -1.0,
+    "count": 5
+  },
+  {
+    "task": "easy_question_scaling_law",
+    "agent": "claude-code",
+    "model": "claude-sonnet-4-5",
+    "mean_r2": -1.0,
+    "max_r2": -1.0,
+    "min_r2": -1.0,
+    "count": 5
+  },
+  {
+    "task": "easy_question_scaling_law",
+    "agent": "claude-code",
+    "model": "claude-haiku-4-5",
+    "mean_r2": -1.0,
+    "max_r2": -1.0,
+    "min_r2": -1.0,
+    "count": 5
+  },
+  {
+    "task": "easy_question_scaling_law",
+    "agent": "codex",
+    "model": "gpt-5",
+    "mean_r2": -0.7398260688339301,
+    "max_r2": 0.3008696558303495,
+    "min_r2": -1.0,
+    "count": 5
+  },
+  {
+    "task": "easy_question_scaling_law",
+    "agent": "codex",
+    "model": "o4-mini",
+    "mean_r2": -1.0,
+    "max_r2": -1.0,
+    "min_r2": -1.0,
+    "count": 5
+  },
+  {
+    "task": "easy_question_scaling_law",
+    "agent": "opencode",
+    "model": "gpt-5",
+    "mean_r2": -0.47994621371261703,
+    "max_r2": 0.30250989519054927,
+    "min_r2": -1.0,
+    "count": 5
+  },
+  {
+    "task": "easy_question_scaling_law",
+    "agent": "gemini-cli",
+    "model": "gemini-2.5-flash",
+    "mean_r2": -0.7937911758677193,
+    "max_r2": 0.031044120661403607,
+    "min_r2": -1.0,
+    "count": 5
+  },
+  {
+    "task": "easy_question_scaling_law",
+    "agent": "gemini-cli",
+    "model": "gemini-3-pro-preview",
+    "mean_r2": -0.23402698110505393,
+    "max_r2": -0.23402698110505393,
+    "min_r2": -0.23402698110505393,
+    "count": 1
+  },
+  {
+    "task": "easy_question_scaling_law",
+    "agent": "openhands",
+    "model": "gpt-5",
+    "mean_r2": -0.2783628692696916,
+    "max_r2": 0.24149862576143488,
+    "min_r2": -1.0,
+    "count": 5
+  },
+  {
+    "task": "easy_question_scaling_law",
+    "agent": "terminus-2",
+    "model": "gpt-5",
+    "mean_r2": -0.5046569149418039,
+    "max_r2": 0.15008221046835635,
+    "min_r2": -1.0,
+    "count": 4
+  }
+];
+        
+        const taskDisplayNames = {
+            'parallel_scaling_law': 'Parallel',
+            'vocab_scaling_law': 'Vocabulary',
+            'sft_scaling_law': 'SFT',
+            'domain_mixture_scaling_law': 'Domain Mixture',
+            'moe_scaling_law': 'MoE',
+            'data_constrained_scaling_law': 'Data-Constrained',
+            'lr_bsz_scaling_law': 'LR & Batch Size',
+            'easy_question_scaling_law': 'U-shaped'
+        };
+        
+        const modelLogos = {
+            'gpt-5': 'assets/openai_logo.png',
+            'o4-mini': 'assets/openai_logo.png',
+            'claude-sonnet-4-5-20250929': 'assets/claude_logo.png',
+            'claude-sonnet-4-5': 'assets/claude_logo.png',
+            'claude-haiku-4-5-20251001': 'assets/claude_logo.png',
+            'claude-haiku-4-5': 'assets/claude_logo.png',
+            'gemini-2.5-flash': 'assets/gemini_logo.png',
+            'gemini-3-pro-preview': 'assets/gemini_logo.png'
+        };
+        
+        const modelDisplayNames = {
+            'gpt-5': 'GPT-5',
+            'o4-mini': 'o4-mini',
+            'claude-sonnet-4-5-20250929': 'Claude Sonnet 4.5',
+            'claude-sonnet-4-5': 'Claude Sonnet 4.5',
+            'claude-haiku-4-5-20251001': 'Claude Haiku 4.5',
+            'claude-haiku-4-5': 'Claude Haiku 4.5',
+            'gemini-2.5-flash': 'Gemini 2.5 Flash',
+            'gemini-3-pro-preview': 'Gemini 3 Pro'
+        };
+        
+        let currentTask = 'all';
+        let currentFilter = 'all';
+        
+        function getR2Class(r2) {
+            if (r2 >= 0.95) return 'r2-excellent';
+            if (r2 >= 0.8) return 'r2-good';
+            if (r2 >= 0.5) return 'r2-moderate';
+            if (r2 >= 0) return 'r2-poor';
+            return 'r2-negative';
+        }
+        
+        function formatR2(r2) {
+            return r2.toFixed(4);
+        }
+        
+        function getFilename(entry) {
+            const agent = entry.agent.replace(/ /g, '_').toLowerCase();
+            const model = entry.model.replace(/-/g, '_').replace(/\./g, '_');
+            return `sld_${entry.task}_${agent}_${model}.html`;
+        }
+        
+        function aggregateByAgentModel(data) {
+            const aggregated = {};
+            
+            data.forEach(entry => {
+                const key = `${entry.agent}__${entry.model}`;
+                if (!aggregated[key]) {
+                    aggregated[key] = {
+                        agent: entry.agent,
+                        model: entry.model,
+                        tasks: [],
+                        totalMeanR2: 0,
+                        totalMaxR2: 0,
+                        totalCount: 0,
+                        entries: []
+                    };
+                }
+                aggregated[key].tasks.push(entry.task);
+                aggregated[key].totalMeanR2 += entry.mean_r2;
+                aggregated[key].totalMaxR2 += entry.max_r2;
+                aggregated[key].totalCount += entry.count;
+                aggregated[key].entries.push(entry);
+            });
+            
+            return Object.values(aggregated).map(agg => ({
+                agent: agg.agent,
+                model: agg.model,
+                mean_r2: agg.totalMeanR2 / agg.tasks.length,
+                max_r2: agg.totalMaxR2 / agg.tasks.length,
+                count: agg.totalCount,
+                task: 'all',
+                entries: agg.entries
+            }));
+        }
+        
+        function renderTable() {
+            const tbody = document.getElementById('leaderboardBody');
+            let filteredData = [...leaderboardData];
+            
+            // Apply agent filter
+            if (currentFilter === 'sldagent') {
+                filteredData = filteredData.filter(d => d.agent === 'SLDAgent');
+            } else if (currentFilter === 'general') {
+                filteredData = filteredData.filter(d => d.agent !== 'SLDAgent');
+            }
+            
+            // Apply task filter
+            if (currentTask === 'all') {
+                filteredData = aggregateByAgentModel(filteredData);
+            } else {
+                filteredData = filteredData.filter(d => d.task === currentTask);
+            }
+            
+            // Sort by mean R²
+            filteredData.sort((a, b) => b.mean_r2 - a.mean_r2);
+            
+            tbody.innerHTML = filteredData.map((entry, idx) => {
+                const logo = modelLogos[entry.model] || '';
+                const modelName = modelDisplayNames[entry.model] || entry.model;
+                const filename = currentTask === 'all' ? '#' : getFilename(entry);
+                
+                return `
+                    <tr>
+                        <td>${idx + 1}</td>
+                        <td>${entry.agent}</td>
+                        <td>
+                            <div class="model-cell">
+                                ${logo ? `<img src="${logo}" alt="${modelName}" class="model-logo">` : ''}
+                                ${modelName}
+                            </div>
+                        </td>
+                        <td><span class="r2-badge ${getR2Class(entry.mean_r2)}">${formatR2(entry.mean_r2)}</span></td>
+                        <td><span class="r2-badge ${getR2Class(entry.max_r2)}">${formatR2(entry.max_r2)}</span></td>
+                        <td>${entry.count}</td>
+                        <td>${currentTask !== 'all' ? `<a href="${filename}" class="solution-link">View</a>` : '—'}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+        
+        function showTable(filter) {
+            currentFilter = filter;
+            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            renderTable();
+        }
+        
+        // Task tab click handlers
+        document.querySelectorAll('.task-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                currentTask = tab.dataset.task;
+                document.querySelectorAll('.task-tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                renderTable();
+            });
+        });
+        
+        // Initial render
+        renderTable();
+        
+        // Copy citation to clipboard
+        function copyCitation() {
+            const citation = `@article{lin2025sld,
+  title={Can Language Models Discover Scaling Laws?},
+  author={Lin, Haowei and Ye, Haotian and Feng, Wenzheng and Huang, Quzhe and Li, Yujun and Lim, Hubert and Li, Zhengrui and Wang, Xiangyu and Ma, Jianzhu and Liang, Yitao and Zou, James},
+  journal={arXiv preprint arXiv:2507.21184},
+  year={2025}
+}`;
+            navigator.clipboard.writeText(citation).then(() => {
+                const btn = event.target;
+                const originalText = btn.textContent;
+                btn.textContent = 'Copied!';
+                btn.style.background = '#10b981';
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.style.background = '';
+                }, 2000);
+            });
+        }
+    </script>
+</body>
+</html>
+

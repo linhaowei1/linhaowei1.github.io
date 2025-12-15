@@ -1,0 +1,1178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SLD - U-shaped Scaling Law - SLDAgent + Claude Haiku 4.5</title>
+    <link rel="icon" type="image/png" href="assets/sld_logo.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" rel="stylesheet" />
+    <style>
+        :root {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8f9fa;
+            --accent-primary: #2563eb;
+            --accent-secondary: #3b82f6;
+            --accent-gradient: linear-gradient(135deg, #2563eb 0%, #3b82f6 50%, #60a5fa 100%);
+            --text-primary: #1f2937;
+            --text-secondary: #4b5563;
+            --border-subtle: rgba(0, 0, 0, 0.1);
+            --glass-bg: rgba(0, 0, 0, 0.02);
+            --success: #10b981;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Sora', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            min-height: 100vh;
+            color: var(--text-primary);
+        }
+        
+        .bg-pattern {
+            display: none;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--accent-primary);
+            text-decoration: none;
+            font-size: 0.9rem;
+            margin-bottom: 1.5rem;
+            transition: color 0.2s;
+        }
+        
+        .back-link:hover {
+            color: var(--accent-secondary);
+        }
+        
+        .header {
+            background: var(--glass-bg);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            backdrop-filter: blur(10px);
+        }
+        
+        .header h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            background: var(--accent-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .meta-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+            margin-top: 1rem;
+        }
+        
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .meta-label {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+        
+        .meta-value {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .r2-badge {
+            display: inline-block;
+            padding: 0.3rem 0.6rem;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        .section-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+        
+        .runs-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .run-card {
+            background: var(--glass-bg);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            overflow: hidden;
+            transition: border-color 0.2s;
+        }
+        
+        .run-card:hover {
+            border-color: rgba(99, 102, 241, 0.3);
+        }
+        
+        .run-card.best-run {
+            border-color: var(--success);
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.1);
+        }
+        
+        .run-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 1.25rem;
+            background: rgba(255, 255, 255, 0.02);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .run-header:hover {
+            background: rgba(255, 255, 255, 0.04);
+        }
+        
+        .run-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .run-badge {
+            padding: 0.25rem 0.6rem;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-secondary);
+        }
+        
+        .run-badge.best-badge {
+            background: var(--success);
+            color: white;
+        }
+        
+        .run-label {
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+        
+        .expand-icon {
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            transition: transform 0.2s;
+        }
+        
+        .run-header.expanded .expand-icon {
+            transform: rotate(180deg);
+        }
+        
+        .run-content {
+            border-top: 1px solid var(--border-subtle);
+        }
+        
+        .code-container {
+            overflow: hidden;
+        }
+        
+        .code-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 1.25rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-bottom: 1px solid var(--border-subtle);
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+        
+        .copy-btn {
+            padding: 0.35rem 0.75rem;
+            background: rgba(99, 102, 241, 0.2);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 6px;
+            color: var(--accent-primary);
+            font-size: 0.75rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        
+        .copy-btn:hover {
+            background: rgba(99, 102, 241, 0.3);
+        }
+        
+        .code-container pre {
+            margin: 0;
+            padding: 1.25rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            line-height: 1.6;
+            overflow-x: auto;
+            background: transparent !important;
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 3rem;
+            padding-top: 2rem;
+            border-top: 1px solid var(--border-subtle);
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+        
+        .footer a {
+            color: var(--accent-primary);
+            text-decoration: none;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+            
+            .header h1 {
+                font-size: 1.25rem;
+            }
+            
+            .meta-row {
+                flex-direction: column;
+                gap: 0.75rem;
+            }
+            
+            .run-info {
+                flex-wrap: wrap;
+                gap: 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-pattern"></div>
+    
+    <div class="container">
+        <a href="sld_index.html" class="back-link">
+            ← Back to Leaderboard
+        </a>
+        
+        <div class="header">
+            <h1>U-shaped Scaling Law</h1>
+            <div class="meta-row">
+                <div class="meta-item">
+                    <span class="meta-label">Agent:</span>
+                    <span class="meta-value">SLDAgent</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Model:</span>
+                    <span class="meta-value">Claude Haiku 4.5</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Best R²:</span>
+                    <span class="r2-badge" style="background-color: #DAA520; color: white;">
+                        0.764122
+                    </span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Mean R²:</span>
+                    <span class="meta-value">0.540686</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Min R²:</span>
+                    <span class="meta-value">0.370540</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Runs:</span>
+                    <span class="meta-value">5</span>
+                </div>
+            </div>
+        </div>
+        
+        <h2 class="section-title">All Runs (sorted by R²)</h2>
+        
+        <div class="runs-container">
+            
+        <div class="run-card best-run">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge best-badge">Best</span>
+                    <span class="run-label">Run 5</span>
+                    <span class="r2-badge" style="background-color: #DAA520; color: white;">
+                        R² = 0.764122
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: block;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-0')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-0"># EVOLVE-BLOCK-START
+&quot;&quot;&quot;
+Enhanced U-shaped scaling law with adaptive multi-method valley detection
+and refined optimization sequence for improved convergence
+Uses 6-parameter model with data-adaptive initialization and regularization
+&quot;&quot;&quot;
+import numpy as np
+from scipy.optimize import minimize, differential_evolution
+
+def scaling_law_func(data_points, params):
+    X = np.atleast_2d(np.asarray(data_points))
+    x = X[:, 0]  # log_flops
+    
+    # 6-parameter asymmetric U-shaped model:
+    # y = a*(x - x_min)^2 + b*x + c + d*exp(-e*(x - x_min)^2)
+    a, x_min, b, c, d, e = params[:6]
+    e_clipped = np.clip(e, 0.1, 5.0)
+    
+    dx = x - x_min
+    quadratic = a * dx**2 + b * x + c
+    exponential_term = d * np.exp(-e_clipped * dx**2)
+    
+    return quadratic + exponential_term
+
+
+def fit_scaling_law(data_points, loss_values):
+    X = np.atleast_2d(np.asarray(data_points))
+    x = X[:, 0]
+    y = np.asarray(loss_values)
+    
+    x_mean = np.mean(x)
+    x_std = np.std(x) + 1e-8
+    y_mean = np.mean(y)
+    y_std = np.std(y) + 1e-8
+    
+    # Multi-method valley detection for robustness
+    x_sorted_idx = np.argsort(x)
+    x_sorted = x[x_sorted_idx]
+    y_sorted = y[x_sorted_idx]
+    
+    valley_estimates = []
+    
+    # Method 1: Second derivative analysis
+    if len(x) &gt; 5:
+        dy = np.gradient(y_sorted, x_sorted)
+        ddy = np.gradient(dy, x_sorted)
+        valley_idx = np.argmin(ddy)
+        valley_estimates.append(x_sorted[np.clip(valley_idx, 1, len(x_sorted)-2)])
+    
+    # Method 2: Direct minimum in sorted data
+    if len(x) &gt; 3:
+        min_idx = np.argmin(y_sorted)
+        valley_estimates.append(x_sorted[min_idx])
+    
+    # Method 3: Median-based splitting (if data shows U-shape)
+    if len(x) &gt; 6:
+        mid_idx = len(x_sorted) // 2
+        left_mean = np.mean(y_sorted[:mid_idx])
+        right_mean = np.mean(y_sorted[mid_idx:])
+        if left_mean &gt; np.min(y_sorted) and right_mean &gt; np.min(y_sorted):
+            valley_estimates.append(x_sorted[mid_idx])
+    
+    # Use median of valley estimates for stability
+    if valley_estimates:
+        x_min_estimate = np.median(valley_estimates)
+    else:
+        x_min_estimate = x_mean
+    
+    # Data-adaptive parameter scaling
+    residual_scale = np.std(y - np.polyfit(x, y, 1)[0]*x - np.polyfit(x, y, 1)[1])
+    residual_scale = max(residual_scale, y_std * 0.1)
+    
+    def objective(params):
+        try:
+            pred = scaling_law_func(X, params)
+            residuals = pred - y
+            mse = np.mean(residuals**2)
+            
+            a, x_min, b, c, d, e = params
+            # Data-adaptive regularization
+            reg_scale = residual_scale / (y_std + 1e-8)
+            reg = 0.0008 * reg_scale * (a**2 + b**2) + 0.0005 * reg_scale * (d**2 + (e - 1.0)**2)
+            
+            return mse + reg
+        except:
+            return 1e10
+    
+    best_params = None
+    best_loss = np.inf
+    
+    # Adaptive initialization candidates
+    x_min_offsets = np.array([-0.8, -0.4, -0.2, 0.0, 0.2, 0.4, 0.8])
+    e_candidates = np.array([0.3, 0.6, 0.9, 1.2, 1.5, 2.0])
+    
+    # Adaptive parameter initialization based on data statistics
+    a_base = 0.15 * (1.0 / (x_std + 1e-8))  # Scale with spread
+    b_base = -0.02 * np.sign(np.polyfit(x, y, 1)[0])
+    d_base = 0.012 * (1.0 / (1.0 + np.abs(np.polyfit(x, y, 1)[0])))
+    
+    # Two-stage optimization: local refinement then global
+    local_best_params = None
+    local_best_loss = np.inf
+    
+    # Stage 1: Local optimization from diverse initializations
+    for offset_idx in range(0, len(x_min_offsets), 2):  # Sample fewer for speed
+        for e_guess in e_candidates[::2]:  # Sample fewer decay rates
+            x_min_guess = x_min_estimate + x_min_offsets[offset_idx] * 0.2 * x_std
+            
+            init = np.array([
+                a_base,
+                x_min_guess,
+                b_base,
+                y_mean,
+                d_base,
+                e_guess
+            ])
+            
+            try:
+                result = minimize(
+                    objective, init,
+                    method=&#x27;L-BFGS-B&#x27;,
+                    bounds=[
+                        (0.0005, 2.5),
+                        (x.min() - 0.5*x_std, x.max() + 0.5*x_std),
+                        (-0.5, 0.2),
+                        (y_mean - 3.5*y_std, y_mean + 3.5*y_std),
+                        (-0.3, 0.3),
+                        (0.1, 5.0)
+                    ],
+                    options={&#x27;maxiter&#x27;: 800, &#x27;ftol&#x27;: 1e-11}
+                )
+                if result.fun &lt; local_best_loss:
+                    local_best_loss = result.fun
+                    local_best_params = result.x
+            except:
+                pass
+    
+    if local_best_params is not None:
+        best_params = local_best_params
+        best_loss = local_best_loss
+    
+    # Stage 2: Global optimization refinement with tighter settings
+    try:
+        bounds = [
+            (0.0005, 2.5),
+            (x.min() - 0.5*x_std, x.max() + 0.5*x_std),
+            (-0.5, 0.2),
+            (y_mean - 3.5*y_std, y_mean + 3.5*y_std),
+            (-0.3, 0.3),
+            (0.1, 5.0)
+        ]
+        result = differential_evolution(
+            objective, bounds, seed=42, maxiter=250,
+            atol=1e-10, tol=1e-10, workers=1, updating=&#x27;deferred&#x27;,
+            mutation=(0.5, 1.5), recombination=0.8, polish=True
+        )
+        if result.fun &lt; best_loss:
+            best_params = result.x
+    except:
+        pass
+    
+    # Robust fallback
+    if best_params is None:
+        best_params = np.array([a_base, x_min_estimate, b_base, y_mean, d_base, 1.0])
+    
+    return best_params
+# EVOLVE-BLOCK-END</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#2</span>
+                    <span class="run-label">Run 3</span>
+                    <span class="r2-badge" style="background-color: #DAA520; color: white;">
+                        R² = 0.583128
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-1')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-1"># EVOLVE-BLOCK-START
+&quot;&quot;&quot;
+Scaling law discovery for LLM finetuning: U-shaped pattern modeling
+Uses 6-parameter model: power law + gaussian + linear + bias
+Captures double descent with exponential terms and multi-start optimization
+&quot;&quot;&quot;
+import numpy as np
+from scipy.optimize import minimize, differential_evolution
+
+def scaling_law_func(data_points, params):
+    &quot;&quot;&quot;
+    U-shaped scaling law with 6 parameters:
+    y = a*x^b + c*exp(-d*(x-e)^2) + f
+    
+    Captures:
+    - Power law behavior (a*x^b)
+    - U-shaped valley (gaussian envelope)
+    - Overall trend via f
+    &quot;&quot;&quot;
+    X = np.atleast_2d(np.asarray(data_points))
+    x = X[:, 0] if X.ndim &gt; 1 else X
+    
+    params = np.asarray(params, dtype=np.float64)
+    
+    # Ensure exactly 6 parameters
+    if len(params) &lt; 6:
+        params = np.pad(params, (0, 6 - len(params)), mode=&#x27;constant&#x27;)
+    
+    a, b, c, d, e, f = params[:6]
+    
+    # Avoid numerical issues
+    d = np.abs(d) + 1e-8  # ensure positive for gaussian
+    
+    # U-shaped model: power law + inverted gaussian + bias
+    power_term = a * (x ** b)
+    gaussian_term = c * np.exp(-d * (x - e) ** 2)
+    pred = power_term + gaussian_term + f
+    
+    return pred
+
+
+def fit_scaling_law(data_points, loss_values):
+    &quot;&quot;&quot;
+    Fit U-shaped scaling law using multi-start optimization
+    Combines global search (differential evolution) with local refinement (BFGS)
+    &quot;&quot;&quot;
+    X = np.atleast_2d(np.asarray(data_points))
+    x = X[:, 0] if X.ndim &gt; 1 else X
+    y = np.asarray(loss_values, dtype=np.float64)
+    
+    # Data statistics for initialization
+    x_min, x_max = np.min(x), np.max(x)
+    y_min, y_max = np.min(y), np.max(y)
+    x_mid = (x_min + x_max) / 2
+    y_mid = np.mean(y)
+    
+    def objective(params):
+        try:
+            pred = scaling_law_func(X, params)
+            mse = np.mean((pred - y) ** 2)
+            # Add mild regularization to prevent extreme values
+            reg = 0.01 * np.sum(params ** 2)
+            return mse + reg
+        except:
+            return 1e10
+    
+    # Multi-start local optimization
+    best_params = None
+    best_loss = np.inf
+    
+    # Initial guesses covering different U-shape configurations
+    init_guesses = [
+        np.array([0.1, 0.5, -2.0, 2.0, x_mid, y_mid]),  # Standard U
+        np.array([-0.1, 1.5, -1.5, 1.5, x_mid, y_mid]),  # Inverted parabola base
+        np.array([0.05, 2.0, -3.0, 3.0, x_mid, y_mid]),  # Steep gaussian
+        np.array([0.2, 0.3, -1.0, 1.0, x_mid, y_mid]),   # Gentle curve
+        np.array([-0.05, 1.0, -2.5, 2.5, x_mid, y_mid]), # Mixed
+        np.array([0.15, 1.2, -2.0, 2.0, x_min, y_mid]),  # Left-shifted
+    ]
+    
+    for init_guess in init_guesses:
+        try:
+            result = minimize(
+                objective,
+                init_guess,
+                method=&#x27;L-BFGS-B&#x27;,
+                bounds=[(-10, 10), (-5, 5), (-10, 10), (1e-8, 10), 
+                       (x_min - 1, x_max + 1), (-100, 100)],
+                options={&#x27;maxiter&#x27;: 500, &#x27;ftol&#x27;: 1e-8}
+            )
+            if result.fun &lt; best_loss:
+                best_loss = result.fun
+                best_params = result.x
+        except:
+            pass
+    
+    # Global optimization backup
+    try:
+        bounds = [(-10, 10), (-5, 5), (-10, 10), (1e-8, 10), 
+                 (x_min - 1, x_max + 1), (-100, 100)]
+        result = differential_evolution(
+            objective,
+            bounds,
+            seed=42,
+            maxiter=300,
+            popsize=15,
+            atol=1e-8,
+            tol=1e-8
+        )
+        if result.fun &lt; best_loss:
+            best_params = result.x
+    except:
+        pass
+    
+    # Fallback
+    if best_params is None:
+        best_params = np.array([0.1, 0.5, -2.0, 2.0, x_mid, y_mid])
+    
+    return best_params[:6]
+# EVOLVE-BLOCK-END</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#3</span>
+                    <span class="run-label">Run 2</span>
+                    <span class="r2-badge" style="background-color: #DAA520; color: white;">
+                        R² = 0.545872
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-2')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-2"># EVOLVE-BLOCK-START
+&quot;&quot;&quot;
+Optimized U-shaped scaling law with adaptive regularization and refined bounds
+Enhanced initialization and multi-stage optimization for superior convergence
+&quot;&quot;&quot;
+import numpy as np
+from scipy.optimize import minimize, differential_evolution
+
+def scaling_law_func(data_points, params):
+    &quot;&quot;&quot;
+    U-shaped scaling law: y = a1*x^b1 + a2*x^b2 + c
+    Two power law components for double descent capture:
+    - First term: negative power law (degradation at small scales)
+    - Second term: positive power law (improvement at large scales)
+    - Bias: offset term
+    &quot;&quot;&quot;
+    X = np.atleast_2d(np.asarray(data_points))
+    x = X[:, 0]
+    params = np.asarray(params).ravel()
+    
+    a1, b1, a2, b2, c = params[0], params[1], params[2], params[3], params[4]
+    
+    # Numerical stability: clip input to avoid overflow
+    x_clipped = np.clip(x, -10, 10)
+    
+    # First term: negative power law (initial degradation)
+    term1 = a1 * np.power(x_clipped, b1)
+    
+    # Second term: positive power law (eventual improvement)
+    term2 = a2 * np.power(x_clipped, b2)
+    
+    pred = term1 + term2 + c
+    
+    return pred
+
+
+def fit_scaling_law(data_points, loss_values):
+    &quot;&quot;&quot;
+    Fit U-shaped scaling law with adaptive bounds, regularization, and hybrid optimization
+    &quot;&quot;&quot;
+    X = np.atleast_2d(np.asarray(data_points))
+    y = np.asarray(loss_values).ravel()
+    x = X[:, 0]
+    
+    y_std = np.std(y)
+    y_mean = np.mean(y)
+    y_range = np.max(y) - np.min(y)
+    x_range = np.max(x) - np.min(x)
+    
+    def objective(params):
+        try:
+            pred = scaling_law_func(X, params)
+            mse = np.mean((pred - y) ** 2)
+            # Adaptive regularization: scale by parameter magnitude
+            a1, b1, a2, b2, c = params
+            reg = 0.00085 * (np.abs(a1)**1.1 + np.abs(a2)**1.1 + 0.5*np.abs(b1)**0.9 + 0.5*np.abs(b2)**0.9 + 0.1*c**2)
+            return mse + reg
+        except:
+            return 1e10
+    
+    # Refined adaptive bounds based on data statistics
+    bounds = [
+        (-2.3 * y_std, -0.07 * y_std),      # a1: negative amplitude
+        (-3.3, -0.07),                       # b1: negative exponent
+        (0.07 * y_std, 2.3 * y_std),        # a2: positive amplitude
+        (0.07, 3.3),                         # b2: positive exponent
+        (y_mean - 2.3*y_std, y_mean + 2.3*y_std)  # c: bias term
+    ]
+    
+    # Intelligent initial guess based on data analysis
+    initial_guess = np.array([
+        -y_std / 2.15,      # a1: scaled negative
+        -1.15,              # b1: moderate negative exponent
+        y_std / 2.15,       # a2: scaled positive
+        1.15,               # b2: moderate positive exponent
+        y_mean              # c: centered at mean
+    ])
+    
+    # Stage 1: Fast local optimization from initial guess
+    result_init = minimize(
+        objective,
+        initial_guess,
+        method=&#x27;L-BFGS-B&#x27;,
+        bounds=bounds,
+        options={&#x27;maxiter&#x27;: 210, &#x27;ftol&#x27;: 1e-6, &#x27;gtol&#x27;: 1e-5}
+    )
+    
+    # Stage 2: Global search with differential evolution
+    # Using seeded population from stage 1 for efficiency
+    result_de = differential_evolution(
+        objective,
+        bounds,
+        seed=42,
+        maxiter=260,
+        popsize=13,
+        atol=1e-7,
+        tol=1e-7,
+        x0=result_init.x,
+        workers=1,
+        updating=&#x27;deferred&#x27;
+    )
+    
+    best_params = result_de.x
+    
+    # Stage 3: Final intensive local refinement with tight tolerances
+    result_final = minimize(
+        objective,
+        best_params,
+        method=&#x27;L-BFGS-B&#x27;,
+        bounds=bounds,
+        options={&#x27;maxiter&#x27;: 520, &#x27;ftol&#x27;: 1e-9, &#x27;gtol&#x27;: 1e-8}
+    )
+    
+    return result_final.x if result_final.success else best_params
+
+# EVOLVE-BLOCK-END</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#4</span>
+                    <span class="run-label">Run 4</span>
+                    <span class="r2-badge" style="background-color: #D2691E; color: white;">
+                        R² = 0.439770
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-3')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-3"># EVOLVE-BLOCK-START
+&quot;&quot;&quot;
+Optimized U-shaped scaling law with efficient 5-parameter form
+Streamlined multi-start optimization with reduced complexity for better generalization
+&quot;&quot;&quot;
+import numpy as np
+from scipy.optimize import minimize
+
+def scaling_law_func(data_points, params):
+    &quot;&quot;&quot;
+    U-shaped scaling law with 5 parameters:
+    - params[0]: bias (vertical shift)
+    - params[1]: quadratic coefficient (valley curvature)
+    - params[2]: quartic coefficient (asymptotic tail behavior)
+    - params[3]: valley location (x-coordinate of minimum)
+    - params[4]: linear tilt (asymmetry factor)
+    
+    Form: loss = bias + tilt*dx + quad*dx^2 + quart*dx^4
+    &quot;&quot;&quot;
+    X = np.atleast_2d(np.asarray(data_points))
+    x = X[:, 0]
+    
+    params = np.asarray(params).flatten()
+    bias, quad_coeff, quart_coeff, valley_x, tilt = params[:5]
+    
+    dx = x - valley_x
+    return bias + tilt * dx + quad_coeff * dx**2 + quart_coeff * dx**4
+
+
+def fit_scaling_law(data_points, loss_values):
+    &quot;&quot;&quot;
+    Fit U-shaped scaling law with optimized multi-start strategy
+    Balanced efficiency and robustness with 8 strategic initializations
+    &quot;&quot;&quot;
+    X = np.atleast_2d(np.asarray(data_points))
+    x, y = X[:, 0], np.asarray(loss_values).flatten()
+    
+    x_min, x_max = np.min(x), np.max(x)
+    y_min, y_max = np.min(y), np.max(y)
+    x_range, y_range = x_max - x_min, y_max - y_min
+    
+    idx_min = np.argmin(y)
+    valley_x_init = x[idx_min]
+    
+    # Estimate curvature from local window
+    quad_coeff_init = 0.5
+    if len(x) &gt;= 5:
+        sorted_idx = np.argsort(x)
+        x_sorted, y_sorted = x[sorted_idx], y[sorted_idx]
+        window = max(3, len(x_sorted) // 4)
+        idx_s = max(0, idx_min - window)
+        idx_e = min(len(x_sorted), idx_min + window + 1)
+        
+        x_local, y_local = x_sorted[idx_s:idx_e], y_sorted[idx_s:idx_e]
+        if len(x_local) &gt;= 3:
+            try:
+                coeffs = np.polyfit(x_local - valley_x_init, y_local, 2)
+                quad_coeff_init = max(0.08, min(abs(coeffs[0]), 5.0))
+            except:
+                pass
+    
+    # Estimate tilt from slope asymmetry
+    tilt_init = 0.0
+    left_idx = x &lt; valley_x_init
+    right_idx = x &gt; valley_x_init
+    if np.sum(left_idx) &gt; 1 and np.sum(right_idx) &gt; 1:
+        try:
+            left_slope = np.mean(np.diff(y[left_idx]) / (np.diff(x[left_idx]) + 1e-10))
+            right_slope = np.mean(np.diff(y[right_idx]) / (np.diff(x[right_idx]) + 1e-10))
+            tilt_init = np.clip((right_slope - left_slope) / (2.0 * (x_range + 1e-10)), -1.5, 1.5)
+        except:
+            pass
+    
+    def objective(params):
+        try:
+            pred = scaling_law_func(X, params)
+            if np.any(np.isnan(pred)) or np.any(np.isinf(pred)):
+                return 1e10
+            mse = np.mean((pred - y) ** 2)
+            return mse if (mse &lt; 1e10 and not np.isnan(mse)) else 1e10
+        except:
+            return 1e10
+    
+    bounds = [
+        (y_min - 0.7*y_range, y_min + 0.5*y_range),
+        (0.01, 10.0),
+        (0.0001, 4.0),
+        (x_min - 0.5*x_range, x_max + 0.5*x_range),
+        (-2.0, 2.0)
+    ]
+    
+    best_result, best_loss = None, float(&#x27;inf&#x27;)
+    
+    # Compact multi-start: 8 strategic initializations
+    init_configs = [
+        np.array([y_min, quad_coeff_init, 0.05, valley_x_init, tilt_init]),
+        np.array([y_min, 1.5*quad_coeff_init, 0.08, valley_x_init, tilt_init*0.5]),
+        np.array([y_min - 0.1*y_range, 0.3*quad_coeff_init, 0.5, valley_x_init, tilt_init]),
+        np.array([y_min, 0.15, 0.8, valley_x_init, 0.0]),
+        np.array([y_min, quad_coeff_init, 0.1, valley_x_init - 0.2*x_range, tilt_init + 0.3]),
+        np.array([y_min, quad_coeff_init, 0.1, valley_x_init + 0.2*x_range, tilt_init - 0.3]),
+        np.array([y_min + 0.15*y_range, 0.6*quad_coeff_init, 0.15, valley_x_init, 0.0]),
+        np.array([y_min, 0.05, 1.5, valley_x_init, tilt_init*0.3]),
+    ]
+    
+    # Stage 1: Primary optimization from each init
+    for init_params in init_configs:
+        init_params = np.array([np.clip(init_params[i], bounds[i][0], bounds[i][1]) for i in range(5)])
+        
+        result = minimize(
+            objective,
+            init_params,
+            method=&#x27;L-BFGS-B&#x27;,
+            bounds=bounds,
+            options={&#x27;ftol&#x27;: 1e-10, &#x27;gtol&#x27;: 1e-8, &#x27;maxiter&#x27;: 1500, &#x27;maxfun&#x27;: 3000}
+        )
+        
+        if result.fun &lt; best_loss:
+            best_loss = result.fun
+            best_result = result.x
+    
+    # Stage 2: Final refinement with tighter tolerance
+    if best_result is not None:
+        result_final = minimize(
+            objective,
+            best_result,
+            method=&#x27;L-BFGS-B&#x27;,
+            bounds=bounds,
+            options={&#x27;ftol&#x27;: 1e-12, &#x27;gtol&#x27;: 1e-11, &#x27;maxiter&#x27;: 1200, &#x27;maxfun&#x27;: 2500}
+        )
+        
+        if result_final.fun &lt; best_loss:
+            best_result = result_final.x
+    
+    return best_result if best_result is not None else np.zeros(5)
+# EVOLVE-BLOCK-END</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#5</span>
+                    <span class="run-label">Run 1</span>
+                    <span class="r2-badge" style="background-color: #D2691E; color: white;">
+                        R² = 0.370540
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-4')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-4"># EVOLVE-BLOCK-START
+&quot;&quot;&quot;
+Scaling law discovery with U-shaped (double descent) pattern modeling
+Additive form: combines power law with Gaussian penalty for robust U-shape capture
+Refined optimization with better initialization and convergence
+&quot;&quot;&quot;
+import numpy as np
+from scipy.optimize import minimize, differential_evolution
+
+def scaling_law_func(data_points, params):
+    &quot;&quot;&quot;
+    U-shaped scaling law: y = a*|x|^b + c*exp(-d*(x-e)^2) + f
+    
+    Additive form captures:
+    - Power law term: asymptotic improvement with scale
+    - Gaussian penalty term: localized U-shaped valley
+    
+    params: [a, b, c, d, e, f] - 6 parameters
+    - a, b: power law coefficients (captures long-term scaling)
+    - c, d, e: Gaussian penalty (creates U-shaped valley)
+    - f: vertical offset
+    &quot;&quot;&quot;
+    X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
+    x = X[:, 0]
+    
+    params = np.asarray(params, dtype=np.float64).ravel()
+    if len(params) &lt; 6:
+        params = np.pad(params, (0, 6 - len(params)), mode=&#x27;constant&#x27;)
+    
+    a, b, c, d, e, f = params[:6]
+    
+    # Power law term: captures overall trend
+    x_safe = np.abs(x) + 1e-10
+    power_term = a * np.power(x_safe, b)
+    
+    # Gaussian penalty term: creates U-shaped valley (c typically &lt; 0)
+    exp_arg = -d * np.power(x - e, 2)
+    exp_arg = np.clip(exp_arg, -100, 100)  # Prevent overflow
+    gaussian_penalty = c * np.exp(exp_arg)
+    
+    # Combined prediction
+    pred = power_term + gaussian_penalty + f
+    
+    return pred
+
+
+def fit_scaling_law(data_points, loss_values):
+    &quot;&quot;&quot;
+    Optimize scaling law parameters using refined multi-strategy approach
+    &quot;&quot;&quot;
+    X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
+    y = np.asarray(loss_values, dtype=np.float64).ravel()
+    
+    x = X[:, 0]
+    x_min, x_max = np.min(x), np.max(x)
+    x_mid = (x_min + x_max) / 2.0
+    x_range = x_max - x_min + 1e-10
+    
+    y_mean = np.mean(y)
+    y_min, y_max = np.min(y), np.max(y)
+    y_range = y_max - y_min + 1e-10
+    
+    def objective(params):
+        &quot;&quot;&quot;MSE loss with light L1 regularization&quot;&quot;&quot;
+        try:
+            pred = scaling_law_func(X, params)
+            if not np.all(np.isfinite(pred)):
+                return 1e10
+            mse = np.mean(np.square(pred - y))
+            # Light regularization
+            reg = 0.001 * np.sum(np.abs(params))
+            return mse + reg
+        except:
+            return 1e10
+    
+    best_params = None
+    best_loss = np.inf
+    
+    # Strategy 1: Power law fit to high-compute regime
+    upper_mask = x &gt; x_mid
+    if np.sum(upper_mask) &gt; 3:
+        try:
+            x_upper = x[upper_mask]
+            y_upper = y[upper_mask]
+            
+            # Log-space power law fit
+            log_x = np.log(np.abs(x_upper) + 1e-10)
+            log_y = np.log(np.abs(y_upper) + 1e-10)
+            coeffs = np.polyfit(log_x, log_y, 1)
+            b_init = np.clip(coeffs[0], -3.0, 3.0)
+            a_init = np.exp(np.clip(coeffs[1], -10, 10))
+            
+            init = np.array([a_init, b_init, -0.4*y_range, 1.5, x_mid, y_mean])
+            res = minimize(objective, init, method=&#x27;L-BFGS-B&#x27;,
+                          options={&#x27;maxiter&#x27;: 600, &#x27;ftol&#x27;: 1e-9})
+            if res.fun &lt; best_loss:
+                best_loss = res.fun
+                best_params = res.x
+        except:
+            pass
+    
+    # Strategy 2: Strong U-shape emphasis
+    try:
+        init = np.array([0.08, 0.4, -0.6*y_range, 2.5, x_mid, y_mean])
+        res = minimize(objective, init, method=&#x27;L-BFGS-B&#x27;,
+                      options={&#x27;maxiter&#x27;: 600, &#x27;ftol&#x27;: 1e-9})
+        if res.fun &lt; best_loss:
+            best_loss = res.fun
+            best_params = res.x
+    except:
+        pass
+    
+    # Strategy 3: Moderate U-shape
+    try:
+        init = np.array([0.15, 0.6, -0.25*y_range, 1.0, x_mid, y_mean])
+        res = minimize(objective, init, method=&#x27;L-BFGS-B&#x27;,
+                      options={&#x27;maxiter&#x27;: 600, &#x27;ftol&#x27;: 1e-9})
+        if res.fun &lt; best_loss:
+            best_loss = res.fun
+            best_params = res.x
+    except:
+        pass
+    
+    # Strategy 4: Weak U-shape
+    try:
+        init = np.array([0.2, 0.8, -0.1*y_range, 0.5, x_mid, y_mean])
+        res = minimize(objective, init, method=&#x27;L-BFGS-B&#x27;,
+                      options={&#x27;maxiter&#x27;: 600, &#x27;ftol&#x27;: 1e-9})
+        if res.fun &lt; best_loss:
+            best_loss = res.fun
+            best_params = res.x
+    except:
+        pass
+    
+    # Strategy 5: Global optimization with differential evolution
+    bounds = [
+        (-10.0, 10.0),                     # a
+        (-2.5, 2.5),                       # b
+        (-3.0*y_range, 0.1),               # c: negative for valley
+        (0.1, 10.0),                       # d: positive width
+        (x_min - x_range, x_max + x_range), # e: valley center
+        (y_min - y_range, y_max + y_range)  # f: offset
+    ]
+    
+    try:
+        res = differential_evolution(
+            objective,
+            bounds,
+            maxiter=300,
+            seed=42,
+            atol=1e-9,
+            tol=1e-9,
+            workers=1,
+            popsize=18,
+            mutation=(0.5, 1.5),
+            recombination=0.9
+        )
+        if res.fun &lt; best_loss:
+            best_loss = res.fun
+            best_params = res.x
+    except:
+        pass
+    
+    # Strategy 6: Final aggressive local refinement
+    if best_params is not None:
+        try:
+            res = minimize(
+                objective,
+                best_params,
+                method=&#x27;L-BFGS-B&#x27;,
+                options={&#x27;maxiter&#x27;: 2000, &#x27;ftol&#x27;: 1e-12, &#x27;gtol&#x27;: 1e-10}
+            )
+            if res.fun &lt; best_loss:
+                best_params = res.x
+        except:
+            pass
+    
+    # Fallback
+    if best_params is None:
+        best_params = np.array([0.1, 0.5, -0.3*y_range, 1.0, x_mid, y_mean])
+    
+    return best_params[:6]
+# EVOLVE-BLOCK-END</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        </div>
+        
+        <footer class="footer">
+            <p>SLDBench | <a href="https://arxiv.org/abs/2507.21184" target="_blank">arXiv:2507.21184</a> | <a href="https://github.com/linhaowei1/SLD" target="_blank">GitHub</a></p>
+        </footer>
+    </div>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script>
+        function toggleRun(header) {
+            const content = header.nextElementSibling;
+            const isExpanded = content.style.display === 'block';
+            content.style.display = isExpanded ? 'none' : 'block';
+            header.classList.toggle('expanded', !isExpanded);
+        }
+        
+        function copyCode(event, codeId) {
+            event.stopPropagation();
+            const code = document.getElementById(codeId).textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                const btn = event.target;
+                btn.textContent = 'Copied!';
+                setTimeout(() => btn.textContent = 'Copy', 2000);
+            });
+        }
+        
+        Prism.highlightAll();
+    </script>
+</body>
+</html>

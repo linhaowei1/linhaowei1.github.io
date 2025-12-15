@@ -1,0 +1,1121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SLD - MoE Scaling Law - SLDAgent + Claude Sonnet 4.5</title>
+    <link rel="icon" type="image/png" href="assets/sld_logo.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" rel="stylesheet" />
+    <style>
+        :root {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8f9fa;
+            --accent-primary: #2563eb;
+            --accent-secondary: #3b82f6;
+            --accent-gradient: linear-gradient(135deg, #2563eb 0%, #3b82f6 50%, #60a5fa 100%);
+            --text-primary: #1f2937;
+            --text-secondary: #4b5563;
+            --border-subtle: rgba(0, 0, 0, 0.1);
+            --glass-bg: rgba(0, 0, 0, 0.02);
+            --success: #10b981;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Sora', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            min-height: 100vh;
+            color: var(--text-primary);
+        }
+        
+        .bg-pattern {
+            display: none;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--accent-primary);
+            text-decoration: none;
+            font-size: 0.9rem;
+            margin-bottom: 1.5rem;
+            transition: color 0.2s;
+        }
+        
+        .back-link:hover {
+            color: var(--accent-secondary);
+        }
+        
+        .header {
+            background: var(--glass-bg);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            backdrop-filter: blur(10px);
+        }
+        
+        .header h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            background: var(--accent-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .meta-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+            margin-top: 1rem;
+        }
+        
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .meta-label {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+        
+        .meta-value {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .r2-badge {
+            display: inline-block;
+            padding: 0.3rem 0.6rem;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        .section-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+        
+        .runs-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .run-card {
+            background: var(--glass-bg);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            overflow: hidden;
+            transition: border-color 0.2s;
+        }
+        
+        .run-card:hover {
+            border-color: rgba(99, 102, 241, 0.3);
+        }
+        
+        .run-card.best-run {
+            border-color: var(--success);
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.1);
+        }
+        
+        .run-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 1.25rem;
+            background: rgba(255, 255, 255, 0.02);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .run-header:hover {
+            background: rgba(255, 255, 255, 0.04);
+        }
+        
+        .run-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .run-badge {
+            padding: 0.25rem 0.6rem;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-secondary);
+        }
+        
+        .run-badge.best-badge {
+            background: var(--success);
+            color: white;
+        }
+        
+        .run-label {
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+        
+        .expand-icon {
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            transition: transform 0.2s;
+        }
+        
+        .run-header.expanded .expand-icon {
+            transform: rotate(180deg);
+        }
+        
+        .run-content {
+            border-top: 1px solid var(--border-subtle);
+        }
+        
+        .code-container {
+            overflow: hidden;
+        }
+        
+        .code-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 1.25rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-bottom: 1px solid var(--border-subtle);
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+        
+        .copy-btn {
+            padding: 0.35rem 0.75rem;
+            background: rgba(99, 102, 241, 0.2);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 6px;
+            color: var(--accent-primary);
+            font-size: 0.75rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        
+        .copy-btn:hover {
+            background: rgba(99, 102, 241, 0.3);
+        }
+        
+        .code-container pre {
+            margin: 0;
+            padding: 1.25rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            line-height: 1.6;
+            overflow-x: auto;
+            background: transparent !important;
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 3rem;
+            padding-top: 2rem;
+            border-top: 1px solid var(--border-subtle);
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+        
+        .footer a {
+            color: var(--accent-primary);
+            text-decoration: none;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+            
+            .header h1 {
+                font-size: 1.25rem;
+            }
+            
+            .meta-row {
+                flex-direction: column;
+                gap: 0.75rem;
+            }
+            
+            .run-info {
+                flex-wrap: wrap;
+                gap: 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-pattern"></div>
+    
+    <div class="container">
+        <a href="sld_index.html" class="back-link">
+            ← Back to Leaderboard
+        </a>
+        
+        <div class="header">
+            <h1>MoE Scaling Law</h1>
+            <div class="meta-row">
+                <div class="meta-item">
+                    <span class="meta-label">Agent:</span>
+                    <span class="meta-value">SLDAgent</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Model:</span>
+                    <span class="meta-value">Claude Sonnet 4.5</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Best R²:</span>
+                    <span class="r2-badge" style="background-color: #228B22; color: white;">
+                        0.912210
+                    </span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Mean R²:</span>
+                    <span class="meta-value">0.873791</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Min R²:</span>
+                    <span class="meta-value">0.832706</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Runs:</span>
+                    <span class="meta-value">5</span>
+                </div>
+            </div>
+        </div>
+        
+        <h2 class="section-title">All Runs (sorted by R²)</h2>
+        
+        <div class="runs-container">
+            
+        <div class="run-card best-run">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge best-badge">Best</span>
+                    <span class="run-label">Run 1</span>
+                    <span class="r2-badge" style="background-color: #228B22; color: white;">
+                        R² = 0.912210
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: block;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-0')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-0"># EVOLVE-BLOCK-START
+&quot;&quot;&quot;
+Enhanced MoE scaling law with refined expert-parameter coupling
+Formula: L = a * P^(-b) * (1 + c * E^(-d)) + e + f * log(E+1) / P^g
+Captures: parameter power law, expert saturation, adaptive cross-effects, baseline
+Uses 6 parameters with carefully tuned interaction terms
+&quot;&quot;&quot;
+import numpy as np
+from scipy.optimize import differential_evolution, minimize
+
+def scaling_law_func(data_points, params):
+    &quot;&quot;&quot;
+    Scaling law: L = a * P^(-b) * (1 + c * E^(-d)) + e + f * log(E+1) / P^0.5
+    where P = dense_parameter_count, E = num_experts
+    6 parameters: [a, b, c, d, e, f]
+    &quot;&quot;&quot;
+    X = np.atleast_2d(np.asarray(data_points))
+    params = np.asarray(params)
+    
+    if params.ndim == 1:
+        params = params[None, :]
+    
+    num_experts = X[:, 0]
+    dense_params = X[:, 1]
+    
+    # Numerical stability
+    E = np.maximum(num_experts, 1.0)
+    P = np.maximum(dense_params, 1e6)
+    
+    # Extract parameters with appropriate constraints
+    a = np.abs(params[:, 0]) + 1e-10  # Scaling coefficient
+    b = np.abs(params[:, 1]) + 1e-10  # Parameter exponent
+    c = np.abs(params[:, 2]) + 1e-10  # Expert efficiency coefficient
+    d = np.abs(params[:, 3]) + 1e-10  # Expert saturation exponent
+    e = params[:, 4]  # Baseline irreducible loss
+    f = params[:, 5]  # Cross-term coefficient
+    
+    # Normalize for numerical stability
+    P_norm = P / 1e8
+    
+    # Term 1: Main power law with expert saturation multiplier
+    # (1 + c*E^-d) models diminishing returns from adding experts
+    expert_factor = 1.0 + c[:, None] * np.power(E[None, :], -d[:, None])
+    term1 = a[:, None] * np.power(P_norm[None, :], -b[:, None]) * expert_factor
+    
+    # Term 2: Baseline irreducible loss
+    term2 = e[:, None]
+    
+    # Term 3: Cross-interaction term
+    # log(E+1) ensures smooth behavior at E=1 and grows slowly
+    # P^-0.5 makes expert benefits more valuable for smaller models
+    term3 = f[:, None] * np.log1p(E[None, :]) / np.sqrt(P_norm[None, :])
+    
+    pred = term1 + term2 + term3
+    
+    # Clip to reasonable loss range
+    pred = np.clip(pred, 1.0, 5.0)
+    
+    return pred[0, :] if pred.shape[0] == 1 else pred
+
+
+def fit_scaling_law(data_points, loss_values):
+    &quot;&quot;&quot;
+    Three-stage optimization with adaptive bounds and regularization
+    &quot;&quot;&quot;
+    X = np.atleast_2d(np.asarray(data_points))
+    y = np.asarray(loss_values)
+    
+    # Data statistics for adaptive bounds
+    y_min, y_max = y.min(), y.max()
+    y_range = y_max - y_min
+    
+    # Refined bounds based on top performers
+    bounds = [
+        (0.05, y_range * 6),     # a: scaling coefficient
+        (0.05, 0.5),             # b: parameter exponent (power law)
+        (0.01, 6.0),             # c: expert efficiency coefficient
+        (0.1, 1.5),              # d: expert saturation exponent
+        (y_min - 0.5, y_max),    # e: baseline loss
+        (-1.5, 1.5)              # f: cross-term coefficient
+    ]
+    
+    def objective(params):
+        pred = scaling_law_func(X, params)
+        residuals = pred - y
+        mse = np.mean(residuals ** 2)
+        
+        # Regularization: prefer physically meaningful exponents
+        # b around 0.2 and d around 0.5-1.0 based on scaling theory
+        reg_exponents = 1e-5 * (np.abs(params[1] - 0.2) + np.abs(params[3] - 0.7))
+        # L2 regularization to prevent extreme parameter values
+        reg_l2 = 1e-7 * np.sum(params ** 2)
+        
+        return mse + reg_exponents + reg_l2
+    
+    # Stage 1: Global search with differential evolution
+    result_de = differential_evolution(
+        objective, 
+        bounds, 
+        seed=42,
+        maxiter=450,
+        popsize=22,
+        atol=1e-10,
+        tol=1e-10,
+        strategy=&#x27;best1bin&#x27;,
+        mutation=(0.5, 1.5),
+        recombination=0.7,
+        workers=1
+    )
+    
+    # Stage 2: Local refinement with L-BFGS-B
+    result = minimize(
+        objective,
+        result_de.x,
+        method=&#x27;L-BFGS-B&#x27;,
+        bounds=bounds,
+        options={&#x27;maxiter&#x27;: 1500, &#x27;ftol&#x27;: 1e-15, &#x27;gtol&#x27;: 1e-11}
+    )
+    
+    # Stage 3: Final polish with Nelder-Mead if improvement is possible
+    if result.success:
+        result_nm = minimize(
+            objective,
+            result.x,
+            method=&#x27;Nelder-Mead&#x27;,
+            options={&#x27;maxiter&#x27;: 600, &#x27;xatol&#x27;: 1e-11, &#x27;fatol&#x27;: 1e-15}
+        )
+        if result_nm.fun &lt; result.fun:
+            return result_nm.x
+    
+    return result.x if result.success else result_de.x
+# EVOLVE-BLOCK-END</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#2</span>
+                    <span class="run-label">Run 5</span>
+                    <span class="r2-badge" style="background-color: #228B22; color: white;">
+                        R² = 0.891551
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-1')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-1"># EVOLVE-BLOCK-START
+&quot;&quot;&quot;
+Refined MoE scaling law with multiplicative expert dynamics
+Captures power law parameter scaling with expert efficiency modulation
+&quot;&quot;&quot;
+import numpy as np
+from scipy.optimize import differential_evolution, minimize
+
+def scaling_law_func(data_points, params):
+    &quot;&quot;&quot;
+    Scaling law: L = a * N^(-b) * (1 + c * E^(-d)) + e / (1 + N^f)
+    where N = dense_parameter_count (normalized), E = num_experts
+    
+    Key insights:
+    - Power law in parameters: N^(-b)
+    - Multiplicative expert benefit with saturation: (1 + c * E^(-d))
+    - Residual loss term with parameter-dependent decay: e / (1 + N^f)
+    
+    6 parameters: [a, b, c, d, e, f]
+    &quot;&quot;&quot;
+    X = np.atleast_2d(np.asarray(data_points))
+    num_experts = X[:, 0]
+    dense_params = X[:, 1]
+    
+    params = np.asarray(params)
+    if params.size != 6:
+        params = np.pad(params, (0, max(0, 6 - params.size)), constant_values=1.0)[:6]
+    
+    a, b, c, d, e, f = params
+    
+    # Normalize dense parameters to [1, 8] range for stability
+    N_norm = dense_params / 1e8
+    N_norm = np.maximum(N_norm, 1e-8)
+    
+    # Ensure expert count is valid
+    E_safe = np.maximum(num_experts, 1.0)
+    
+    # Use absolute values for exponents to ensure stability
+    b_abs = np.abs(b)
+    d_abs = np.abs(d)
+    f_abs = np.abs(f)
+    
+    # Main power law term with multiplicative expert effect
+    # (1 + c * E^(-d)) captures how experts modify parameter efficiency
+    # c can be positive (experts help) or negative (experts hurt)
+    expert_multiplier = 1.0 + c * np.power(E_safe, -d_abs)
+    main_term = np.abs(a) * np.power(N_norm, -b_abs) * expert_multiplier
+    
+    # Residual loss term that decays with parameter count
+    # Captures irreducible loss that decreases with scale
+    residual_term = np.abs(e) / (1.0 + np.power(N_norm, f_abs))
+    
+    pred = main_term + residual_term
+    
+    return pred
+
+
+def fit_scaling_law(data_points, loss_values):
+    &quot;&quot;&quot;
+    Robust optimization with multiple restarts and two-stage refinement
+    &quot;&quot;&quot;
+    X = np.atleast_2d(np.asarray(data_points))
+    y = np.asarray(loss_values)
+    
+    def objective(params):
+        pred = scaling_law_func(X, params)
+        mse = np.mean((pred - y) ** 2)
+        # Light L2 regularization for stability
+        reg = 1e-8 * np.sum(params ** 2)
+        return mse + reg
+    
+    # Physically motivated bounds
+    # Based on loss range [1.8, 3.8] and neural scaling literature
+    bounds = [
+        (0.1, 50.0),     # a: main scaling coefficient
+        (0.01, 0.7),     # b: parameter exponent (typical: 0.05-0.5)
+        (-2.0, 2.0),     # c: expert multiplier (can be negative)
+        (0.01, 1.5),     # d: expert saturation exponent
+        (0.5, 4.0),      # e: residual loss magnitude
+        (0.01, 2.0),     # f: residual decay exponent
+    ]
+    
+    best_result = None
+    best_loss = float(&#x27;inf&#x27;)
+    
+    # Multiple restarts for robustness
+    for seed in [42, 123, 789, 2024]:
+        # Global optimization with differential evolution
+        result_de = differential_evolution(
+            objective,
+            bounds,
+            seed=seed,
+            maxiter=400,
+            popsize=20,
+            atol=1e-8,
+            tol=1e-8,
+            strategy=&#x27;best1bin&#x27;,
+            workers=1,
+            updating=&#x27;deferred&#x27;
+        )
+        
+        # Local refinement with L-BFGS-B
+        result_local = minimize(
+            objective,
+            result_de.x,
+            method=&#x27;L-BFGS-B&#x27;,
+            bounds=bounds,
+            options={&#x27;maxiter&#x27;: 1500, &#x27;ftol&#x27;: 1e-10}
+        )
+        
+        # Select best result
+        final_params = result_local.x if result_local.success else result_de.x
+        final_loss = objective(final_params)
+        
+        if final_loss &lt; best_loss:
+            best_loss = final_loss
+            best_result = final_params
+    
+    return best_result
+# EVOLVE-BLOCK-END</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#3</span>
+                    <span class="run-label">Run 3</span>
+                    <span class="r2-badge" style="background-color: #228B22; color: white;">
+                        R² = 0.872670
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-2')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-2"># EVOLVE-BLOCK-START
+&quot;&quot;&quot;
+Hybrid MoE scaling law with balanced expert-parameter coupling
+Combines multiplicative efficiency with logarithmic expert saturation
+&quot;&quot;&quot;
+import numpy as np
+from scipy.optimize import differential_evolution, minimize
+
+def scaling_law_func(data_points, params):
+    &quot;&quot;&quot;
+    Scaling law: L = a/N^b + c/(N^d * (1 + e*log(E+1))) + f
+    where N = dense_parameter_count, E = num_experts
+    
+    6 parameters:
+    - a, b: Base parameter scaling (Chinchilla-style power law)
+    - c, d: Parameter efficiency term (multiplicative with experts)
+    - e: Expert saturation rate (logarithmic diminishing returns)
+    - f: Irreducible loss floor
+    
+    Key insight: Experts improve parameter efficiency multiplicatively,
+    but with logarithmic saturation (not exponential or power law)
+    &quot;&quot;&quot;
+    X = np.atleast_2d(np.asarray(data_points))
+    params = np.asarray(params)
+    
+    if params.ndim == 1:
+        params = params[None, :]
+    
+    E = X[:, 0]  # num_experts
+    N = X[:, 1]  # dense_parameter_count
+    
+    # Ensure exactly 6 parameters
+    if params.shape[1] &lt; 6:
+        params = np.pad(params, ((0, 0), (0, 6 - params.shape[1])), constant_values=0.0)
+    
+    a, b, c, d, e, f = params[0, :6]
+    
+    # Numerical stability
+    eps = 1e-10
+    N_safe = np.maximum(N, eps)
+    
+    # Logarithmic expert benefit (natural saturation)
+    log_expert_factor = 1.0 + np.abs(e) * np.log(E + 1.0)
+    
+    # Two-term power law + constant
+    # Term 1: Standard parameter scaling (dominant for dense models)
+    term1 = np.abs(a) / (N_safe ** np.abs(b) + eps)
+    
+    # Term 2: Expert-enhanced parameter efficiency
+    # Multiplicative interaction: more experts AND more params reduce loss
+    # Log saturation prevents unrealistic gains with many experts
+    term2 = np.abs(c) / ((N_safe ** np.abs(d)) * log_expert_factor + eps)
+    
+    # Term 3: Irreducible loss floor
+    term3 = f
+    
+    return term1 + term2 + term3
+
+
+def fit_scaling_law(data_points, loss_values):
+    &quot;&quot;&quot;
+    Streamlined two-stage fitting with smart initialization
+    &quot;&quot;&quot;
+    X = np.atleast_2d(np.asarray(data_points))
+    y = np.asarray(loss_values)
+    
+    # Data statistics for adaptive bounds
+    y_min, y_max = np.min(y), np.max(y)
+    y_mean, y_std = np.mean(y), np.std(y)
+    y_range = y_max - y_min
+    N_min, N_max, N_mean = np.min(X[:, 1]), np.max(X[:, 1]), np.mean(X[:, 1])
+    E_max = np.max(X[:, 0])
+    
+    # Estimate scaling exponent from dense models
+    dense_mask = X[:, 0] == 1
+    b_init = 0.35  # Default
+    if np.sum(dense_mask) &gt; 2:
+        y_dense = y[dense_mask]
+        N_dense = X[dense_mask, 1]
+        if len(np.unique(N_dense)) &gt; 1:
+            log_N = np.log(N_dense)
+            log_y_shifted = np.log(np.maximum(y_dense - y_min * 0.85, 1e-10))
+            b_init = np.clip(-np.polyfit(log_N, log_y_shifted, 1)[0], 0.15, 0.65)
+    
+    # Smart bounds based on data characteristics
+    bounds = [
+        (0.1 * y_range * (N_mean ** b_init), 8.0 * y_range * (N_mean ** b_init)),  # a
+        (0.1, 0.7),                                                                  # b
+        (0.01 * y_range * (N_mean ** 0.3), 5.0 * y_range * (N_mean ** 0.3)),       # c
+        (0.05, 0.65),                                                                # d
+        (0.0, 3.0),                                                                  # e (log saturation)
+        (y_min * 0.75, y_min * 1.25)                                                # f
+    ]
+    
+    def objective(params):
+        pred = scaling_law_func(X, params)
+        residuals = pred - y
+        mse = np.mean(residuals ** 2)
+        mae = np.mean(np.abs(residuals))
+        
+        # Minimal regularization for numerical stability
+        reg = 0.0001 * (params[1]**2 + params[3]**2)
+        
+        # Balanced objective slightly favoring MSE
+        return 0.8 * mse + 0.2 * mae + reg
+    
+    # Stage 1: Robust global search
+    best_score = float(&#x27;inf&#x27;)
+    best_params = None
+    
+    for seed in [42, 123]:
+        result_de = differential_evolution(
+            objective,
+            bounds,
+            seed=seed,
+            maxiter=550,
+            popsize=22,
+            atol=1e-9,
+            tol=1e-9,
+            strategy=&#x27;best1bin&#x27;,
+            polish=False,
+            workers=1,
+            updating=&#x27;deferred&#x27;
+        )
+        
+        score = objective(result_de.x)
+        if score &lt; best_score:
+            best_score = score
+            best_params = result_de.x
+    
+    # Stage 2: Gradient refinement
+    result_local = minimize(
+        objective,
+        best_params,
+        method=&#x27;L-BFGS-B&#x27;,
+        bounds=bounds,
+        options={&#x27;maxiter&#x27;: 2000, &#x27;ftol&#x27;: 1e-11, &#x27;gtol&#x27;: 1e-9}
+    )
+    
+    # Return best result
+    if result_local.success and objective(result_local.x) &lt; best_score:
+        return result_local.x
+    else:
+        return best_params
+# EVOLVE-BLOCK-END</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#4</span>
+                    <span class="run-label">Run 4</span>
+                    <span class="r2-badge" style="background-color: #228B22; color: white;">
+                        R² = 0.859818
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-3')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-3"># EVOLVE-BLOCK-START
+&quot;&quot;&quot;
+Multiplicative MoE scaling law with expert efficiency factor
+L = a * N^(-alpha) * (1 + b * E^(-beta)) + c
+Captures parameter scaling with expert efficiency modulation
+&quot;&quot;&quot;
+import numpy as np
+from scipy.optimize import minimize, differential_evolution
+
+def scaling_law_func(data_points, params):
+    &quot;&quot;&quot;
+    Multiplicative power law with expert efficiency:
+    L = a * N^(-alpha) * (1 + b * E^(-beta)) + c
+    
+    Key insight: Expert count modulates parameter efficiency
+    Parameters: [a, alpha, b, beta, c, unused_for_compatibility]
+    &quot;&quot;&quot;
+    X = np.atleast_2d(np.asarray(data_points))
+    params = np.asarray(params)
+    
+    if params.ndim == 1:
+        params = params[None, :]
+    
+    E = X[:, 0]  # num_experts
+    N = X[:, 1]  # dense_parameter_count
+    
+    a = params[:, 0]
+    alpha = params[:, 1]
+    b = params[:, 2]
+    beta = params[:, 3]
+    c = params[:, 4]
+    
+    eps = 1e-10
+    
+    # Base parameter scaling
+    base_term = a[:, None] * np.power(N[None, :] + eps, -alpha[:, None])
+    
+    # Expert efficiency modulation (1 + expert_effect)
+    expert_effect = b[:, None] * np.power(E[None, :] + eps, -beta[:, None])
+    
+    # Combined prediction with offset
+    pred = base_term * (1.0 + expert_effect) + c[:, None]
+    
+    return pred[0] if pred.shape[0] == 1 else pred.T
+
+
+def fit_scaling_law(data_points, loss_values):
+    &quot;&quot;&quot;
+    Efficient hybrid optimization with smart initialization
+    &quot;&quot;&quot;
+    X = np.atleast_2d(np.asarray(data_points))
+    y = np.asarray(loss_values)
+    
+    E = X[:, 0]
+    N = X[:, 1]
+    
+    # Smart initialization from dense models
+    dense_mask = E == 1
+    if np.sum(dense_mask) &gt;= 2:
+        y_dense = y[dense_mask]
+        N_dense = N[dense_mask]
+        log_coeffs = np.polyfit(np.log(N_dense + 1e-10), np.log(y_dense + 1e-10), 1)
+        alpha_init = np.clip(-log_coeffs[0], 0.2, 0.6)
+        a_init = np.exp(log_coeffs[1])
+    else:
+        alpha_init = 0.38
+        a_init = np.mean(y) * np.power(np.median(N), 0.38)
+    
+    # Estimate offset from minimum loss
+    c_init = np.percentile(y, 5) - 0.5
+    
+    def objective(params):
+        try:
+            pred = scaling_law_func(X, params)
+            residuals = pred - y
+            mse = np.mean(residuals ** 2)
+            
+            # Soft constraints for physical validity
+            reg = 1e-8 * np.sum(params[:5]**2)
+            
+            # Prefer alpha near Chinchilla-optimal
+            alpha_penalty = 1e-6 * (params[1] - 0.38)**2
+            
+            # Penalize out-of-range predictions
+            range_penalty = 0
+            if np.any(pred &lt; 0):
+                range_penalty += 50.0 * np.sum(np.maximum(0, -pred)**2)
+            if np.any(pred &gt; 10.0):
+                range_penalty += 50.0 * np.sum(np.maximum(0, pred - 10.0)**2)
+            
+            return mse + reg + alpha_penalty + range_penalty
+            
+        except (ValueError, FloatingPointError, OverflowError):
+            return 1e10
+    
+    bounds = [
+        (0.01, 30.0),   # a
+        (0.1, 0.7),     # alpha
+        (-5.0, 5.0),    # b (can be negative for expert penalty)
+        (0.0, 1.0),     # beta
+        (-1.0, 3.0),    # c (offset)
+        (0.0, 1.0),     # unused (for compatibility)
+    ]
+    
+    # Multi-start local optimization
+    best_result = None
+    best_loss = np.inf
+    
+    # Start 1: Smart initialization
+    init1 = np.array([a_init, alpha_init, 0.5, 0.3, c_init, 0.5])
+    result1 = minimize(objective, init1, method=&#x27;L-BFGS-B&#x27;, bounds=bounds,
+                       options={&#x27;maxiter&#x27;: 3000, &#x27;ftol&#x27;: 1e-12})
+    if result1.success and result1.fun &lt; best_loss:
+        best_result = result1
+        best_loss = result1.fun
+    
+    # Start 2: Global search with smaller population
+    result2 = differential_evolution(
+        objective, bounds, maxiter=150, seed=42,
+        atol=1e-10, tol=1e-10, workers=1,
+        strategy=&#x27;best1bin&#x27;, popsize=12, polish=True
+    )
+    if result2.fun &lt; best_loss:
+        best_result = result2
+        best_loss = result2.fun
+    
+    # Start 3: Alternative initialization
+    init3 = np.array([5.0, 0.4, -0.5, 0.2, 1.5, 0.5])
+    result3 = minimize(objective, init3, method=&#x27;L-BFGS-B&#x27;, bounds=bounds,
+                       options={&#x27;maxiter&#x27;: 3000, &#x27;ftol&#x27;: 1e-12})
+    if result3.success and result3.fun &lt; best_loss:
+        best_result = result3
+    
+    return best_result.x if best_result is not None else init1
+# EVOLVE-BLOCK-END</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#5</span>
+                    <span class="run-label">Run 2</span>
+                    <span class="r2-badge" style="background-color: #228B22; color: white;">
+                        R² = 0.832706
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-4')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-4"># EVOLVE-BLOCK-START
+&quot;&quot;&quot;
+MoE scaling law based on Chinchilla principles
+Uses multiplicative form: L = A * (N/N0)^(-α) * (D/D0)^(-β) + C
+Captures the joint scaling of experts and parameters more naturally
+&quot;&quot;&quot;
+import numpy as np
+from scipy.optimize import minimize, differential_evolution
+
+def scaling_law_func(data_points, params):
+    &quot;&quot;&quot;
+    Scaling law: L = A * (N/N0)^α * (D/D0)^β + C
+    where N = num_experts, D = dense_parameter_count
+    6 parameters: [A, α, β, C, N0, D0]
+    &quot;&quot;&quot;
+    X = np.atleast_2d(np.asarray(data_points))
+    params = np.asarray(params)
+    
+    if params.ndim == 1:
+        params = params[None, :]
+    
+    N = X[:, 0]  # num_experts
+    D = X[:, 1]  # dense_parameter_count
+    
+    # Avoid division by zero
+    N = np.maximum(N, 1.0)
+    D = np.maximum(D, 1e7)
+    
+    # Extract parameters
+    A = params[:, 0]      # scale coefficient
+    alpha = params[:, 1]  # expert exponent (negative for scaling)
+    beta = params[:, 2]   # parameter exponent (negative for scaling)
+    C = params[:, 3]      # asymptotic loss floor
+    N0 = params[:, 4]     # expert reference scale
+    D0 = params[:, 5]     # parameter reference scale
+    
+    # Ensure reference scales are positive
+    N0_safe = np.maximum(np.abs(N0), 1.0)
+    D0_safe = np.maximum(np.abs(D0), 1e7)
+    
+    # Multiplicative scaling law with normalization
+    pred = (A[None, :] * 
+            np.power(N[:, None] / N0_safe[None, :], alpha[None, :]) * 
+            np.power(D[:, None] / D0_safe[None, :], beta[None, :]) + 
+            C[None, :])
+    
+    return pred[:, 0] if pred.shape[1] == 1 else pred
+
+
+def fit_scaling_law(data_points, loss_values):
+    &quot;&quot;&quot;
+    Fit scaling law using differential evolution with smart initialization
+    &quot;&quot;&quot;
+    X = np.atleast_2d(np.asarray(data_points))
+    y = np.asarray(loss_values)
+    
+    if y.ndim == 1:
+        y2d = y[:, None]
+    else:
+        y2d = y
+    T = y2d.shape[1]
+    
+    # Smart bounds based on data characteristics
+    N_median = np.median(X[:, 0])
+    D_median = np.median(X[:, 1])
+    y_min = np.min(y)
+    y_max = np.max(y)
+    
+    bounds = [
+        (0.01, y_max * 2),        # A: scale coefficient
+        (-1.0, 0.5),              # alpha: expert exponent (negative for improvement)
+        (-1.0, 0.5),              # beta: parameter exponent (negative for improvement)
+        (y_min * 0.5, y_max),     # C: asymptotic floor
+        (1.0, max(64.0, N_median * 2)),  # N0: expert reference
+        (1e7, D_median * 2)       # D0: parameter reference
+    ]
+    
+    def objective(params):
+        params_2d = params.reshape(1, 6)
+        pred = scaling_law_func(X, params_2d)
+        residuals = pred - y2d[:, 0]
+        mse = np.mean(residuals ** 2)
+        # Add small regularization to prefer simpler exponents
+        reg = 1e-6 * (params[1]**2 + params[2]**2)
+        return mse + reg
+    
+    # Initialize with educated guess
+    init_guess = np.array([
+        y_max - y_min,   # A
+        -0.3,            # alpha (negative for scaling)
+        -0.3,            # beta (negative for scaling)
+        y_min,           # C
+        N_median,        # N0
+        D_median         # D0
+    ])
+    
+    # Global optimization with good initialization
+    result = differential_evolution(
+        objective,
+        bounds,
+        seed=42,
+        maxiter=400,
+        popsize=20,
+        atol=1e-7,
+        tol=1e-7,
+        init=&#x27;sobol&#x27;,
+        workers=1
+    )
+    
+    # Local refinement from both DE result and initial guess
+    result_local1 = minimize(
+        objective,
+        result.x,
+        method=&#x27;L-BFGS-B&#x27;,
+        bounds=bounds,
+        options={&#x27;maxiter&#x27;: 1000}
+    )
+    
+    result_local2 = minimize(
+        objective,
+        np.clip(init_guess, [b[0] for b in bounds], [b[1] for b in bounds]),
+        method=&#x27;L-BFGS-B&#x27;,
+        bounds=bounds,
+        options={&#x27;maxiter&#x27;: 1000}
+    )
+    
+    # Choose best result
+    candidates = [result.x, result_local1.x, result_local2.x]
+    scores = [objective(c) for c in candidates]
+    params_opt = candidates[np.argmin(scores)]
+    
+    return params_opt if T == 1 else np.tile(params_opt, (T, 1))
+# EVOLVE-BLOCK-END</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        </div>
+        
+        <footer class="footer">
+            <p>SLDBench | <a href="https://arxiv.org/abs/2507.21184" target="_blank">arXiv:2507.21184</a> | <a href="https://github.com/linhaowei1/SLD" target="_blank">GitHub</a></p>
+        </footer>
+    </div>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script>
+        function toggleRun(header) {
+            const content = header.nextElementSibling;
+            const isExpanded = content.style.display === 'block';
+            content.style.display = isExpanded ? 'none' : 'block';
+            header.classList.toggle('expanded', !isExpanded);
+        }
+        
+        function copyCode(event, codeId) {
+            event.stopPropagation();
+            const code = document.getElementById(codeId).textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                const btn = event.target;
+                btn.textContent = 'Copied!';
+                setTimeout(() => btn.textContent = 'Copy', 2000);
+            });
+        }
+        
+        Prism.highlightAll();
+    </script>
+</body>
+</html>

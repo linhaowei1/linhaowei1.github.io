@@ -1,0 +1,1238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SLD - Data-Constrained Scaling Law - SLDAgent + Gemini 3 Pro Preview</title>
+    <link rel="icon" type="image/png" href="assets/sld_logo.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" rel="stylesheet" />
+    <style>
+        :root {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8f9fa;
+            --accent-primary: #2563eb;
+            --accent-secondary: #3b82f6;
+            --accent-gradient: linear-gradient(135deg, #2563eb 0%, #3b82f6 50%, #60a5fa 100%);
+            --text-primary: #1f2937;
+            --text-secondary: #4b5563;
+            --border-subtle: rgba(0, 0, 0, 0.1);
+            --glass-bg: rgba(0, 0, 0, 0.02);
+            --success: #10b981;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Sora', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            min-height: 100vh;
+            color: var(--text-primary);
+        }
+        
+        .bg-pattern {
+            display: none;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--accent-primary);
+            text-decoration: none;
+            font-size: 0.9rem;
+            margin-bottom: 1.5rem;
+            transition: color 0.2s;
+        }
+        
+        .back-link:hover {
+            color: var(--accent-secondary);
+        }
+        
+        .header {
+            background: var(--glass-bg);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            backdrop-filter: blur(10px);
+        }
+        
+        .header h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            background: var(--accent-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .meta-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+            margin-top: 1rem;
+        }
+        
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .meta-label {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+        
+        .meta-value {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .r2-badge {
+            display: inline-block;
+            padding: 0.3rem 0.6rem;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        .section-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+        
+        .runs-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .run-card {
+            background: var(--glass-bg);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            overflow: hidden;
+            transition: border-color 0.2s;
+        }
+        
+        .run-card:hover {
+            border-color: rgba(99, 102, 241, 0.3);
+        }
+        
+        .run-card.best-run {
+            border-color: var(--success);
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.1);
+        }
+        
+        .run-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 1.25rem;
+            background: rgba(255, 255, 255, 0.02);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .run-header:hover {
+            background: rgba(255, 255, 255, 0.04);
+        }
+        
+        .run-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .run-badge {
+            padding: 0.25rem 0.6rem;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-secondary);
+        }
+        
+        .run-badge.best-badge {
+            background: var(--success);
+            color: white;
+        }
+        
+        .run-label {
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+        
+        .expand-icon {
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            transition: transform 0.2s;
+        }
+        
+        .run-header.expanded .expand-icon {
+            transform: rotate(180deg);
+        }
+        
+        .run-content {
+            border-top: 1px solid var(--border-subtle);
+        }
+        
+        .code-container {
+            overflow: hidden;
+        }
+        
+        .code-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 1.25rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-bottom: 1px solid var(--border-subtle);
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+        
+        .copy-btn {
+            padding: 0.35rem 0.75rem;
+            background: rgba(99, 102, 241, 0.2);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 6px;
+            color: var(--accent-primary);
+            font-size: 0.75rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        
+        .copy-btn:hover {
+            background: rgba(99, 102, 241, 0.3);
+        }
+        
+        .code-container pre {
+            margin: 0;
+            padding: 1.25rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            line-height: 1.6;
+            overflow-x: auto;
+            background: transparent !important;
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 3rem;
+            padding-top: 2rem;
+            border-top: 1px solid var(--border-subtle);
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+        
+        .footer a {
+            color: var(--accent-primary);
+            text-decoration: none;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+            
+            .header h1 {
+                font-size: 1.25rem;
+            }
+            
+            .meta-row {
+                flex-direction: column;
+                gap: 0.75rem;
+            }
+            
+            .run-info {
+                flex-wrap: wrap;
+                gap: 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-pattern"></div>
+    
+    <div class="container">
+        <a href="sld_index.html" class="back-link">
+            ← Back to Leaderboard
+        </a>
+        
+        <div class="header">
+            <h1>Data-Constrained Scaling Law</h1>
+            <div class="meta-row">
+                <div class="meta-item">
+                    <span class="meta-label">Agent:</span>
+                    <span class="meta-value">SLDAgent</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Model:</span>
+                    <span class="meta-value">Gemini 3 Pro Preview</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Best R²:</span>
+                    <span class="r2-badge" style="background-color: #006400; color: white;">
+                        0.963445
+                    </span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Mean R²:</span>
+                    <span class="meta-value">0.916012</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Min R²:</span>
+                    <span class="meta-value">0.904140</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Runs:</span>
+                    <span class="meta-value">5</span>
+                </div>
+            </div>
+        </div>
+        
+        <h2 class="section-title">All Runs (sorted by R²)</h2>
+        
+        <div class="runs-container">
+            
+        <div class="run-card best-run">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge best-badge">Best</span>
+                    <span class="run-label">Run 2</span>
+                    <span class="r2-badge" style="background-color: #006400; color: white;">
+                        R² = 0.963445
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: block;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-0')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-0"># EVOLVE-BLOCK-START
+&quot;&quot;&quot;
+Scaling law discovery for LLM finetuning scenarios
+Implements an additive power law with repetition penalty.
+Optimization strategy: Variable Projection (VarPro) with Geometric Mean Centering.
+- Decouples linear coefficients (E, A, B, C) from non-linear exponents (alpha, beta, gamma).
+- Uses Non-Negative Least Squares (NNLS) for linear parameters to ensure physical validity (coeffs &gt;= 0).
+- Uses Geometric Mean Centering to orthogonalize the parameter space, improving convergence.
+- Optimizes exponents via Grid Search followed by L-BFGS-B.
+&quot;&quot;&quot;
+import numpy as np
+from scipy.optimize import minimize, nnls
+
+def scaling_law_func(data_points, params):
+    &quot;&quot;&quot;
+    Predicts loss: L = E + A*(N/N0)^-alpha + B*(D/D0)^-beta + C*((D/U)/R0)^gamma
+    
+    Inputs:
+    data_points: (N, 3) array [unique_tokens, params, tokens]
+    params: (7,) or (T, 7) array
+            [E, A, alpha, B, beta, C, gamma]
+    &quot;&quot;&quot;
+    X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
+    U = X[:, 0]
+    Np = X[:, 1]
+    D = X[:, 2]
+    
+    # Fixed Normalization Constants
+    N0 = 1e9
+    D0 = 1e11
+    R0 = 100.0
+    eps = 1e-9
+    
+    # Normalized inputs
+    # Ensure numerical stability with eps
+    n_hat = np.maximum(Np / N0, eps)
+    d_hat = np.maximum(D / D0, eps)
+    # Repetition ratio R = D / U
+    r_hat = np.maximum((D / np.maximum(U, eps)) / R0, eps)
+    
+    # Parameter handling
+    params = np.asarray(params, dtype=np.float64)
+    is_1d = (params.ndim == 1)
+    if is_1d:
+        p = params[None, :] 
+    else:
+        p = params          
+        
+    # Extract parameters and enforce non-negativity
+    # E, A, B, C, alpha, beta, gamma &gt;= 0
+    p_abs = np.abs(p)
+    E     = p_abs[:, 0][:, None]
+    A     = p_abs[:, 1][:, None]
+    alpha = p_abs[:, 2][:, None]
+    B     = p_abs[:, 3][:, None]
+    beta  = p_abs[:, 4][:, None]
+    C     = p_abs[:, 5][:, None]
+    gamma = p_abs[:, 6][:, None]
+    
+    # Clip exponents to prevent overflow/underflow
+    alpha = np.clip(alpha, 0.0, 10.0)
+    beta  = np.clip(beta, 0.0, 10.0)
+    gamma = np.clip(gamma, 0.0, 10.0)
+    
+    # Compute terms
+    term_N = A * np.power(n_hat, -alpha)
+    term_D = B * np.power(d_hat, -beta)
+    term_R = C * np.power(r_hat, gamma)
+    
+    pred = E + term_N + term_D + term_R
+    
+    if is_1d:
+        return pred[0]
+    else:
+        return pred.T
+
+def fit_scaling_law(data_points, loss_values):
+    X = np.asarray(data_points, dtype=np.float64)
+    y = np.asarray(loss_values, dtype=np.float64).ravel()
+    
+    # Constants matching scaling_law_func
+    N0, D0, R0 = 1e9, 1e11, 100.0
+    eps = 1e-9
+    
+    U, Np, D = X[:, 0], X[:, 1], X[:, 2]
+    R = D / np.maximum(U, eps)
+    
+    # 1. Geometric Mean Centering
+    # Compute geometric means of the inputs to center the power laws.
+    # This reduces correlation between magnitude (A,B,C) and exponents (alpha,beta,gamma).
+    log_N = np.log(np.maximum(Np, eps))
+    log_D = np.log(np.maximum(D, eps))
+    log_R = np.log(np.maximum(R, eps))
+    
+    g_N = np.exp(np.mean(log_N))
+    g_D = np.exp(np.mean(log_D))
+    g_R = np.exp(np.mean(log_R))
+    
+    # Centered bases (inputs normalized by their geometric means)
+    base_N = np.maximum(Np / g_N, eps)
+    base_D = np.maximum(D / g_D, eps)
+    base_R = np.maximum(R / g_R, eps)
+    
+    # We constrain E &gt;= 1.0 (Entropy floor)
+    # Solve for y_target = y - 1.0 with E&#x27; &gt;= 0
+    loss_floor = 1.0
+    y_target = y - loss_floor
+    
+    # Helper: Solve linear coefficients given exponents using NNLS
+    def solve_linear_coeffs(exponents):
+        alpha, beta, gamma = exponents
+        
+        # Stability
+        alpha = np.clip(alpha, 0.0, 10.0)
+        beta  = np.clip(beta, 0.0, 10.0)
+        gamma = np.clip(gamma, 0.0, 10.0)
+        
+        # Construct Design Matrix M
+        # Model: L = (E&#x27;+1) + A&#x27; * base_N^-alpha + B&#x27; * base_D^-beta + C&#x27; * base_R^gamma
+        c0 = np.ones_like(y)
+        c1 = np.power(base_N, -alpha)
+        c2 = np.power(base_D, -beta)
+        c3 = np.power(base_R, gamma)
+        
+        M = np.vstack([c0, c1, c2, c3]).T
+        
+        # Solve min ||M*coeffs - y_target|| subject to coeffs &gt;= 0
+        try:
+            coeffs, rnorm = nnls(M, y_target)
+        except Exception:
+            coeffs = np.zeros(4)
+            rnorm = 1e10
+            
+        return coeffs, rnorm
+
+    # Objective for exponent optimization
+    def objective(exponents):
+        _, rnorm = solve_linear_coeffs(exponents)
+        return rnorm
+
+    # 2. Initialization via Grid Search
+    # Explore the exponent landscape
+    alphas = [0.2, 0.4, 0.6, 0.8]
+    betas  = [0.2, 0.4, 0.6, 0.8]
+    gammas = [0.0, 0.5, 1.0, 2.0]
+    
+    best_loss = np.inf
+    best_exponents = np.array([0.33, 0.33, 0.5])
+    
+    for a in alphas:
+        for b in betas:
+            for g in gammas:
+                l = objective([a, b, g])
+                if l &lt; best_loss:
+                    best_loss = l
+                    best_exponents = np.array([a, b, g])
+                    
+    # 3. Fine-tuning with L-BFGS-B
+    # Supports bounds and handles non-smoothness of NNLS reasonably well via finite diff
+    try:
+        res = minimize(
+            objective,
+            best_exponents,
+            method=&#x27;L-BFGS-B&#x27;,
+            bounds=[(0.0, 5.0), (0.0, 5.0), (0.0, 5.0)],
+            options={&#x27;ftol&#x27;: 1e-6, &#x27;eps&#x27;: 1e-5}
+        )
+        final_exponents = res.x
+    except Exception:
+        final_exponents = best_exponents
+        
+    # 4. Recover Parameters
+    # Convert centered coefficients back to standard normalizations (N0, D0, R0)
+    coeffs, _ = solve_linear_coeffs(final_exponents)
+    E_prime, A_prime, B_prime, C_prime = coeffs
+    alpha, beta, gamma = final_exponents
+    
+    # E
+    E = E_prime + loss_floor
+    
+    # A * (N/N0)^-alpha = A&#x27; * (N/gN)^-alpha =&gt; A = A&#x27; * (gN/N0)^alpha
+    A = A_prime * np.power(g_N / N0, alpha)
+    
+    # B * (D/D0)^-beta = B&#x27; * (D/gD)^-beta =&gt; B = B&#x27; * (gD/D0)^beta
+    B = B_prime * np.power(g_D / D0, beta)
+    
+    # C * (R/R0)^gamma = C&#x27; * (R/gR)^gamma =&gt; C = C&#x27; * (gR/R0)^gamma
+    # Note: growth term exponent is positive gamma
+    C = C_prime * np.power(g_R / R0, gamma)
+    
+    return np.array([E, A, alpha, B, beta, C, gamma])
+# EVOLVE-BLOCK-END</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#2</span>
+                    <span class="run-label">Run 5</span>
+                    <span class="r2-badge" style="background-color: #228B22; color: white;">
+                        R² = 0.904190
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-1')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-1"># EVOLVE-BLOCK-START
+&quot;&quot;&quot;
+Scaling law discovery for LLM finetuning scenarios
+Implements a modified Chinchilla scaling law with a repetition penalty term (7 parameters).
+Optimized fitting using multi-start L-BFGS-B and robust numerical handling.
+&quot;&quot;&quot;
+import numpy as np
+from scipy.optimize import minimize
+
+def scaling_law_func(data_points, params):
+    &quot;&quot;&quot;
+    Predicts loss using a parametric scaling law:
+    L = E + A*N^(-alpha) + B*D^(-beta) + C*(D/U)^gamma
+    
+    Parameters (7):
+    p[0]: E (bias, irreducible loss)
+    p[1]: log(A)
+    p[2]: alpha (decay rate for N)
+    p[3]: log(B)
+    p[4]: beta (decay rate for D)
+    p[5]: log(C)
+    p[6]: gamma (growth rate for repetition penalty D/U)
+    &quot;&quot;&quot;
+    # Ensure inputs are 2D arrays
+    X = np.array(data_points, dtype=np.float64, copy=False)
+    if X.ndim == 1:
+        X = X[None, :]
+    
+    # Inputs: U (unique), N (params), D (tokens)
+    U = X[:, 0]
+    N_p = X[:, 1]
+    D = X[:, 2]
+    
+    # Numerical stability constants
+    eps = 1e-9
+    
+    # Precompute logs
+    # Use maximum to avoid log(0) or negative inputs
+    log_N = np.log(np.maximum(N_p, eps))
+    log_D = np.log(np.maximum(D, eps))
+    log_U = np.log(np.maximum(U, eps))
+    log_R = log_D - log_U # Log of repetition ratio D/U
+    
+    # Handle params
+    p = np.array(params, dtype=np.float64, copy=False)
+    is_1d = (p.ndim == 1)
+    if is_1d:
+        p = p[None, :]
+    
+    # Extract params with broadcasting
+    # shape (T, 1)
+    E     = p[:, 0][:, None]
+    log_A = p[:, 1][:, None]
+    alpha = np.abs(p[:, 2][:, None]) # Enforce positive decay
+    log_B = p[:, 3][:, None]
+    beta  = np.abs(p[:, 4][:, None]) # Enforce positive decay
+    log_C = p[:, 5][:, None]
+    gamma = np.abs(p[:, 6][:, None]) # Enforce positive growth for penalty
+    
+    # Calculate terms in log space to prevent underflow/overflow before exp
+    # Term N: A * N^-alpha
+    log_term_N = log_A - alpha * log_N[None, :]
+    
+    # Term D: B * D^-beta
+    log_term_D = log_B - beta * log_D[None, :]
+    
+    # Term R: C * (D/U)^gamma
+    log_term_R = log_C + gamma * log_R[None, :]
+    
+    # Clip exponents to avoid inf/nan. 
+    # Loss is typically &lt; 10. exp(10) ~ 22000. 
+    # We clip to [-50, 20] to be safe.
+    term_N = np.exp(np.clip(log_term_N, -50.0, 20.0))
+    term_D = np.exp(np.clip(log_term_D, -50.0, 20.0))
+    term_R = np.exp(np.clip(log_term_R, -50.0, 20.0))
+    
+    # Combine
+    pred = E + term_N + term_D + term_R
+    
+    if is_1d:
+        return pred[0]
+    else:
+        return pred.T # (N, T)
+
+def fit_scaling_law(data_points, loss_values):
+    X = np.atleast_2d(data_points)
+    y = np.array(loss_values)
+    if y.ndim &gt; 1:
+        y = y.ravel()
+
+    # Objective function: Mean Squared Error
+    def objective(p):
+        pred = scaling_law_func(X, p)
+        return np.mean((pred - y)**2)
+
+    # Multi-start optimization strategy
+    # 1. Generate random seeds in a plausible hypercube
+    # 2. Evaluate all seeds
+    # 3. Optimize the best seeds
+    
+    # Plausible ranges for initialization
+    # E: [1.0, 4.0]
+    # logA: [5.0, 20.0]
+    # alpha: [0.1, 1.0]
+    # logB: [5.0, 20.0]
+    # beta: [0.1, 1.0]
+    # logC: [-10.0, 5.0]
+    # gamma: [0.0, 2.0]
+    
+    rng = np.random.RandomState(42)
+    n_seeds = 1000
+    
+    lb = np.array([1.0, 0.0, 0.0, 0.0, 0.0, -20.0, 0.0])
+    ub = np.array([5.0, 25.0, 1.5, 25.0, 1.5, 5.0, 3.0])
+    
+    # Latin Hypercube Sampling-like initialization
+    guesses = lb + (ub - lb) * rng.rand(n_seeds, 7)
+    
+    # Calculate initial losses (vectorized)
+    preds = scaling_law_func(X, guesses) # (N, n_seeds)
+    mse_scores = np.mean((preds - y[:, None])**2, axis=0)
+    
+    # Select top k candidates
+    k = 5
+    best_indices = np.argsort(mse_scores)[:k]
+    
+    best_params = guesses[best_indices[0]]
+    best_loss = np.inf
+    
+    # Polish using L-BFGS-B with bounds
+    # Bounds here serve as loose constraints to keep optimization stable
+    optim_bounds = [
+        (0.0, 10.0),    # E
+        (-5.0, 30.0),   # logA
+        (0.0, 3.0),     # alpha
+        (-5.0, 30.0),   # logB
+        (0.0, 3.0),     # beta
+        (-30.0, 10.0),  # logC
+        (0.0, 10.0)     # gamma
+    ]
+    
+    for idx in best_indices:
+        p0 = guesses[idx]
+        try:
+            res = minimize(
+                objective, 
+                p0, 
+                method=&#x27;L-BFGS-B&#x27;, 
+                bounds=optim_bounds,
+                options={&#x27;ftol&#x27;: 1e-10, &#x27;gtol&#x27;: 1e-8}
+            )
+            if res.fun &lt; best_loss:
+                best_loss = res.fun
+                best_params = res.x
+        except Exception:
+            continue
+            
+    return best_params
+# EVOLVE-BLOCK-END</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#3</span>
+                    <span class="run-label">Run 1</span>
+                    <span class="r2-badge" style="background-color: #228B22; color: white;">
+                        R² = 0.904145
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-2')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-2"># EVOLVE-BLOCK-START
+import numpy as np
+from scipy.optimize import minimize
+
+def scaling_law_func(data_points, params):
+    &quot;&quot;&quot;
+    Computes loss predictions using a centered scaling law with repetition penalty.
+    L = E + exp(logA - alpha*logN_c) + exp(logB - beta*logD_c) + exp(logC + gamma*logR)
+    
+    Inputs:
+    data_points: (N, 3) array [U, N, D]
+    params: (7,) or (T, 7) array [E, logA, alpha, logB, beta, logC, gamma]
+    
+    Returns:
+    (N,) or (N, T) array of loss predictions
+    &quot;&quot;&quot;
+    X = np.asarray(data_points, dtype=np.float64)
+    if X.ndim == 1: X = X[None, :]
+    
+    P = np.asarray(params, dtype=np.float64)
+    one_d = (P.ndim == 1)
+    if one_d: P = P[None, :]
+    
+    # Constants for centering (based on domain knowledge of typical LLM scales)
+    # Params N ~ 1e8 to 1e9 -&gt; ln(N) mean approx 19.6
+    # Tokens D ~ 1e9 to 1e12 -&gt; ln(D) mean approx 24.2
+    C_N, C_D = 19.6, 24.2
+    EPS = 1e-12
+    
+    # Extract columns: Unique(U), Model(N), Data(D)
+    U, N, D = X[:, 0], X[:, 1], X[:, 2]
+    
+    # Precompute log features with centering
+    # Clip inputs to EPS to handle zeros safely
+    ln_N = np.log(np.maximum(N, EPS)) - C_N
+    ln_D = np.log(np.maximum(D, EPS)) - C_D
+    
+    # Repetition Ratio R = D/U. 
+    # Log-ratio is stable: ln(D) - ln(U)
+    ln_R = np.log(np.maximum(D, EPS)) - np.log(np.maximum(U, EPS))
+    
+    # Unpack parameters (T, 1) for broadcasting
+    # Form: E + term_N + term_D + term_R
+    E     = P[:, 0:1]
+    logA  = P[:, 1:2]
+    alpha = P[:, 2:3]
+    logB  = P[:, 3:4]
+    beta  = P[:, 4:5]
+    logC  = P[:, 5:6]
+    gamma = P[:, 6:7]
+    
+    # Compute terms
+    # Using np.clip in exp to prevent overflow/underflow
+    # Term N (Model): A * N^-alpha
+    arg_N = logA - alpha * ln_N[None, :]
+    tN = np.exp(np.clip(arg_N, -60, 60))
+    
+    # Term D (Data): B * D^-beta
+    arg_D = logB - beta * ln_D[None, :]
+    tD = np.exp(np.clip(arg_D, -60, 60))
+    
+    # Term R (Penalty): C * R^gamma
+    # Penalty increases with R, so +gamma * ln_R
+    arg_R = logC + gamma * ln_R[None, :]
+    tR = np.exp(np.clip(arg_R, -60, 60))
+    
+    pred = E + tN + tD + tR
+    
+    if one_d: return pred.ravel()
+    return pred.T
+
+def fit_scaling_law(data_points, loss_values):
+    X = np.asarray(data_points, dtype=np.float64)
+    y = np.asarray(loss_values, dtype=np.float64).ravel()
+    
+    # Filter valid data
+    mask = np.isfinite(y) &amp; (y &gt; 0)
+    X_clean, y_clean = X[mask], y[mask]
+    
+    # Fallback for insufficient data
+    if len(y_clean) &lt; 7:
+        return np.array([2.0, 0.0, 0.33, 0.0, 0.33, -50.0, 1.0])
+        
+    def objective(p):
+        preds = scaling_law_func(X_clean, p)
+        return np.mean((preds - y_clean)**2)
+    
+    # Bounds to enforce physical realism
+    # E &gt;= 0 (irreducible loss)
+    # alpha, beta &gt;= 0 (more compute/data reduces loss)
+    # gamma &gt;= 0 (repetition increases loss)
+    bounds = [
+        (0.0, 10.0),   # E
+        (-20.0, 20.0), # logA
+        (0.0, 3.0),    # alpha
+        (-20.0, 20.0), # logB
+        (0.0, 3.0),    # beta
+        (-100.0, 10.0),# logC (penalty can be negligible -&gt; -100)
+        (0.0, 10.0)    # gamma
+    ]
+    
+    # Heuristics for initialization
+    min_loss = np.min(y_clean)
+    # Estimate E slightly below min observed loss
+    e_est = max(0.0, min_loss - 0.2)
+    
+    # Diverse initial guesses to find global minimum
+    guesses = [
+        # 1. Balanced Scaling (Standard)
+        [e_est, -1.0, 0.5, -1.0, 0.5, -20.0, 1.0],
+        
+        # 2. Chinchilla-like (Specific exponents)
+        [e_est, -0.5, 0.33, -0.5, 0.33, -20.0, 1.0],
+        
+        # 3. Parameter dominant (A term large/slow decay)
+        [e_est, 1.0, 0.2, -2.0, 0.8, -20.0, 1.0],
+        
+        # 4. Data dominant
+        [e_est, -2.0, 0.8, 1.0, 0.2, -20.0, 1.0],
+        
+        # 5. Active Penalty (logC higher)
+        [e_est, -1.0, 0.5, -1.0, 0.5, -3.0, 1.5],
+        
+        # 6. Flat scaling (High E, low scaling)
+        [min_loss - 0.1, 0.0, 0.1, 0.0, 0.1, -50.0, 1.0]
+    ]
+    
+    best_params = guesses[0]
+    best_mse = np.inf
+    
+    # Optimization loop with restarts
+    for x0 in guesses:
+        try:
+            res = minimize(objective, np.array(x0), method=&#x27;L-BFGS-B&#x27;, 
+                          bounds=bounds, options={&#x27;ftol&#x27;: 1e-10, &#x27;maxiter&#x27;: 1000})
+            if res.fun &lt; best_mse:
+                best_mse = res.fun
+                best_params = res.x
+        except:
+            continue
+            
+    return np.array(best_params)
+# EVOLVE-BLOCK-END</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#4</span>
+                    <span class="run-label">Run 4</span>
+                    <span class="r2-badge" style="background-color: #228B22; color: white;">
+                        R² = 0.904140
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-3')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-3"># EVOLVE-BLOCK-START
+import numpy as np
+from scipy.optimize import minimize
+
+def scaling_law_func(data_points, params):
+    &quot;&quot;&quot;
+    Computes loss based on a centered scaling law with repetition penalty:
+    L = E + A * (N/N_c)^-alpha + B * (D/D_c)^-beta + C * (D/U)^gamma
+    
+    Implemented in log-space for stability:
+    L = E + exp(logA - alpha * ln_N&#x27;) + exp(logB - beta * ln_D&#x27;) + exp(logC + gamma * ln_R)
+    
+    Inputs:
+    data_points: (N, 3) array [unique_tokens, params, tokens]
+    params: (7,) or (T, 7) array [E, logA, alpha, logB, beta, logC, gamma]
+    
+    Returns:
+    Loss predictions: (N,) or (N, T)
+    &quot;&quot;&quot;
+    X = np.asarray(data_points, dtype=np.float64)
+    if X.ndim == 1:
+        X = X[None, :]
+    
+    # Extract features
+    # U: unique_tokens, N_model: parameters, D_data: tokens
+    U = X[:, 0]
+    N_model = X[:, 1]
+    D_data = X[:, 2]
+    
+    # Handle Parameters shape
+    p = np.asarray(params, dtype=np.float64)
+    is_1d = (p.ndim == 1)
+    if is_1d:
+        p = p[None, :] # (1, 7)
+    
+    # Unpack parameters (T, 1) to allow broadcasting
+    # Form: [E, logA, alpha, logB, beta, logC, gamma]
+    E     = p[:, 0][:, None]
+    logA  = p[:, 1][:, None]
+    alpha = p[:, 2][:, None]
+    logB  = p[:, 3][:, None]
+    beta  = p[:, 4][:, None]
+    logC  = p[:, 5][:, None]
+    gamma = p[:, 6][:, None]
+    
+    # Constants for centering (based on typical data ranges: N~1e8-1e9, D~1e9-1e12)
+    # Centering inputs makes A and B coefficients O(1) instead of O(1e20)
+    LN_N_CENTER = 19.5  # approx ln(3e8)
+    LN_D_CENTER = 24.0  # approx ln(2.6e10)
+    EPS = 1e-12
+    
+    # Log-space inputs
+    ln_N = np.log(np.maximum(N_model, EPS)) - LN_N_CENTER
+    ln_D = np.log(np.maximum(D_data, EPS)) - LN_D_CENTER
+    # Repetition ratio R = D / U
+    ln_R = np.log(np.maximum(D_data / np.maximum(U, EPS), EPS))
+    
+    # Compute terms with numerical safety clipping
+    # Term 1: Model scaling A * N^-alpha
+    arg_N = logA - alpha * ln_N[None, :] # (T, N)
+    term_N = np.exp(np.clip(arg_N, -50.0, 50.0))
+    
+    # Term 2: Data scaling B * D^-beta
+    arg_D = logB - beta * ln_D[None, :] # (T, N)
+    term_D = np.exp(np.clip(arg_D, -50.0, 50.0))
+    
+    # Term 3: Repetition penalty C * R^gamma
+    arg_R = logC + gamma * ln_R[None, :] # (T, N)
+    term_R = np.exp(np.clip(arg_R, -50.0, 50.0))
+    
+    pred = E + term_N + term_D + term_R # (T, N)
+    
+    if is_1d:
+        return pred[0] # (N,)
+    else:
+        return pred.T  # (N, T)
+
+def fit_scaling_law(data_points, loss_values):
+    X = np.asarray(data_points, dtype=np.float64)
+    y = np.asarray(loss_values, dtype=np.float64).ravel()
+    
+    # Basic data cleaning: remove NaNs or non-positive losses
+    mask = np.isfinite(y) &amp; (y &gt; 0)
+    X_clean = X[mask]
+    y_clean = y[mask]
+    
+    # Fallback if insufficient data
+    if len(y_clean) &lt; 7:
+        return np.array([2.0, 0.0, 0.5, 0.0, 0.5, -5.0, 1.0])
+
+    def objective(p):
+        pred = scaling_law_func(X_clean, p)
+        return np.mean((pred - y_clean)**2)
+
+    # Heuristic initialization
+    # Estimate noise floor E from the minimum observed loss
+    min_loss = np.min(y_clean)
+    E_est = max(0.0, min_loss - 0.2)
+    
+    # Define varied starting points to avoid local minima
+    # Since inputs are centered, logA=0 corresponds to term=1.0 at center
+    # [E, logA, alpha, logB, beta, logC, gamma]
+    guesses = [
+        [E_est, 0.0, 0.5, 0.0, 0.5, -5.0, 1.0],       # Balanced (Chinchilla-like)
+        [E_est, 0.5, 0.33, 0.5, 0.33, -5.0, 1.0],     # Shallow scaling
+        [E_est, -0.5, 0.8, -0.5, 0.8, -3.0, 2.0],     # Steep scaling
+        [E_est, 1.0, 0.6, -1.0, 0.3, -5.0, 1.0],      # Model-term dominant
+        [E_est, -1.0, 0.3, 1.0, 0.6, -5.0, 1.0],      # Data-term dominant
+        [E_est + 0.5, -0.5, 0.4, -0.5, 0.4, -2.0, 3.0] # High bias, high penalty
+    ]
+    
+    # Bounds to enforce physical constraints
+    # E &gt;= 0, Exponents &gt; 0
+    bounds = [
+        (0.0, 10.0),   # E
+        (-10.0, 10.0), # logA
+        (0.0, 2.0),    # alpha
+        (-10.0, 10.0), # logB
+        (0.0, 2.0),    # beta
+        (-20.0, 5.0),  # logC (can be very small)
+        (0.0, 5.0)     # gamma
+    ]
+    
+    best_params = np.array(guesses[0])
+    best_mse = np.inf
+    
+    for guess in guesses:
+        try:
+            # L-BFGS-B handles bounds efficiently
+            res = minimize(
+                objective, 
+                np.array(guess), 
+                method=&#x27;L-BFGS-B&#x27;, 
+                bounds=bounds,
+                options={&#x27;maxiter&#x27;: 2000, &#x27;ftol&#x27;: 1e-9}
+            )
+            if res.fun &lt; best_mse:
+                best_mse = res.fun
+                best_params = res.x
+        except Exception:
+            continue
+            
+    return best_params
+# EVOLVE-BLOCK-END</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#5</span>
+                    <span class="run-label">Run 3</span>
+                    <span class="r2-badge" style="background-color: #228B22; color: white;">
+                        R² = 0.904140
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-4')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-4"># EVOLVE-BLOCK-START
+import numpy as np
+from scipy.optimize import minimize
+
+def scaling_law_func(data_points, params):
+    &quot;&quot;&quot;
+    Computes loss based on a centered scaling law with repetition penalty:
+    L = E + A * (N/N_c)^-alpha + B * (D/D_c)^-beta + C * (D/U)^gamma
+    
+    Implemented in log-space for stability:
+    L = E + exp(logA - alpha * ln_N&#x27;) + exp(logB - beta * ln_D&#x27;) + exp(logC + gamma * ln_R)
+    
+    Inputs:
+    data_points: (N, 3) array [unique_tokens, params, tokens]
+    params: (7,) or (T, 7) array [E, logA, alpha, logB, beta, logC, gamma]
+    
+    Returns:
+    Loss predictions: (N,) or (N, T)
+    &quot;&quot;&quot;
+    X = np.asarray(data_points, dtype=np.float64)
+    if X.ndim == 1:
+        X = X[None, :]
+    
+    # Extract features
+    # U: unique_tokens, N_model: parameters, D_data: tokens
+    U = X[:, 0]
+    N_model = X[:, 1]
+    D_data = X[:, 2]
+    
+    # Handle Parameters shape
+    p = np.asarray(params, dtype=np.float64)
+    is_1d = (p.ndim == 1)
+    if is_1d:
+        p = p[None, :] # (1, 7)
+    
+    # Unpack parameters (T, 1) to allow broadcasting
+    # Form: [E, logA, alpha, logB, beta, logC, gamma]
+    E     = p[:, 0][:, None]
+    logA  = p[:, 1][:, None]
+    alpha = p[:, 2][:, None]
+    logB  = p[:, 3][:, None]
+    beta  = p[:, 4][:, None]
+    logC  = p[:, 5][:, None]
+    gamma = p[:, 6][:, None]
+    
+    # Constants for centering (based on typical data ranges: N~1e8-1e9, D~1e9-1e12)
+    # Centering inputs makes A and B coefficients O(1) instead of O(1e20)
+    LN_N_CENTER = 19.5  # approx ln(3e8)
+    LN_D_CENTER = 24.0  # approx ln(2.6e10)
+    EPS = 1e-12
+    
+    # Log-space inputs
+    ln_N = np.log(np.maximum(N_model, EPS)) - LN_N_CENTER
+    ln_D = np.log(np.maximum(D_data, EPS)) - LN_D_CENTER
+    # Repetition ratio R = D / U
+    ln_R = np.log(np.maximum(D_data / np.maximum(U, EPS), EPS))
+    
+    # Compute terms with numerical safety clipping
+    # Term 1: Model scaling A * N^-alpha
+    arg_N = logA - alpha * ln_N[None, :] # (T, N)
+    term_N = np.exp(np.clip(arg_N, -50.0, 50.0))
+    
+    # Term 2: Data scaling B * D^-beta
+    arg_D = logB - beta * ln_D[None, :] # (T, N)
+    term_D = np.exp(np.clip(arg_D, -50.0, 50.0))
+    
+    # Term 3: Repetition penalty C * R^gamma
+    arg_R = logC + gamma * ln_R[None, :] # (T, N)
+    term_R = np.exp(np.clip(arg_R, -50.0, 50.0))
+    
+    pred = E + term_N + term_D + term_R # (T, N)
+    
+    if is_1d:
+        return pred[0] # (N,)
+    else:
+        return pred.T  # (N, T)
+
+def fit_scaling_law(data_points, loss_values):
+    X = np.asarray(data_points, dtype=np.float64)
+    y = np.asarray(loss_values, dtype=np.float64).ravel()
+    
+    # Basic data cleaning: remove NaNs or non-positive losses
+    mask = np.isfinite(y) &amp; (y &gt; 0)
+    X_clean = X[mask]
+    y_clean = y[mask]
+    
+    # Fallback if insufficient data
+    if len(y_clean) &lt; 7:
+        return np.array([2.0, 0.0, 0.5, 0.0, 0.5, -5.0, 1.0])
+
+    def objective(p):
+        pred = scaling_law_func(X_clean, p)
+        return np.mean((pred - y_clean)**2)
+
+    # Heuristic initialization
+    # Estimate noise floor E from the minimum observed loss
+    min_loss = np.min(y_clean)
+    E_est = max(0.0, min_loss - 0.2)
+    
+    # Define varied starting points to avoid local minima
+    # Since inputs are centered, logA=0 corresponds to term=1.0 at center
+    # [E, logA, alpha, logB, beta, logC, gamma]
+    guesses = [
+        [E_est, 0.0, 0.5, 0.0, 0.5, -5.0, 1.0],       # Balanced (Chinchilla-like)
+        [E_est, 0.5, 0.33, 0.5, 0.33, -5.0, 1.0],     # Shallow scaling
+        [E_est, -0.5, 0.8, -0.5, 0.8, -3.0, 2.0],     # Steep scaling
+        [E_est, 1.0, 0.6, -1.0, 0.3, -5.0, 1.0],      # Model-term dominant
+        [E_est, -1.0, 0.3, 1.0, 0.6, -5.0, 1.0],      # Data-term dominant
+        [E_est + 0.5, -0.5, 0.4, -0.5, 0.4, -2.0, 3.0] # High bias, high penalty
+    ]
+    
+    # Bounds to enforce physical constraints
+    # E &gt;= 0, Exponents &gt; 0
+    bounds = [
+        (0.0, 10.0),   # E
+        (-10.0, 10.0), # logA
+        (0.0, 2.0),    # alpha
+        (-10.0, 10.0), # logB
+        (0.0, 2.0),    # beta
+        (-20.0, 5.0),  # logC (can be very small)
+        (0.0, 5.0)     # gamma
+    ]
+    
+    best_params = np.array(guesses[0])
+    best_mse = np.inf
+    
+    for guess in guesses:
+        try:
+            # L-BFGS-B handles bounds efficiently
+            res = minimize(
+                objective, 
+                np.array(guess), 
+                method=&#x27;L-BFGS-B&#x27;, 
+                bounds=bounds,
+                options={&#x27;maxiter&#x27;: 2000, &#x27;ftol&#x27;: 1e-9}
+            )
+            if res.fun &lt; best_mse:
+                best_mse = res.fun
+                best_params = res.x
+        except Exception:
+            continue
+            
+    return best_params
+# EVOLVE-BLOCK-END</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        </div>
+        
+        <footer class="footer">
+            <p>SLDBench | <a href="https://arxiv.org/abs/2507.21184" target="_blank">arXiv:2507.21184</a> | <a href="https://github.com/linhaowei1/SLD" target="_blank">GitHub</a></p>
+        </footer>
+    </div>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script>
+        function toggleRun(header) {
+            const content = header.nextElementSibling;
+            const isExpanded = content.style.display === 'block';
+            content.style.display = isExpanded ? 'none' : 'block';
+            header.classList.toggle('expanded', !isExpanded);
+        }
+        
+        function copyCode(event, codeId) {
+            event.stopPropagation();
+            const code = document.getElementById(codeId).textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                const btn = event.target;
+                btn.textContent = 'Copied!';
+                setTimeout(() => btn.textContent = 'Copy', 2000);
+            });
+        }
+        
+        Prism.highlightAll();
+    </script>
+</body>
+</html>

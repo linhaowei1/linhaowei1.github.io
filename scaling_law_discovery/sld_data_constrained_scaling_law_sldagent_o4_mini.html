@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SLD - Data-Constrained Scaling Law - SLDAgent + o4-mini</title>
+    <link rel="icon" type="image/png" href="assets/sld_logo.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" rel="stylesheet" />
+    <style>
+        :root {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8f9fa;
+            --accent-primary: #2563eb;
+            --accent-secondary: #3b82f6;
+            --accent-gradient: linear-gradient(135deg, #2563eb 0%, #3b82f6 50%, #60a5fa 100%);
+            --text-primary: #1f2937;
+            --text-secondary: #4b5563;
+            --border-subtle: rgba(0, 0, 0, 0.1);
+            --glass-bg: rgba(0, 0, 0, 0.02);
+            --success: #10b981;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Sora', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            min-height: 100vh;
+            color: var(--text-primary);
+        }
+        
+        .bg-pattern {
+            display: none;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--accent-primary);
+            text-decoration: none;
+            font-size: 0.9rem;
+            margin-bottom: 1.5rem;
+            transition: color 0.2s;
+        }
+        
+        .back-link:hover {
+            color: var(--accent-secondary);
+        }
+        
+        .header {
+            background: var(--glass-bg);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            backdrop-filter: blur(10px);
+        }
+        
+        .header h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            background: var(--accent-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .meta-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+            margin-top: 1rem;
+        }
+        
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .meta-label {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+        
+        .meta-value {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .r2-badge {
+            display: inline-block;
+            padding: 0.3rem 0.6rem;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        .section-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+        
+        .runs-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .run-card {
+            background: var(--glass-bg);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            overflow: hidden;
+            transition: border-color 0.2s;
+        }
+        
+        .run-card:hover {
+            border-color: rgba(99, 102, 241, 0.3);
+        }
+        
+        .run-card.best-run {
+            border-color: var(--success);
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.1);
+        }
+        
+        .run-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 1.25rem;
+            background: rgba(255, 255, 255, 0.02);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .run-header:hover {
+            background: rgba(255, 255, 255, 0.04);
+        }
+        
+        .run-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .run-badge {
+            padding: 0.25rem 0.6rem;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-secondary);
+        }
+        
+        .run-badge.best-badge {
+            background: var(--success);
+            color: white;
+        }
+        
+        .run-label {
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+        
+        .expand-icon {
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            transition: transform 0.2s;
+        }
+        
+        .run-header.expanded .expand-icon {
+            transform: rotate(180deg);
+        }
+        
+        .run-content {
+            border-top: 1px solid var(--border-subtle);
+        }
+        
+        .code-container {
+            overflow: hidden;
+        }
+        
+        .code-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 1.25rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-bottom: 1px solid var(--border-subtle);
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+        
+        .copy-btn {
+            padding: 0.35rem 0.75rem;
+            background: rgba(99, 102, 241, 0.2);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 6px;
+            color: var(--accent-primary);
+            font-size: 0.75rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        
+        .copy-btn:hover {
+            background: rgba(99, 102, 241, 0.3);
+        }
+        
+        .code-container pre {
+            margin: 0;
+            padding: 1.25rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            line-height: 1.6;
+            overflow-x: auto;
+            background: transparent !important;
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 3rem;
+            padding-top: 2rem;
+            border-top: 1px solid var(--border-subtle);
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+        
+        .footer a {
+            color: var(--accent-primary);
+            text-decoration: none;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+            
+            .header h1 {
+                font-size: 1.25rem;
+            }
+            
+            .meta-row {
+                flex-direction: column;
+                gap: 0.75rem;
+            }
+            
+            .run-info {
+                flex-wrap: wrap;
+                gap: 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-pattern"></div>
+    
+    <div class="container">
+        <a href="sld_index.html" class="back-link">
+            ← Back to Leaderboard
+        </a>
+        
+        <div class="header">
+            <h1>Data-Constrained Scaling Law</h1>
+            <div class="meta-row">
+                <div class="meta-item">
+                    <span class="meta-label">Agent:</span>
+                    <span class="meta-value">SLDAgent</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Model:</span>
+                    <span class="meta-value">o4-mini</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Best R²:</span>
+                    <span class="r2-badge" style="background-color: #006400; color: white;">
+                        0.983879
+                    </span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Mean R²:</span>
+                    <span class="meta-value">0.936338</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Min R²:</span>
+                    <span class="meta-value">0.853829</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Runs:</span>
+                    <span class="meta-value">5</span>
+                </div>
+            </div>
+        </div>
+        
+        <h2 class="section-title">All Runs (sorted by R²)</h2>
+        
+        <div class="runs-container">
+            
+        <div class="run-card best-run">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge best-badge">Best</span>
+                    <span class="run-label">Run 1</span>
+                    <span class="r2-badge" style="background-color: #006400; color: white;">
+                        R² = 0.983879
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: block;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-0')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-0">import numpy as np
+from scipy.optimize import minimize
+
+def scaling_law_func(data_points, params):
+    &quot;&quot;&quot;
+    Predict loss as an additive sum of three power‐law terms:
+        L = L_inf + A * P^(-alpha) + B * T^(-beta) + C * U^(-gamma)
+    where U=unique_tokens, P=params, T=tokens.
+    params = [L_inf, A, alpha, B, beta, C, gamma]
+    &quot;&quot;&quot;
+    X = np.array(data_points, dtype=float)
+    if X.ndim == 1:
+        X = X[None, :]
+    U, P, T = X[:, 0], X[:, 1], X[:, 2]
+    L_inf, A, alpha, B, beta, C, gamma = params
+    return L_inf + A * P**(-alpha) + B * T**(-beta) + C * U**(-gamma)
+
+def fit_scaling_law(data_points, loss_values):
+    &quot;&quot;&quot;
+    Fit the 7‐parameter additive power‐law model:
+      L_inf, A, alpha, B, beta, C, gamma.
+    Initialization:
+      - L_inf ≈ 0.8 * min(loss)
+      - exponents set to 0.3
+      - A, B, C by linear least squares on shifted loss
+    Refinement with L-BFGS-B under bounds for stability.
+    &quot;&quot;&quot;
+    X = np.array(data_points, dtype=float)
+    if X.ndim == 1:
+        X = X[None, :]
+    y = np.array(loss_values, dtype=float).ravel()
+
+    # Initial intercept (asymptotic loss floor)
+    L_inf = max(0.0, 0.8 * y.min())
+    y_shift = np.clip(y - L_inf, 1e-6, None)
+
+    # Initial exponents
+    alpha0, beta0, gamma0 = 0.3, 0.3, 0.3
+
+    # Build basis for linear init of A, B, C
+    U, P, T = X[:, 0], X[:, 1], X[:, 2]
+    Bmat = np.vstack([
+        P ** (-alpha0),
+        T ** (-beta0),
+        U ** (-gamma0)
+    ]).T
+    sol, *_ = np.linalg.lstsq(Bmat, y_shift, rcond=None)
+    A0, B0, C0 = sol
+
+    # Initial parameter vector
+    init = np.array([L_inf, A0, alpha0, B0, beta0, C0, gamma0], dtype=float)
+
+    # Bounds for stability: non‐negative scales &amp; exponents in [0,2]
+    bounds = [
+        (0, None),  # L_inf
+        (0, None),  # A
+        (0, 2),     # alpha
+        (0, None),  # B
+        (0, 2),     # beta
+        (0, None),  # C
+        (0, 2),     # gamma
+    ]
+
+    # Objective: mean squared error
+    def objective(p):
+        pred = scaling_law_func(X, p)
+        return np.mean((pred - y) ** 2)
+
+    res = minimize(objective, init, method=&#x27;L-BFGS-B&#x27;, bounds=bounds,
+                   options={&#x27;maxiter&#x27;: 500})
+    return res.x if res.success and res.x.shape == init.shape else init</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#2</span>
+                    <span class="run-label">Run 2</span>
+                    <span class="r2-badge" style="background-color: #006400; color: white;">
+                        R² = 0.961589
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-1')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-1">import numpy as np
+from scipy.optimize import least_squares
+
+def scaling_law_func(data_points, params):
+    &quot;&quot;&quot;
+    7-parameter tri-regime exponential scaling law:
+      L = c0
+        + exp(c1 - aU * ln(U))
+        + exp(c2 - aP * ln(P))
+        + exp(c3 - aT * ln(T))
+
+    Inputs:
+      data_points: array-like of shape (N,3) [U, P, T]
+      params:      length-7 array [c0, c1, aU, c2, aP, c3, aT]
+    Returns:
+      preds: (N,) predicted losses
+    &quot;&quot;&quot;
+    X = np.atleast_2d(data_points).astype(float)
+    U, P, T = X[:,0], X[:,1], X[:,2]
+    c0, c1, aU, c2, aP, c3, aT = params
+
+    # safe logs
+    lnU = np.log(np.clip(U, 1e-12, None))
+    lnP = np.log(np.clip(P, 1e-12, None))
+    lnT = np.log(np.clip(T, 1e-12, None))
+
+    # three exponential regimes
+    termU = np.exp(c1 - aU * lnU)
+    termP = np.exp(c2 - aP * lnP)
+    termT = np.exp(c3 - aT * lnT)
+
+    return c0 + termU + termP + termT
+
+
+def fit_scaling_law(data_points, loss_values):
+    &quot;&quot;&quot;
+    Fit the 7-parameter tri-regime scaling law via robust least squares.
+
+    Returns:
+      params_opt: optimized [c0, c1, aU, c2, aP, c3, aT]
+    &quot;&quot;&quot;
+    # prepare arrays
+    X = np.atleast_2d(np.asarray(data_points, float))
+    y = np.asarray(loss_values, float).ravel()
+    U, P, T = X[:,0], X[:,1], X[:,2]
+
+    # 1) initialize floor c0 near 90% of min loss
+    y_min = y.min()
+    c0_init = max(0.0, 0.9 * y_min)
+
+    # shift away floor and take logs
+    y_sh = np.clip(y - c0_init, 1e-12, None)
+    lnY = np.log(y_sh)
+    lnU = np.log(np.clip(U, 1e-12, None))
+    lnP = np.log(np.clip(P, 1e-12, None))
+    lnT = np.log(np.clip(T, 1e-12, None))
+
+    # 2) determine 75th-percentile thresholds for regime selection
+    pU, pP, pT = np.percentile(U, 75), np.percentile(P, 75), np.percentile(T, 75)
+
+    # 3) rough linear fits in log-space for each regime
+    #    lnY ≈ c1 - aU * lnU  over high P &amp; T (data-limited)
+    selU = (P &gt;= pP) &amp; (T &gt;= pT)
+    if selU.sum() &gt;= 4:
+        coeff = np.polyfit(lnU[selU], lnY[selU], 1)
+        slope, intercept = coeff[0], coeff[1]
+        aU_init = max(0.0, -slope)
+        c1_init = intercept
+    else:
+        aU_init, c1_init = 0.5, np.median(lnY)
+
+    #    lnY ≈ c2 - aP * lnP  over high U &amp; T (param-limited)
+    selP = (U &gt;= pU) &amp; (T &gt;= pT)
+    if selP.sum() &gt;= 4:
+        coeff = np.polyfit(lnP[selP], lnY[selP], 1)
+        slope, intercept = coeff[0], coeff[1]
+        aP_init = max(0.0, -slope)
+        c2_init = intercept
+    else:
+        aP_init, c2_init = 0.5, np.median(lnY)
+
+    #    lnY ≈ c3 - aT * lnT  over high U &amp; P (token-limited)
+    selT = (U &gt;= pU) &amp; (P &gt;= pP)
+    if selT.sum() &gt;= 4:
+        coeff = np.polyfit(lnT[selT], lnY[selT], 1)
+        slope, intercept = coeff[0], coeff[1]
+        aT_init = max(0.0, -slope)
+        c3_init = intercept
+    else:
+        aT_init, c3_init = 0.5, np.median(lnY)
+
+    # 4) assemble initial guess
+    init = np.array([c0_init, c1_init, aU_init,
+                     c2_init, aP_init, c3_init, aT_init], dtype=float)
+
+    # 5) parameter bounds
+    lower = [0.0,    -np.inf, 0.0,
+             -np.inf, 0.0,   -np.inf, 0.0]
+    upper = [np.inf, np.inf, 10.0,
+             np.inf, 10.0,  np.inf, 10.0]
+
+    # 6) robust least squares (Huber loss) to refine all params jointly
+    def residuals(p):
+        return scaling_law_func(X, p) - y
+
+    res = least_squares(
+        residuals,
+        init,
+        bounds=(lower, upper),
+        loss=&#x27;huber&#x27;,
+        f_scale=0.1,
+        max_nfev=1000
+    )
+
+    # fallback to init if optimization fails
+    return res.x if res.success and res.x.size == init.size else init</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#3</span>
+                    <span class="run-label">Run 3</span>
+                    <span class="r2-badge" style="background-color: #006400; color: white;">
+                        R² = 0.950750
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-2')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-2">import numpy as np
+from scipy.optimize import minimize
+
+def scaling_law_func(dp, p):
+    X = np.atleast_2d(dp).astype(float)
+    U, P, T = X[:,0], X[:,1], X[:,2]
+    c0, c1, aU, aP, aT, b, d = p
+    # safe logs
+    lnU, lnP, lnT = np.log(np.clip(U,1e-12,None)), np.log(np.clip(P,1e-12,None)), np.log(np.clip(T,1e-12,None))
+    # combined curvature on tokens &amp; params vs unique tokens
+    sq = (lnT - lnU)**2 + (lnP - lnU)**2
+    ln_term = c1 - aU*lnU - aP*lnP - aT*lnT + b*sq + d*(lnP*lnT)
+    return c0 + np.exp(ln_term)
+
+def fit_scaling_law(dp, loss):
+    X = np.atleast_2d(dp).astype(float)
+    y = np.array(loss, float).ravel()
+    U, P, T = X[:,0], X[:,1], X[:,2]
+    lnU, lnP, lnT = np.log(U), np.log(P), np.log(T)
+    # init c0 from observed minimum
+    c0 = max(0.0, 0.8 * y.min())
+    Ys = np.log(np.clip(y - c0, 1e-12, None))
+    # design matrix: [1, -lnU, -lnP, -lnT, sq, lnP*lnT]
+    sq = (lnT - lnU)**2 + (lnP - lnU)**2
+    A = np.vstack([np.ones_like(lnU), -lnU, -lnP, -lnT, sq, lnP*lnT]).T
+    sol, *_ = np.linalg.lstsq(A, Ys, rcond=None)
+    init = np.array([c0, *sol], float)
+    # bounds for stability
+    bounds = [(0,None),(None,None),(0,5),(0,5),(0,5),(-1,1),(-1,1)]
+    # objective with light reg on curvature &amp; interaction
+    reg = 1e-5
+    def obj(p):
+        r = scaling_law_func(X, p) - y
+        return np.mean(r*r) + reg*(p[5]**2 + p[6]**2)
+    res = minimize(obj, init, method=&#x27;L-BFGS-B&#x27;, bounds=bounds)
+    return res.x if (res.success and res.x.shape==init.shape) else init</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#4</span>
+                    <span class="run-label">Run 5</span>
+                    <span class="r2-badge" style="background-color: #228B22; color: white;">
+                        R² = 0.931643
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-3')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-3"># EVOLVE-BLOCK-START
+&quot;&quot;&quot;
+Refined 7-parameter additive power‐law scaling law for LLM training under
+data constraints:
+    L(U,P,T) = c0 + A1*U^{-p1} + A2*P^{-p2} + A3*T^{-p3}
+Parameters: [c0, A1, A2, A3, p1, p2, p3]
+Fitting strategy:
+  1. Grid‐search c0 over [0, 0.8*min(y)] to find a good floor.
+  2. Initialize amplitudes equally from median shifted loss.
+  3. Robust non-linear least squares (soft_l1) with sensible bounds.
+&quot;&quot;&quot;
+import numpy as np
+from scipy.optimize import least_squares
+
+def scaling_law_func(data_points, params):
+    &quot;&quot;&quot;
+    Predict loss via an additive sum of three inverse power laws plus a constant:
+      L = c0 + A1*U^{-p1} + A2*P^{-p2} + A3*T^{-p3}
+
+    Inputs:
+      data_points: (N,3) array [unique_tokens U, params P, tokens T]
+      params: length-7 array [c0, A1, A2, A3, p1, p2, p3]
+    Returns:
+      (N,) array of predicted losses
+    &quot;&quot;&quot;
+    X = np.asarray(data_points, dtype=float)
+    if X.ndim == 1:
+        X = X[None, :]
+    U = X[:, 0]
+    P = X[:, 1]
+    T = X[:, 2]
+    c0, A1, A2, A3, p1, p2, p3 = params
+    # power laws with clipping for stability
+    return (
+        c0
+        + A1 * np.power(U.clip(1e-12), -p1)
+        + A2 * np.power(P.clip(1e-12), -p2)
+        + A3 * np.power(T.clip(1e-12), -p3)
+    )
+
+def fit_scaling_law(data_points, loss_values):
+    &quot;&quot;&quot;
+    Fit the 7-parameter additive inverse-power-law scaling law to data
+    using a two‐stage strategy:
+      1) Grid-search c0 floor, build initial guess
+      2) Robust least squares (soft_l1) with bounds
+
+    Returns:
+      params: array [c0, A1, A2, A3, p1, p2, p3]
+    &quot;&quot;&quot;
+    X = np.asarray(data_points, dtype=float)
+    y = np.asarray(loss_values, dtype=float).ravel()
+    # quick pre-check
+    if y.size == 0:
+        return np.zeros(7, dtype=float)
+
+    # Grid search for c0 in [0, 0.8*min(y)]
+    y_min = np.min(y)
+    c0_grid = np.linspace(0.0, 0.8 * y_min, 15)
+    best_mse = np.inf
+    best_init = None
+
+    for c0 in c0_grid:
+        # shifted loss must stay positive
+        y_shift = np.clip(y - c0, 1e-12, None)
+        # equal share among three contributions
+        A_init = np.median(y_shift) / 3.0
+        init = np.array([c0, A_init, A_init, A_init, 0.5, 0.5, 0.5])
+        pred = scaling_law_func(X, init)
+        mse = np.mean((pred - y) ** 2)
+        if mse &lt; best_mse:
+            best_mse = mse
+            best_init = init
+
+    # Fallback if grid failed
+    if best_init is None:
+        best_init = np.array([y_min * 0.5, 1.0, 1.0, 1.0, 0.5, 0.5, 0.5])
+
+    # Bounds for parameters
+    # c0 in [0, min(y)], amplitudes &gt;=0, exponents in [0, 5]
+    lb = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    ub = [y_min, np.inf, np.inf, np.inf, 5.0, 5.0, 5.0]
+
+    # Robust least squares with soft_l1 loss
+    def residuals(p):
+        return scaling_law_func(X, p) - y
+
+    # scale for soft_l1: use std of y to balance residuals
+    f_scale = max(np.std(y), 1e-2)
+    res = least_squares(
+        residuals,
+        best_init,
+        bounds=(lb, ub),
+        loss=&quot;soft_l1&quot;,
+        f_scale=f_scale,
+        max_nfev=2000,
+    )
+
+    # return optimized params
+    return res.x if res.success else best_init
+# EVOLVE-BLOCK-END</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#5</span>
+                    <span class="run-label">Run 4</span>
+                    <span class="r2-badge" style="background-color: #228B22; color: white;">
+                        R² = 0.853829
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-4')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-4"># EVOLVE-BLOCK-START
+&quot;&quot;&quot;
+Discover a more flexible 7‐parameter scaling law by adding mild curvature
+in the log‐domain. Model:
+    L(U,P,T) = c0 + exp(c1 
+                        - a1*ln U 
+                        - a2*ln P 
+                        - a3*ln T 
+                        + a4*(ln U)^2 
+                        + a5*(ln P)^2
+                       )
+with 7 parameters: c0, c1, a1, a2, a3, a4, a5.
+
+We initialize via linear regression in the log‐domain (including squares)
+and then refine all 7 parameters with L-BFGS-B under simple bounds.
+&quot;&quot;&quot;
+import numpy as np
+from scipy.optimize import minimize
+
+def scaling_law_func(data_points, params):
+    &quot;&quot;&quot;
+    Predict L from (U, P, T) using the 7-parameter quadratic log‐law.
+    data_points: (N,3) array [unique_tokens U, params P, tokens T]
+    params: array of 7 values [c0, c1, a1, a2, a3, a4, a5]
+    Returns (N,) array of predicted losses.
+    &quot;&quot;&quot;
+    X = np.asarray(data_points, dtype=float)
+    if X.ndim == 1:
+        X = X[None, :]
+    U = X[:, 0]
+    P = X[:, 1]
+    T = X[:, 2]
+
+    c0, c1, a1, a2, a3, a4, a5 = params
+    # safe logs
+    lnU = np.log(np.clip(U, 1e-12, None))
+    lnP = np.log(np.clip(P, 1e-12, None))
+    lnT = np.log(np.clip(T, 1e-12, None))
+
+    # quadratic polynomial in logs
+    ln_term = (
+        c1
+        - a1 * lnU
+        - a2 * lnP
+        - a3 * lnT
+        + a4 * (lnU ** 2)
+        + a5 * (lnP ** 2)
+    )
+    return c0 + np.exp(ln_term)
+
+
+def fit_scaling_law(data_points, loss_values):
+    &quot;&quot;&quot;
+    Fit the 7-parameter quadratic log‐law to (U, P, T) -&gt; loss.
+    Returns array [c0, c1, a1, a2, a3, a4, a5].
+    &quot;&quot;&quot;
+    X = np.asarray(data_points, dtype=float)
+    y = np.asarray(loss_values, dtype=float).ravel()
+    # ensure 2D
+    if X.ndim == 1:
+        X = X[None, :]
+    U = X[:, 0]
+    P = X[:, 1]
+    T = X[:, 2]
+
+    # initial c0 as a fraction of minimum observed loss
+    y_min = np.min(y)
+    c0_init = max(0.0, y_min * 0.8)
+    # shift and log
+    y_shift = np.clip(y - c0_init, 1e-12, None)
+    lnY = np.log(y_shift)
+
+    # features for linear regression in log‐domain
+    lnU = np.log(np.clip(U, 1e-12, None))
+    lnP = np.log(np.clip(P, 1e-12, None))
+    lnT = np.log(np.clip(T, 1e-12, None))
+
+    # design matrix: [1, -lnU, -lnP, -lnT, (lnU)^2, (lnP)^2]
+    A = np.vstack([
+        np.ones_like(lnU),
+        -lnU,
+        -lnP,
+        -lnT,
+        lnU**2,
+        lnP**2
+    ]).T
+
+    # solve for [c1, a1, a2, a3, a4, a5]
+    sol, *_ = np.linalg.lstsq(A, lnY, rcond=None)
+    c1_init, a1_init, a2_init, a3_init, a4_init, a5_init = sol
+
+    init_params = np.array([
+        c0_init,
+        c1_init,
+        a1_init,
+        a2_init,
+        a3_init,
+        a4_init,
+        a5_init
+    ], dtype=float)
+
+    # bounds to keep the model stable and decreasing in U,P,T
+    bounds = [
+        (0, None),      # c0 &gt;= 0
+        (None, None),   # c1 free
+        (0, 5),         # a1 &gt;= 0
+        (0, 5),         # a2 &gt;= 0
+        (0, 5),         # a3 &gt;= 0
+        (-2, 2),        # a4 small curvature
+        (-2, 2)         # a5 small curvature
+    ]
+
+    def objective(p):
+        pred = scaling_law_func(X, p)
+        # mean squared error
+        return np.mean((pred - y) ** 2)
+
+    res = minimize(
+        objective,
+        init_params,
+        method=&#x27;L-BFGS-B&#x27;,
+        bounds=bounds,
+        options={&#x27;maxiter&#x27;: 1000}
+    )
+    if res.success and res.x.shape == init_params.shape:
+        return res.x
+    else:
+        return init_params
+# EVOLVE-BLOCK-END</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        </div>
+        
+        <footer class="footer">
+            <p>SLDBench | <a href="https://arxiv.org/abs/2507.21184" target="_blank">arXiv:2507.21184</a> | <a href="https://github.com/linhaowei1/SLD" target="_blank">GitHub</a></p>
+        </footer>
+    </div>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script>
+        function toggleRun(header) {
+            const content = header.nextElementSibling;
+            const isExpanded = content.style.display === 'block';
+            content.style.display = isExpanded ? 'none' : 'block';
+            header.classList.toggle('expanded', !isExpanded);
+        }
+        
+        function copyCode(event, codeId) {
+            event.stopPropagation();
+            const code = document.getElementById(codeId).textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                const btn = event.target;
+                btn.textContent = 'Copied!';
+                setTimeout(() => btn.textContent = 'Copy', 2000);
+            });
+        }
+        
+        Prism.highlightAll();
+    </script>
+</body>
+</html>

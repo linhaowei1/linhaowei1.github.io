@@ -58,7 +58,7 @@ ninja.data = [{
           section: "News",},{id: "news-excited-to-be-a-core-contributor-of-adapters-in-terminal-bench-which-converts-all-agentic-benchmarks-e-g-swe-related-in-a-unified-format-to-t-bench-happy-to-see-oai-gdm-anthropic-deepseek-etc-using-t-bench-for-model-evaluation-in-their-model-release",
           title: 'Excited to be a core contributor of adapters in Terminal-Bench, which converts all...',
           description: "",
-          section: "News",},{id: "news-glad-to-launch-a-new-blog-on-scaling-law-discovery-sld-with-openevolve-in-collaboration-with-algorithmic-superintelligence-labs-we-hope-our-work-on-sld-helps-advance-foundation-model-development-and-push-the-boundaries-of-ai-scientist-code-dataset-benchmarks-are-all-publicly-available",
+          section: "News",},{id: "news-glad-to-launch-a-new-blog-on-scaling-law-discovery-sld-with-openevolve-in-collaboration-with-algorithmic-superintelligence-labs-we-hope-our-work-on-sld-helps-advance-foundation-model-development-and-push-the-boundaries-of-ai-scientist-code-dataset-benchmarks-and-leaderboard-are-all-publicly-available",
           title: 'Glad to launch a new blog on Scaling Law Discovery (SLD) with OpenEvolve,...',
           description: "",
           section: "News",},{

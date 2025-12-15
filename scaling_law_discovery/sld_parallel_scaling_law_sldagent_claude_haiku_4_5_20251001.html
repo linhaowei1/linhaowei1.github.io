@@ -1,0 +1,1101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SLD - Parallel Scaling Law - SLDAgent + Claude Haiku 4.5</title>
+    <link rel="icon" type="image/png" href="assets/sld_logo.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" rel="stylesheet" />
+    <style>
+        :root {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8f9fa;
+            --accent-primary: #2563eb;
+            --accent-secondary: #3b82f6;
+            --accent-gradient: linear-gradient(135deg, #2563eb 0%, #3b82f6 50%, #60a5fa 100%);
+            --text-primary: #1f2937;
+            --text-secondary: #4b5563;
+            --border-subtle: rgba(0, 0, 0, 0.1);
+            --glass-bg: rgba(0, 0, 0, 0.02);
+            --success: #10b981;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Sora', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            min-height: 100vh;
+            color: var(--text-primary);
+        }
+        
+        .bg-pattern {
+            display: none;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--accent-primary);
+            text-decoration: none;
+            font-size: 0.9rem;
+            margin-bottom: 1.5rem;
+            transition: color 0.2s;
+        }
+        
+        .back-link:hover {
+            color: var(--accent-secondary);
+        }
+        
+        .header {
+            background: var(--glass-bg);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            backdrop-filter: blur(10px);
+        }
+        
+        .header h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            background: var(--accent-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .meta-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+            margin-top: 1rem;
+        }
+        
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .meta-label {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+        
+        .meta-value {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .r2-badge {
+            display: inline-block;
+            padding: 0.3rem 0.6rem;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        .section-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+        
+        .runs-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .run-card {
+            background: var(--glass-bg);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            overflow: hidden;
+            transition: border-color 0.2s;
+        }
+        
+        .run-card:hover {
+            border-color: rgba(99, 102, 241, 0.3);
+        }
+        
+        .run-card.best-run {
+            border-color: var(--success);
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.1);
+        }
+        
+        .run-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 1.25rem;
+            background: rgba(255, 255, 255, 0.02);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .run-header:hover {
+            background: rgba(255, 255, 255, 0.04);
+        }
+        
+        .run-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .run-badge {
+            padding: 0.25rem 0.6rem;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-secondary);
+        }
+        
+        .run-badge.best-badge {
+            background: var(--success);
+            color: white;
+        }
+        
+        .run-label {
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+        
+        .expand-icon {
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            transition: transform 0.2s;
+        }
+        
+        .run-header.expanded .expand-icon {
+            transform: rotate(180deg);
+        }
+        
+        .run-content {
+            border-top: 1px solid var(--border-subtle);
+        }
+        
+        .code-container {
+            overflow: hidden;
+        }
+        
+        .code-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 1.25rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-bottom: 1px solid var(--border-subtle);
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+        
+        .copy-btn {
+            padding: 0.35rem 0.75rem;
+            background: rgba(99, 102, 241, 0.2);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 6px;
+            color: var(--accent-primary);
+            font-size: 0.75rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        
+        .copy-btn:hover {
+            background: rgba(99, 102, 241, 0.3);
+        }
+        
+        .code-container pre {
+            margin: 0;
+            padding: 1.25rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            line-height: 1.6;
+            overflow-x: auto;
+            background: transparent !important;
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 3rem;
+            padding-top: 2rem;
+            border-top: 1px solid var(--border-subtle);
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+        
+        .footer a {
+            color: var(--accent-primary);
+            text-decoration: none;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+            
+            .header h1 {
+                font-size: 1.25rem;
+            }
+            
+            .meta-row {
+                flex-direction: column;
+                gap: 0.75rem;
+            }
+            
+            .run-info {
+                flex-wrap: wrap;
+                gap: 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-pattern"></div>
+    
+    <div class="container">
+        <a href="sld_index.html" class="back-link">
+            ← Back to Leaderboard
+        </a>
+        
+        <div class="header">
+            <h1>Parallel Scaling Law</h1>
+            <div class="meta-row">
+                <div class="meta-item">
+                    <span class="meta-label">Agent:</span>
+                    <span class="meta-value">SLDAgent</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Model:</span>
+                    <span class="meta-value">Claude Haiku 4.5</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Best R²:</span>
+                    <span class="r2-badge" style="background-color: #006400; color: white;">
+                        0.999960
+                    </span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Mean R²:</span>
+                    <span class="meta-value">0.999865</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Min R²:</span>
+                    <span class="meta-value">0.999731</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Runs:</span>
+                    <span class="meta-value">5</span>
+                </div>
+            </div>
+        </div>
+        
+        <h2 class="section-title">All Runs (sorted by R²)</h2>
+        
+        <div class="runs-container">
+            
+        <div class="run-card best-run">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge best-badge">Best</span>
+                    <span class="run-label">Run 3</span>
+                    <span class="r2-badge" style="background-color: #006400; color: white;">
+                        R² = 0.999960
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: block;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-0')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-0"># EVOLVE-BLOCK-START
+&quot;&quot;&quot;
+Simplified scaling law for parallel LLM training
+Uses model: loss = a/(N^b) + c/sqrt(P) + d
+Streamlined optimization with focus on core methods
+&quot;&quot;&quot;
+import numpy as np
+from scipy.optimize import least_squares, differential_evolution, minimize
+
+def scaling_law_func(data_points, params):
+    &quot;&quot;&quot;
+    Scaling law: loss = a / (num_params^b) + c / sqrt(parallel_size) + d
+    params: [a, b, c, d] - 4 parameters
+    &quot;&quot;&quot;
+    X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
+    params = np.asarray(params, dtype=np.float64)
+    
+    num_params = X[:, 0]
+    parallel_size = X[:, 1]
+    
+    a, b, c, d = params[0], params[1], params[2], params[3]
+    
+    # Numerical stability
+    num_params_safe = np.maximum(num_params, 1e6)
+    parallel_size_safe = np.maximum(parallel_size, 1.0)
+    
+    # Main scaling law
+    loss = a / np.power(num_params_safe, b) + c / np.sqrt(parallel_size_safe) + d
+    
+    return loss
+
+
+def fit_scaling_law(data_points, loss_values):
+    &quot;&quot;&quot;
+    Fit scaling law using streamlined multi-method optimization
+    &quot;&quot;&quot;
+    X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
+    y = np.asarray(loss_values, dtype=np.float64).ravel()
+    
+    num_params = X[:, 0]
+    parallel_size = X[:, 1]
+    y_mean, y_std = np.mean(y), np.std(y)
+    
+    # Smart bounds based on data characteristics
+    bounds = [
+        (0.001, 100.0),
+        (0.01, 0.5),
+        (-10.0, 10.0),
+        (-y_std, y_mean + 3*y_std)
+    ]
+    
+    # Intelligent initialization from parallel_size=1 samples
+    mask_p1 = parallel_size == 1
+    if np.sum(mask_p1) &gt;= 2:
+        y_p1 = y[mask_p1]
+        n_p1 = num_params[mask_p1]
+        valid = (n_p1 &gt; 1e6) &amp; (y_p1 &gt; 0)
+        if np.sum(valid) &gt;= 2:
+            b_init = -np.polyfit(np.log(n_p1[valid]), np.log(y_p1[valid]), 1)[0]
+            b_init = np.clip(b_init, bounds[1][0], bounds[1][1])
+        else:
+            b_init = 0.08
+    else:
+        b_init = 0.08
+    
+    c_init = (np.max(y) - np.min(y)) / 3
+    d_init = np.min(y)
+    a_init = 0.5
+    
+    x0 = np.array([a_init, b_init, c_init, d_init])
+    x0 = np.array([np.clip(x0[i], bounds[i][0], bounds[i][1]) for i in range(4)])
+    
+    def residuals(params):
+        return scaling_law_func(X, params) - y
+    
+    def objective(params):
+        return np.sum(residuals(params) ** 2)
+    
+    best_params = None
+    best_error = np.inf
+    
+    # Method 1: Least squares with Huber loss (robust and fast)
+    try:
+        result = least_squares(
+            residuals, x0,
+            bounds=tuple(zip(*bounds)),
+            loss=&#x27;huber&#x27;,
+            f_scale=np.std(y) * 0.1,
+            max_nfev=5000
+        )
+        best_params = result.x
+        best_error = np.sum(result.fun ** 2)
+    except:
+        pass
+    
+    # Method 2: Global differential evolution
+    try:
+        result = differential_evolution(
+            objective, bounds,
+            seed=42,
+            maxiter=400,
+            workers=1,
+            updating=&#x27;immediate&#x27;,
+            atol=1e-9,
+            tol=1e-9,
+            polish=True
+        )
+        if result.fun &lt; best_error:
+            best_params = result.x
+            best_error = result.fun
+    except:
+        pass
+    
+    # Method 3: Local L-BFGS-B refinement
+    try:
+        result = minimize(
+            objective,
+            best_params if best_params is not None else x0,
+            method=&#x27;L-BFGS-B&#x27;,
+            bounds=bounds,
+            options={&#x27;ftol&#x27;: 1e-11, &#x27;maxiter&#x27;: 1000}
+        )
+        if result.fun &lt; best_error:
+            best_params = result.x
+    except:
+        pass
+    
+    return best_params if best_params is not None else x0
+# EVOLVE-BLOCK-END</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#2</span>
+                    <span class="run-label">Run 4</span>
+                    <span class="r2-badge" style="background-color: #006400; color: white;">
+                        R² = 0.999886
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-1')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-1"># EVOLVE-BLOCK-START
+&quot;&quot;&quot;
+Optimized scaling law for LLM parallel training
+Form: Loss = A * N^(-alpha) + B * P^(-beta)
+where N = num_params, P = parallel_size
+Simplified high-performance model with 4 parameters and improved initialization
+&quot;&quot;&quot;
+import numpy as np
+from scipy.optimize import differential_evolution, minimize
+
+def scaling_law_func(data_points, params):
+    &quot;&quot;&quot;Two-term power law: Loss = A*N^(-alpha) + B*P^(-beta)&quot;&quot;&quot;
+    X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
+    params = np.atleast_1d(np.asarray(params, dtype=np.float64))
+    
+    num_params = X[:, 0]
+    parallel_size = X[:, 1]
+    
+    A, alpha, B, beta = params[0], params[1], params[2], params[3]
+    
+    term1 = A * np.power(np.maximum(num_params, 1e-10), -alpha)
+    term2 = B * np.power(np.maximum(parallel_size, 1e-10), -beta)
+    
+    return term1 + term2
+
+
+def fit_scaling_law(data_points, loss_values):
+    &quot;&quot;&quot;Optimized multi-stage fitting with intelligent initialization&quot;&quot;&quot;
+    X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
+    y = np.atleast_1d(np.asarray(loss_values, dtype=np.float64))
+    
+    num_params = X[:, 0]
+    parallel_size = X[:, 1]
+    
+    def objective(params):
+        try:
+            pred = scaling_law_func(X, params)
+            if np.any(~np.isfinite(pred)):
+                return 1e10
+            return np.mean((pred - y) ** 2) + 1e-5 * np.sum(np.abs(params))
+        except:
+            return 1e10
+    
+    # Intelligent initialization from log-space analysis
+    log_N = np.log(np.maximum(num_params, 1e-10))
+    log_P = np.log(np.maximum(parallel_size, 1e-10))
+    log_y = np.log(np.maximum(y, 1e-10))
+    
+    # Correlations reveal scaling relationships
+    corr_N_y = np.corrcoef(log_N, log_y)[0, 1] if len(np.unique(log_N)) &gt; 1 else 0
+    corr_P_y = np.corrcoef(log_P, log_y)[0, 1] if len(np.unique(log_P)) &gt; 1 else 0
+    
+    y_mean = np.mean(y)
+    y_max = np.max(y)
+    y_range = y_max - np.min(y)
+    
+    # Initialize parameters from data-informed correlations
+    A_init = 0.7 * y_mean
+    alpha_init = np.clip(np.abs(corr_N_y) * 0.15, 0.05, 0.3) if not np.isnan(corr_N_y) else 0.1
+    B_init = 0.2 * y_range
+    beta_init = np.clip(np.abs(corr_P_y) * 0.4, 0.1, 1.0) if not np.isnan(corr_P_y) else 0.5
+    
+    init_params = np.array([A_init, alpha_init, B_init, beta_init])
+    
+    bounds = [
+        (0.1, 10.0),
+        (0.02, 0.5),
+        (0.001, 2.0),
+        (0.05, 1.5),
+    ]
+    
+    best_loss = float(&#x27;inf&#x27;)
+    best_params = init_params.copy()
+    
+    # Stage 1: Nelder-Mead for local exploration from initialization
+    try:
+        res = minimize(
+            objective,
+            init_params,
+            method=&#x27;Nelder-Mead&#x27;,
+            options={&#x27;maxiter&#x27;: 1000, &#x27;xatol&#x27;: 1e-8, &#x27;fatol&#x27;: 1e-10}
+        )
+        if res.fun &lt; best_loss:
+            best_loss = res.fun
+            best_params = res.x
+    except:
+        pass
+    
+    # Stage 2: Global search with differential evolution
+    try:
+        res = differential_evolution(
+            objective,
+            bounds,
+            maxiter=1000,
+            popsize=22,
+            seed=42,
+            atol=1e-10,
+            tol=1e-10,
+            workers=1,
+            updating=&#x27;deferred&#x27;,
+            polish=True
+        )
+        if res.fun &lt; best_loss:
+            best_loss = res.fun
+            best_params = res.x
+    except:
+        pass
+    
+    # Stage 3: L-BFGS-B refinement for high precision
+    try:
+        res = minimize(
+            objective,
+            best_params,
+            method=&#x27;L-BFGS-B&#x27;,
+            bounds=bounds,
+            options={&#x27;maxiter&#x27;: 2000, &#x27;ftol&#x27;: 1e-11}
+        )
+        if res.fun &lt; best_loss:
+            best_params = res.x
+    except:
+        pass
+    
+    return best_params[:4]
+
+# EVOLVE-BLOCK-END</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#3</span>
+                    <span class="run-label">Run 2</span>
+                    <span class="r2-badge" style="background-color: #006400; color: white;">
+                        R² = 0.999880
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-2')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-2"># EVOLVE-BLOCK-START
+&quot;&quot;&quot;
+Scaling law for LLM parallel training
+Model: loss = a * num_params^(-b) + c * parallel_size^(-d)
+Optimized for numerical stability and fitting robustness with 4 parameters
+&quot;&quot;&quot;
+import numpy as np
+from scipy.optimize import minimize
+
+def scaling_law_func(data_points, params):
+    &quot;&quot;&quot;
+    Scaling law: loss = a * num_params^(-b) + c * parallel_size^(-d)
+    
+    Parameters:
+    - a: coefficient for model size term (positive)
+    - b: exponent for model size (positive, applied as -b)
+    - c: coefficient for parallel size term (positive)
+    - d: exponent for parallel size (positive, applied as -d)
+    
+    This model captures:
+    - Power-law scaling with model size (standard scaling laws)
+    - Parallel augmentation benefit (more copies -&gt; lower loss)
+    - Uses negative exponents so larger inputs reduce loss
+    &quot;&quot;&quot;
+    data_points = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
+    params = np.atleast_1d(np.asarray(params, dtype=np.float64))
+    
+    num_params = data_points[:, 0]
+    parallel_size = data_points[:, 1]
+    
+    a, b, c, d = params[:4]
+    
+    # Power-law terms with negative exponents
+    # Small epsilon prevents numerical issues with edge cases
+    eps = 1e-10
+    loss = a * np.power(num_params + eps, -b) + c * np.power(parallel_size + eps, -d)
+    
+    return loss
+
+
+def fit_scaling_law(data_points, loss_values):
+    &quot;&quot;&quot;
+    Fit 4-parameter power-law scaling law with robust initialization and optimization
+    &quot;&quot;&quot;
+    data_points = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
+    loss_values = np.atleast_1d(np.asarray(loss_values, dtype=np.float64))
+    
+    num_params = data_points[:, 0]
+    parallel_size = data_points[:, 1]
+    
+    # === ROBUST INITIALIZATION ===
+    # Use log-log analysis for better starting exponents
+    
+    # Log-transform data for power-law regression
+    log_np = np.log(np.maximum(num_params, 1e-10))
+    log_ps = np.log(np.maximum(parallel_size, 1e-10))
+    log_loss = np.log(np.maximum(loss_values, 1e-10))
+    
+    # Estimate b: Use samples with parallel_size at minimum (most isolated effect)
+    mask_ps_min = (parallel_size == np.min(parallel_size))
+    if np.sum(mask_ps_min) &gt; 1:
+        try:
+            coeffs_b = np.polyfit(log_np[mask_ps_min], log_loss[mask_ps_min], 1)
+            b_init = np.clip(abs(coeffs_b[0]), 0.01, 2.0)
+        except:
+            b_init = 0.5
+    else:
+        b_init = 0.5
+    
+    # Estimate d: Use samples with num_params at maximum (most isolated effect)
+    mask_np_max = (num_params == np.max(num_params))
+    if np.sum(mask_np_max) &gt; 1:
+        try:
+            coeffs_d = np.polyfit(log_ps[mask_np_max], log_loss[mask_np_max], 1)
+            d_init = np.clip(abs(coeffs_d[0]), 0.01, 2.0)
+        except:
+            d_init = 0.5
+    else:
+        d_init = 0.5
+    
+    # Estimate a and c from mean loss contributions
+    a_init = np.mean(loss_values) / (1.5 * np.mean(np.power(num_params + 1e-10, -b_init)))
+    c_init = (np.max(loss_values) - np.min(loss_values)) / (4.0 * np.mean(np.power(parallel_size + 1e-10, -d_init)))
+    
+    # Ensure reasonable bounds for initialization
+    x0 = np.array([
+        np.clip(a_init, 1e-6, 1e3),
+        b_init,
+        np.clip(c_init, 1e-10, 1e2),
+        d_init
+    ])
+    
+    # === OPTIMIZATION ===
+    def objective(p):
+        try:
+            pred = scaling_law_func(data_points, p)
+            # Check for NaN/Inf before computing MSE
+            if not np.all(np.isfinite(pred)):
+                return 1e10
+            mse = np.mean((pred - loss_values) ** 2)
+            return mse if np.isfinite(mse) else 1e10
+        except:
+            return 1e10
+    
+    # Carefully chosen bounds based on domain knowledge
+    bounds = [
+        (1e-6, 100.0),      # a: positive coefficient, reasonable upper limit
+        (0.01, 3.0),        # b: exponent for model size scaling
+        (1e-10, 10.0),      # c: positive coefficient for parallel effect
+        (0.01, 2.0)         # d: exponent for parallel size scaling
+    ]
+    
+    # Primary optimization with strict convergence criteria
+    result = minimize(
+        objective,
+        x0,
+        method=&#x27;L-BFGS-B&#x27;,
+        bounds=bounds,
+        options={&#x27;ftol&#x27;: 1e-10, &#x27;maxiter&#x27;: 2000, &#x27;maxfun&#x27;: 5000}
+    )
+    
+    if result.success and np.all(np.isfinite(result.x)) and result.fun &lt; 1e-2:
+        return result.x
+    
+    # Secondary attempt with alternative initialization if primary failed
+    x0_alt = np.array([
+        np.max(loss_values),
+        0.3,
+        np.min(loss_values) * 0.05,
+        0.25
+    ])
+    
+    result_alt = minimize(
+        objective,
+        x0_alt,
+        method=&#x27;L-BFGS-B&#x27;,
+        bounds=bounds,
+        options={&#x27;ftol&#x27;: 1e-10, &#x27;maxiter&#x27;: 2000, &#x27;maxfun&#x27;: 5000}
+    )
+    
+    if result_alt.success and np.all(np.isfinite(result_alt.x)):
+        return result_alt.x
+    
+    # Final fallback: return better of the two attempts
+    if result.success and np.all(np.isfinite(result.x)):
+        return result.x
+    
+    return x0
+
+# EVOLVE-BLOCK-END</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#4</span>
+                    <span class="run-label">Run 5</span>
+                    <span class="r2-badge" style="background-color: #006400; color: white;">
+                        R² = 0.999867
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-3')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-3"># EVOLVE-BLOCK-START
+&quot;&quot;&quot;
+Scaling law discovery for LLM finetuning with parallel training
+Improved model: loss = a / (num_params^b) + c / (parallel_size^d)
+Uses 4 parameters, captures both model scaling and parallel benefits
+&quot;&quot;&quot;
+import numpy as np
+from scipy.optimize import minimize, differential_evolution
+
+def scaling_law_func(data_points, params):
+    &quot;&quot;&quot;
+    Compute loss using a dual power-law model for model size and parallel scaling.
+    
+    Model: loss = a / (num_params^b) + c / (parallel_size^d)
+    
+    Args:
+        data_points: (N, 2) array with columns [num_params, parallel_size]
+        params: (4,) array [a, b, c, d]
+    
+    Returns:
+        (N,) array of predicted loss values
+    &quot;&quot;&quot;
+    X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
+    params = np.asarray(params, dtype=np.float64)
+    
+    if X.shape[1] != 2:
+        raise ValueError(f&quot;Expected 2 features, got {X.shape[1]}&quot;)
+    
+    if params.size &lt; 4:
+        params = np.pad(params, (0, 4 - params.size), mode=&#x27;constant&#x27;, constant_values=1.0)
+    
+    a, b, c, d = params[:4]
+    
+    num_params = X[:, 0]
+    parallel_size = X[:, 1]
+    
+    # Ensure positive values for power operations
+    num_params = np.maximum(num_params, 1e-10)
+    parallel_size = np.maximum(parallel_size, 1e-10)
+    
+    # Compute loss: dual power law
+    loss = a / (num_params ** b) + c / (parallel_size ** d)
+    
+    return loss
+
+
+def fit_scaling_law(data_points, loss_values):
+    &quot;&quot;&quot;
+    Fit scaling law parameters using differential evolution with local refinement.
+    
+    Args:
+        data_points: (N, 2) array with columns [num_params, parallel_size]
+        loss_values: (N,) array of loss values
+    
+    Returns:
+        (4,) array of optimized parameters [a, b, c, d]
+    &quot;&quot;&quot;
+    X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
+    y = np.asarray(loss_values, dtype=np.float64)
+    
+    if X.shape[1] != 2:
+        raise ValueError(f&quot;Expected 2 features, got {X.shape[1]}&quot;)
+    
+    def objective(params):
+        try:
+            pred = scaling_law_func(X, params)
+            # Avoid NaN/Inf
+            if np.any(~np.isfinite(pred)):
+                return 1e10
+            mse = np.mean((pred - y) ** 2)
+            return mse if np.isfinite(mse) else 1e10
+        except:
+            return 1e10
+    
+    # Get data statistics for better initialization bounds
+    num_params_range = np.ptp(X[:, 0])
+    parallel_range = np.ptp(X[:, 1])
+    loss_range = np.ptp(y)
+    loss_min = np.min(y)
+    
+    # Set reasonable bounds for parameters
+    # a: roughly loss_min * min(num_params)^b, so large enough to contribute
+    # b: typical scaling exponent (0.01 to 0.5 for LLMs)
+    # c: parallel benefit (0.01 to 0.3 typically)
+    # d: parallel exponent (0.1 to 2.0)
+    bounds = [
+        (1e-3, 10.0),      # a: amplitude for num_params term
+        (0.01, 0.5),       # b: exponent for num_params (small, LLM scaling is weak)
+        (1e-4, 1.0),       # c: amplitude for parallel_size term
+        (0.1, 2.0),        # d: exponent for parallel_size
+    ]
+    
+    # Use global optimization with bounds
+    result = differential_evolution(
+        objective,
+        bounds,
+        seed=42,
+        maxiter=500,
+        popsize=15,
+        atol=1e-8,
+        tol=1e-10,
+        workers=1,
+        updating=&#x27;deferred&#x27;
+    )
+    
+    params_de = result.x
+    
+    # Refine with local optimizer
+    result_local = minimize(
+        objective,
+        params_de,
+        method=&#x27;L-BFGS-B&#x27;,
+        bounds=bounds,
+        options={&#x27;maxiter&#x27;: 500, &#x27;ftol&#x27;: 1e-10}
+    )
+    
+    if result_local.success:
+        return result_local.x
+    else:
+        return params_de
+
+# EVOLVE-BLOCK-END</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#5</span>
+                    <span class="run-label">Run 1</span>
+                    <span class="r2-badge" style="background-color: #006400; color: white;">
+                        R² = 0.999731
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-4')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-4"># EVOLVE-BLOCK-START
+&quot;&quot;&quot;
+Scaling law for parallel LLM training: loss = a * N^(-b) + c * P^(-d)
+Simplified additive power law with optimized initialization and convergence.
+&quot;&quot;&quot;
+import numpy as np
+from scipy.optimize import minimize, differential_evolution
+
+def scaling_law_func(data_points, params):
+    &quot;&quot;&quot;
+    Additive power law: loss = a * num_params^(-b) + c * parallel_size^(-d)
+    &quot;&quot;&quot;
+    X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
+    params = np.asarray(params, dtype=np.float64)
+    
+    a, b, c, d = params[:4]
+    num_params = np.maximum(X[:, 0], 1e5)
+    parallel_size = np.maximum(X[:, 1], 1.0)
+    
+    return a * np.power(num_params, -b) + c * np.power(parallel_size, -d)
+
+
+def fit_scaling_law(data_points, loss_values):
+    &quot;&quot;&quot;
+    Fit scaling law with data-informed initialization and hybrid optimization.
+    &quot;&quot;&quot;
+    X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
+    y = np.asarray(loss_values, dtype=np.float64).flatten()
+    
+    def objective(params):
+        if np.any(params &lt;= 0):
+            return 1e10
+        try:
+            pred = scaling_law_func(X, params)
+            if not np.all(np.isfinite(pred)):
+                return 1e10
+            mse = np.mean((pred - y) ** 2)
+            return mse if np.isfinite(mse) else 1e10
+        except:
+            return 1e10
+    
+    # Data statistics
+    y_mean = np.mean(y)
+    num_params = X[:, 0]
+    parallel_size = X[:, 1]
+    
+    # Estimate exponents from data
+    param_ratio = np.max(num_params) / np.min(num_params)
+    y_ratio = np.max(y) / np.min(y)
+    estimated_b = np.clip(np.log(y_ratio) / np.log(param_ratio) if param_ratio &gt; 1 and y_ratio &gt; 1 else 0.15, 0.05, 0.5)
+    
+    p1_vals = y[parallel_size == 1]
+    p4_vals = y[parallel_size == 4]
+    if len(p1_vals) &gt; 0 and len(p4_vals) &gt; 0:
+        parallel_ratio = np.mean(p1_vals) / np.mean(p4_vals)
+        estimated_d = np.clip(np.log(parallel_ratio) / np.log(4.0), 0.01, 0.5)
+    else:
+        estimated_d = 0.1
+    
+    # Bounds
+    bounds = [
+        (0.01, y_mean * 5),
+        (0.01, 0.5),
+        (0.0005, y_mean * 1.5),
+        (0.01, 0.5)
+    ]
+    
+    # Diverse initialization strategies
+    init_candidates = [
+        np.array([y_mean * 0.6, estimated_b, y_mean * 0.08, estimated_d]),
+        np.array([y_mean * 0.5, estimated_b * 0.85, y_mean * 0.05, estimated_d * 1.3]),
+        np.array([y_mean * 0.75, estimated_b * 1.15, y_mean * 0.12, estimated_d * 0.7]),
+        np.array([y_mean * 0.4, estimated_b * 0.75, y_mean * 0.02, estimated_d * 1.6]),
+        np.array([y_mean * 0.65, estimated_b * 1.1, y_mean * 0.1, estimated_d * 0.9]),
+    ]
+    
+    # Clip to bounds
+    init_candidates = [np.array([np.clip(init[i], bounds[i][0], bounds[i][1]) for i in range(4)]) for init in init_candidates]
+    
+    best_params = None
+    best_loss = float(&#x27;inf&#x27;)
+    
+    # Multi-start local optimization
+    for init in init_candidates:
+        try:
+            res = minimize(objective, init, method=&#x27;L-BFGS-B&#x27;, bounds=bounds, 
+                          options={&#x27;maxiter&#x27;: 1200, &#x27;ftol&#x27;: 1e-11, &#x27;gtol&#x27;: 1e-8})
+            if res.fun &lt; best_loss:
+                best_loss = res.fun
+                best_params = res.x
+        except:
+            pass
+    
+    # Global optimization
+    try:
+        res_de = differential_evolution(objective, bounds, seed=42, maxiter=600, 
+                                       popsize=22, atol=1e-11, tol=1e-12, workers=1, updating=&#x27;deferred&#x27;)
+        if res_de.fun &lt; best_loss:
+            best_loss = res_de.fun
+            best_params = res_de.x
+    except:
+        pass
+    
+    # Aggressive final refinement
+    if best_params is not None:
+        try:
+            res_final = minimize(objective, best_params, method=&#x27;L-BFGS-B&#x27;, bounds=bounds,
+                                options={&#x27;maxiter&#x27;: 800, &#x27;ftol&#x27;: 1e-13, &#x27;gtol&#x27;: 1e-10})
+            if res_final.fun &lt; best_loss:
+                best_params = res_final.x
+        except:
+            pass
+    
+    if best_params is None:
+        best_params = init_candidates[0]
+    
+    return np.maximum(best_params, 1e-6).astype(np.float64)
+
+# EVOLVE-BLOCK-END</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        </div>
+        
+        <footer class="footer">
+            <p>SLDBench | <a href="https://arxiv.org/abs/2507.21184" target="_blank">arXiv:2507.21184</a> | <a href="https://github.com/linhaowei1/SLD" target="_blank">GitHub</a></p>
+        </footer>
+    </div>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script>
+        function toggleRun(header) {
+            const content = header.nextElementSibling;
+            const isExpanded = content.style.display === 'block';
+            content.style.display = isExpanded ? 'none' : 'block';
+            header.classList.toggle('expanded', !isExpanded);
+        }
+        
+        function copyCode(event, codeId) {
+            event.stopPropagation();
+            const code = document.getElementById(codeId).textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                const btn = event.target;
+                btn.textContent = 'Copied!';
+                setTimeout(() => btn.textContent = 'Copy', 2000);
+            });
+        }
+        
+        Prism.highlightAll();
+    </script>
+</body>
+</html>

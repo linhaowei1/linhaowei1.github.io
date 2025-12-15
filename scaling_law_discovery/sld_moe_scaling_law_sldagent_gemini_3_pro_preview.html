@@ -1,0 +1,1372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SLD - MoE Scaling Law - SLDAgent + Gemini 3 Pro Preview</title>
+    <link rel="icon" type="image/png" href="assets/sld_logo.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" rel="stylesheet" />
+    <style>
+        :root {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8f9fa;
+            --accent-primary: #2563eb;
+            --accent-secondary: #3b82f6;
+            --accent-gradient: linear-gradient(135deg, #2563eb 0%, #3b82f6 50%, #60a5fa 100%);
+            --text-primary: #1f2937;
+            --text-secondary: #4b5563;
+            --border-subtle: rgba(0, 0, 0, 0.1);
+            --glass-bg: rgba(0, 0, 0, 0.02);
+            --success: #10b981;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Sora', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            min-height: 100vh;
+            color: var(--text-primary);
+        }
+        
+        .bg-pattern {
+            display: none;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--accent-primary);
+            text-decoration: none;
+            font-size: 0.9rem;
+            margin-bottom: 1.5rem;
+            transition: color 0.2s;
+        }
+        
+        .back-link:hover {
+            color: var(--accent-secondary);
+        }
+        
+        .header {
+            background: var(--glass-bg);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            backdrop-filter: blur(10px);
+        }
+        
+        .header h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            background: var(--accent-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .meta-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+            margin-top: 1rem;
+        }
+        
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .meta-label {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+        
+        .meta-value {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .r2-badge {
+            display: inline-block;
+            padding: 0.3rem 0.6rem;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        .section-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+        
+        .runs-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .run-card {
+            background: var(--glass-bg);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            overflow: hidden;
+            transition: border-color 0.2s;
+        }
+        
+        .run-card:hover {
+            border-color: rgba(99, 102, 241, 0.3);
+        }
+        
+        .run-card.best-run {
+            border-color: var(--success);
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.1);
+        }
+        
+        .run-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 1.25rem;
+            background: rgba(255, 255, 255, 0.02);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .run-header:hover {
+            background: rgba(255, 255, 255, 0.04);
+        }
+        
+        .run-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .run-badge {
+            padding: 0.25rem 0.6rem;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-secondary);
+        }
+        
+        .run-badge.best-badge {
+            background: var(--success);
+            color: white;
+        }
+        
+        .run-label {
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+        
+        .expand-icon {
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            transition: transform 0.2s;
+        }
+        
+        .run-header.expanded .expand-icon {
+            transform: rotate(180deg);
+        }
+        
+        .run-content {
+            border-top: 1px solid var(--border-subtle);
+        }
+        
+        .code-container {
+            overflow: hidden;
+        }
+        
+        .code-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 1.25rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-bottom: 1px solid var(--border-subtle);
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+        
+        .copy-btn {
+            padding: 0.35rem 0.75rem;
+            background: rgba(99, 102, 241, 0.2);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 6px;
+            color: var(--accent-primary);
+            font-size: 0.75rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        
+        .copy-btn:hover {
+            background: rgba(99, 102, 241, 0.3);
+        }
+        
+        .code-container pre {
+            margin: 0;
+            padding: 1.25rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            line-height: 1.6;
+            overflow-x: auto;
+            background: transparent !important;
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 3rem;
+            padding-top: 2rem;
+            border-top: 1px solid var(--border-subtle);
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+        
+        .footer a {
+            color: var(--accent-primary);
+            text-decoration: none;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+            
+            .header h1 {
+                font-size: 1.25rem;
+            }
+            
+            .meta-row {
+                flex-direction: column;
+                gap: 0.75rem;
+            }
+            
+            .run-info {
+                flex-wrap: wrap;
+                gap: 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-pattern"></div>
+    
+    <div class="container">
+        <a href="sld_index.html" class="back-link">
+            ← Back to Leaderboard
+        </a>
+        
+        <div class="header">
+            <h1>MoE Scaling Law</h1>
+            <div class="meta-row">
+                <div class="meta-item">
+                    <span class="meta-label">Agent:</span>
+                    <span class="meta-value">SLDAgent</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Model:</span>
+                    <span class="meta-value">Gemini 3 Pro Preview</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Best R²:</span>
+                    <span class="r2-badge" style="background-color: #228B22; color: white;">
+                        0.850315
+                    </span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Mean R²:</span>
+                    <span class="meta-value">0.844292</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Min R²:</span>
+                    <span class="meta-value">0.841581</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Runs:</span>
+                    <span class="meta-value">5</span>
+                </div>
+            </div>
+        </div>
+        
+        <h2 class="section-title">All Runs (sorted by R²)</h2>
+        
+        <div class="runs-container">
+            
+        <div class="run-card best-run">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge best-badge">Best</span>
+                    <span class="run-label">Run 3</span>
+                    <span class="r2-badge" style="background-color: #228B22; color: white;">
+                        R² = 0.850315
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: block;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-0')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-0">import numpy as np
+from scipy.optimize import minimize
+
+def scaling_law_func(data_points, params):
+    &quot;&quot;&quot;
+    Computes validation loss using an additive MoE scaling law.
+    L = p0 + p1*N^(-p2) + p3*N^(-p5)*E^(-p4)
+    
+    Interpretation:
+    - p0: Irreducible loss (Bias).
+    - p1*N^(-p2): Asymptotic loss for a model of size N with infinite experts.
+    - p3*N^(-p5)*E^(-p4): The &#x27;gap&#x27; or overhead due to finite experts. 
+      Increasing E reduces this term, improving loss.
+    &quot;&quot;&quot;
+    # data_points: (N_samples, 2) array [num_experts, dense_parameter_count]
+    # params: (N_param_sets, 6) or (6,) array
+    
+    # 1. Prepare Inputs
+    X = np.atleast_2d(np.asarray(data_points))
+    # Normalize dense parameters N to range [1.0, 8.0] for numerical stability
+    E = X[:, 0]
+    N = X[:, 1] / 1e8 
+    
+    params = np.asarray(params)
+    if params.ndim == 1:
+        params = params[None, :]
+        
+    # 2. Unpack Parameters
+    p0 = params[:, 0]  # Bias
+    p1 = params[:, 1]  # Dense Asymptote Coeff
+    p2 = params[:, 2]  # Dense Asymptote Exp
+    p3 = params[:, 3]  # Expert Gap Coeff
+    p4 = params[:, 4]  # Expert Gap Decay Exp
+    p5 = params[:, 5]  # Expert Gap Dense Exp
+    
+    # 3. Calculate Terms (Broadcasting)
+    # Term 1: Bias
+    term_bias = p0[None, :]
+    
+    # Term 2: Dense Asymptote (Base performance limit for size N)
+    term_dense = p1[None, :] * (N[:, None] ** (-p2[None, :]))
+    
+    # Term 3: Expert Gap (Diminishing returns from adding experts)
+    # Scales with N (p5) and decays with E (p4)
+    term_gap = p3[None, :] * (N[:, None] ** (-p5[None, :])) * (E[:, None] ** (-p4[None, :]))
+    
+    # Total Predicted Loss
+    pred = term_bias + term_dense + term_gap
+    
+    return pred[:, 0] if pred.shape[1] == 1 else pred
+
+def fit_scaling_law(data_points, loss_values):
+    X = np.atleast_2d(np.asarray(data_points))
+    y = np.asarray(loss_values)
+    
+    if y.ndim == 1:
+        ys = y[:, None]
+    else:
+        ys = y
+        
+    T = ys.shape[1]
+    E = X[:, 0]
+    N_norm = X[:, 1] / 1e8
+    
+    results = []
+    
+    # Constraints: Coefficients &gt;= 0, Exponents in [0, 5]
+    bounds = [
+        (0.0, None), (0.0, None), (0.0, 5.0), 
+        (0.0, None), (0.0, 5.0), (0.0, 5.0)
+    ]
+    
+    for i in range(T):
+        target = ys[:, i]
+        min_loss = np.min(target)
+        guesses = []
+        
+        # --- Stage 1: Smart Initialization via Log-Linear Regression ---
+        # We approximate L approx p0 + C * N^-p2 * E^-p4
+        # This linearizes to: log(L - p0) = log(C) - p2*log(N) - p4*log(E)
+        
+        # Try different bias assumptions to seed the regression
+        for bias_frac in [0.0, 0.85, 0.98]:
+            p0_guess = min_loss * bias_frac
+            # Avoid log(negative) by clipping
+            y_shifted = np.maximum(target - p0_guess, 1e-6)
+            y_log = np.log(y_shifted)
+            
+            try:
+                # Construct design matrix: [1, -log(N), -log(E)]
+                A = np.column_stack([
+                    np.ones_like(target), 
+                    -np.log(N_norm), 
+                    -np.log(E)
+                ])
+                
+                # Least squares fit
+                coeffs, _, _, _ = np.linalg.lstsq(A, y_log, rcond=None)
+                
+                c_val, p2_est, p4_est = coeffs
+                C_est = np.exp(c_val)
+                
+                # Clip exponents to reasonable initial ranges
+                p2_est = np.clip(p2_est, 0.1, 3.0)
+                p4_est = np.clip(p4_est, 0.0, 2.0)
+                
+                # Create initial parameter sets
+                # Distribute total coefficient C_est between p1 (asymptote) and p3 (gap)
+                
+                # Guess A: Balanced split (50/50)
+                guesses.append([
+                    p0_guess,       # p0
+                    C_est * 0.5,    # p1
+                    p2_est,         # p2
+                    C_est * 0.5,    # p3
+                    p4_est,         # p4
+                    p2_est          # p5 (assume gap scales similar to dense initially)
+                ])
+                
+                # Guess B: Expert Gap Dominant (Model assumes most loss is reducible by experts)
+                guesses.append([
+                    p0_guess,
+                    C_est * 0.1,
+                    p2_est,
+                    C_est * 0.9,
+                    p4_est,
+                    p2_est
+                ])
+            except:
+                pass
+        
+        # --- Stage 2: Fallback Heuristics ---
+        # If regression fails or data is weird, add standard guesses
+        guesses.append([min_loss * 0.9, 1.0, 0.5, 1.0, 0.2, 0.5])
+        
+        # --- Stage 3: Optimization ---
+        best_params = None
+        best_mse = float(&#x27;inf&#x27;)
+        
+        def objective(p):
+            pred = scaling_law_func(X, p)
+            return np.mean((pred - target)**2)
+        
+        for g in guesses:
+            try:
+                res = minimize(objective, g, bounds=bounds, method=&#x27;L-BFGS-B&#x27;, tol=1e-6)
+                if res.fun &lt; best_mse:
+                    best_mse = res.fun
+                    best_params = res.x
+            except:
+                continue
+                
+        if best_params is None:
+            best_params = np.array(guesses[-1])
+            
+        results.append(best_params)
+
+    return np.array(results) if T &gt; 1 else results[0]</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#2</span>
+                    <span class="run-label">Run 1</span>
+                    <span class="r2-badge" style="background-color: #228B22; color: white;">
+                        R² = 0.843993
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-1')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-1"># EVOLVE-BLOCK-START
+&quot;&quot;&quot;
+Scaling law discovery for MoE LLM finetuning.
+Model: L(N, E) = p0 + p1*N^(-p2) + p3*N^(-p5)*E^(-p4)
+Optimization Strategy:
+1. Feature Normalization: Inputs scaled to O(1) range.
+2. Hybrid Initialization: 
+   - Uses dense subset (E=1) to estimate baseline scaling parameters (bias, coeff, exp).
+   - Uses NNLS on a pre-defined grid of scaling exponents to find global optimal coefficients.
+3. Robust Regression: Uses `least_squares` with `soft_l1` loss to handle potential outliers.
+4. Physical Constraints: Bias bounded by min_loss, coefficients non-negative.
+&quot;&quot;&quot;
+import numpy as np
+from scipy.optimize import least_squares, nnls
+
+def scaling_law_func(data_points, params):
+    # data_points: (M, 2) array [num_experts, dense_parameter_count]
+    # params: (T, 6) or (6,) array [p0, p1, p2, p3, p4, p5]
+    
+    # 1. Input Processing
+    X = np.atleast_2d(np.asarray(data_points))
+    E = X[:, 0]
+    # Normalize N to avoiding large/small number issues
+    # Range of dense params is 1e8 to 8e8. 1e9 normalization puts it in [0.1, 0.8]
+    N = X[:, 1] / 1e9
+    
+    # 2. Parameter Processing
+    params = np.asarray(params)
+    squeeze_output = False
+    if params.ndim == 1:
+        params = params[None, :]
+        squeeze_output = True
+        
+    # Unpack (T, 6) -&gt; (T,) arrays
+    # p0: Bias
+    # p1, p2: Dense Compute Term (Scale, Exp)
+    # p3, p4, p5: Expert Penalty Term (Scale, E-Exp, N-Exp)
+    p0 = params[:, 0]
+    p1 = params[:, 1]
+    p2 = params[:, 2]
+    p3 = params[:, 3]
+    p4 = params[:, 4]
+    p5 = params[:, 5]
+    
+    # 3. Calculation
+    # Broadcasting: Features (M, 1) op Params (1, T) -&gt; (M, T)
+    
+    # Bias
+    term1 = p0[None, :]
+    
+    # Dense scaling: p1 * N^-p2
+    term2 = p1[None, :] * (N[:, None] ** (-p2[None, :]))
+    
+    # Expert scaling: p3 * N^-p5 * E^-p4
+    # Note: Using negative exponents in calculation for stability
+    term3 = p3[None, :] * (N[:, None] ** (-p5[None, :])) * (E[:, None] ** (-p4[None, :]))
+    
+    pred = term1 + term2 + term3
+    
+    if squeeze_output:
+        return pred[:, 0]
+    return pred
+
+def fit_scaling_law(data_points, loss_values):
+    X = np.atleast_2d(np.asarray(data_points))
+    y = np.asarray(loss_values)
+    
+    # Handle multiple targets
+    if y.ndim == 1:
+        ys = y[:, None]
+    else:
+        ys = y
+    
+    num_targets = ys.shape[1]
+    results = []
+    
+    # Normalized features for initialization
+    E_vals = X[:, 0]
+    N_vals = X[:, 1] / 1e9
+    
+    # Detect dense subset (E=1)
+    dense_mask = (E_vals == 1)
+    has_dense = np.sum(dense_mask) &gt;= 4
+    
+    # Grid for NNLS initialization
+    # (p2_dense, p4_expert, p5_interaction)
+    # Rationale:
+    # p2 usually in [0.05, 1.0] for LLMs
+    # p4 usually small [0.0, 0.5] (diminishing returns of experts)
+    # p5 often close to p2 (interaction)
+    grid_exponents = [
+        # Standard balanced scaling
+        (0.3, 0.1, 0.3), (0.5, 0.1, 0.5), (0.7, 0.1, 0.7),
+        # Stronger expert returns (higher p4)
+        (0.3, 0.3, 0.3), (0.5, 0.3, 0.5),
+        # Interaction variations (p5 != p2)
+        (0.5, 0.1, 0.3), (0.5, 0.1, 0.7),
+        # Asymptotic checks
+        (1.0, 0.0, 1.0), (0.1, 0.1, 0.1)
+    ]
+    
+    for i in range(num_targets):
+        target = ys[:, i]
+        min_y = np.min(target)
+        
+        candidates = []
+        
+        # Strategy 1: Dense-informed initialization
+        # If we have dense data, fit a simple power law to it first
+        if has_dense:
+            y_dense = target[dense_mask]
+            n_dense = N_vals[dense_mask]
+            
+            # Grid search for dense bias
+            # Fit: y = bias + a * n^-b
+            best_dense_err = np.inf
+            best_dense_params = None
+            
+            for bias_ratio in [0.8, 0.9, 0.95, 0.99]:
+                bias_guess = min_y * bias_ratio
+                # Log-linear fit on residuals
+                y_resid = np.maximum(y_dense - bias_guess, 1e-6)
+                try:
+                    # log(y-b) = log(a) - b*log(n)
+                    slope, intercept = np.polyfit(np.log(n_dense), np.log(y_resid), 1)
+                    p2_est = -slope
+                    p1_est = np.exp(intercept)
+                    
+                    if p2_est &gt; 0:
+                        # Error check
+                        pred_d = bias_guess + p1_est * (n_dense**-p2_est)
+                        err = np.mean((pred_d - y_dense)**2)
+                        if err &lt; best_dense_err:
+                            best_dense_err = err
+                            # Split dense coeff p1_est between p1 and p3
+                            # Guess experts help moderately (p4=0.1)
+                            best_dense_params = [bias_guess, p1_est*0.5, p2_est, p1_est*0.5, 0.1, p2_est]
+                except:
+                    pass
+            
+            if best_dense_params is not None:
+                candidates.append(best_dense_params)
+                # Variation: Dense term dominates
+                p0, p1, p2, p3, p4, p5 = best_dense_params
+                candidates.append([p0, p1*1.8, p2, p3*0.2, p4, p5])
+
+        # Strategy 2: Global NNLS Grid Search
+        # y ~ p0 + p1*N^-p2 + p3*N^-p5*E^-p4
+        for (gp2, gp4, gp5) in grid_exponents:
+            feat_dense = N_vals ** -gp2
+            feat_expert = (N_vals ** -gp5) * (E_vals ** -gp4)
+            # Matrix A: [1, dense, expert]
+            A = np.vstack([np.ones_like(feat_dense), feat_dense, feat_expert]).T
+            
+            try:
+                coeffs, _ = nnls(A, target)
+                c0, c1, c3 = coeffs
+                
+                # Enforce physical constraint: Bias &lt; min_loss
+                if c0 &gt;= min_y:
+                    c0 = min_y * 0.99
+                    
+                candidates.append([c0, c1, gp2, c3, gp4, gp5])
+            except:
+                pass
+                
+        # Strategy 3: Generic Fallback
+        candidates.append([min_y * 0.8, 1.0, 0.5, 1.0, 0.1, 0.5])
+
+        # Optimize Best Candidates
+        def residuals_func(p):
+            return scaling_law_func(X, p) - target
+            
+        # Bounds: 
+        # p0 &lt; min_y (handled via ub)
+        # coeffs &gt;= 0
+        # exponents in [0, 10]
+        # p0 strictly bounded by min_y is crucial for physics
+        lb = [0, 0, 0, 0, 0, 0]
+        ub = [min_y - 1e-6, np.inf, 10.0, np.inf, 10.0, 10.0]
+        
+        best_res = None
+        best_cost = float(&#x27;inf&#x27;)
+        
+        # We sort candidates by initial MSE to prioritize good starts (speedup)
+        # but run top K to avoid local optima
+        def quick_mse(p):
+            return np.mean((scaling_law_func(X, p) - target)**2)
+            
+        candidates.sort(key=quick_mse)
+        
+        for guess in candidates[:4]: # Try top 4 guesses
+            try:
+                # Use soft_l1 loss for robustness against outliers
+                res = least_squares(
+                    residuals_func, 
+                    x0=guess, 
+                    bounds=(lb, ub),
+                    loss=&#x27;soft_l1&#x27;, 
+                    f_scale=0.05, # Scale of inlier residuals
+                    method=&#x27;trf&#x27;,
+                    max_nfev=500
+                )
+                
+                # Evaluate using Squared Error (standard metric)
+                cost = np.mean(res.fun**2)
+                
+                if cost &lt; best_cost:
+                    best_cost = cost
+                    best_res = res
+            except:
+                continue
+        
+        if best_res is not None:
+            results.append(best_res.x)
+        else:
+            results.append(np.array([min_y*0.9, 0, 0, 0, 0, 0]))
+
+    return np.array(results)[0] if num_targets == 1 else np.array(results)
+# EVOLVE-BLOCK-END</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#3</span>
+                    <span class="run-label">Run 4</span>
+                    <span class="r2-badge" style="background-color: #228B22; color: white;">
+                        R² = 0.843992
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-2')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-2"># EVOLVE-BLOCK-START
+&quot;&quot;&quot;
+Scaling law discovery for LLM finetuning scenarios
+Implements an additive MoE scaling law: L = p0 + p1*N^(-p2) + p3*N^(-p5)*E^(-p4)
+Optimized using Robust Non-Linear Least Squares (Trust Region Reflective) with Soft-L1 loss.
+This approach is robust to outliers and bounds parameters to physically meaningful ranges.
+&quot;&quot;&quot;
+import numpy as np
+from scipy.optimize import least_squares
+
+def scaling_law_func(data_points, params):
+    # data_points: (M, 2) array [num_experts, dense_parameter_count]
+    # params: (T, 6) or (6,) array [p0, p1, p2, p3, p4, p5]
+    
+    X = np.atleast_2d(np.asarray(data_points))
+    # E: Experts [1, 64]
+    # N: Parameters [1e8, 8e8]. Normalize to ~[0.1, 0.8] for numerical stability
+    E = X[:, 0]
+    N = X[:, 1] / 1e9
+    
+    params = np.asarray(params)
+    squeeze_output = False
+    if params.ndim == 1:
+        params = params[None, :]
+        squeeze_output = True
+        
+    # Unpack parameters (T, 6)
+    p0 = params[:, 0] # Bias
+    p1 = params[:, 1] # Dense scaling coeff
+    p2 = params[:, 2] # Dense scaling exp
+    p3 = params[:, 3] # Expert scaling coeff
+    p4 = params[:, 4] # Expert scaling exp (E)
+    p5 = params[:, 5] # Expert scaling exp (N)
+    
+    # Model: L = Bias + DenseTerm + ExpertTerm
+    # DenseTerm: Base scaling with model size
+    # ExpertTerm: Scaling with size that diminishes with expert count
+    
+    # Broadcasting: (M, 1) op (1, T) -&gt; (M, T)
+    term1 = p0[None, :]
+    term2 = p1[None, :] * (N[:, None] ** (-p2[None, :]))
+    term3 = p3[None, :] * (N[:, None] ** (-p5[None, :])) * (E[:, None] ** (-p4[None, :]))
+    
+    pred = term1 + term2 + term3
+    
+    if squeeze_output:
+        return pred[:, 0]
+    return pred
+
+def fit_scaling_law(data_points, loss_values):
+    X = np.atleast_2d(np.asarray(data_points))
+    y = np.asarray(loss_values)
+    
+    if y.ndim == 1:
+        ys = y[:, None]
+    else:
+        ys = y
+        
+    M, T = ys.shape
+    results = []
+    
+    E = X[:, 0]
+    N = X[:, 1] / 1e9
+    
+    for i in range(T):
+        target = ys[:, i]
+        min_loss = np.min(target)
+        
+        # Bounds for TRF:
+        # p0: [0, min_loss] -&gt; Bias cannot exceed minimum observed loss
+        # p1, p3: [0, inf] -&gt; Positive coefficients
+        # p2, p4, p5: [0, 8] -&gt; Exponents bounded for stability
+        lb = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        ub = [min_loss, np.inf, 8.0, np.inf, 8.0, 8.0]
+        
+        # Residual function for least_squares
+        def residuals(p):
+            p0, p1, p2, p3, p4, p5 = p
+            pred = p0 + p1 * (N ** -p2) + p3 * (N ** -p5) * (E ** -p4)
+            return pred - target
+        
+        # Generate diverse initial guesses
+        guesses = []
+        
+        # 1. Heuristic from Dense Data (E=1)
+        # If we have dense points, fit a simple power law to get base params
+        mask_dense = (E &lt; 1.1)
+        if np.sum(mask_dense) &gt;= 3:
+            try:
+                y_d = target[mask_dense]
+                n_d = N[mask_dense]
+                # Est bias
+                bias_est = np.min(y_d) * 0.9
+                # Log-log fit: log(y - bias) = log(A) - B * log(N)
+                log_y = np.log(np.maximum(y_d - bias_est, 1e-6))
+                log_n = np.log(n_d)
+                
+                slope, intercept = np.polyfit(log_n, log_y, 1)
+                exp_est = np.clip(-slope, 0.0, 5.0)
+                coeff_est = np.exp(intercept)
+                
+                # Split the coefficient between base and expert terms
+                guesses.append([bias_est, coeff_est*0.5, exp_est, coeff_est*0.5, 0.5, exp_est])
+                # Also try assigning mostly to base
+                guesses.append([bias_est, coeff_est*0.8, exp_est, coeff_est*0.2, 0.5, exp_est])
+            except:
+                pass
+        
+        # 2. Generic Guesses (Robustness against different scaling regimes)
+        guesses.extend([
+            [min_loss * 0.8, 1.0, 0.5, 1.0, 0.5, 0.5],    # Balanced
+            [min_loss * 0.95, 0.2, 1.0, 0.2, 0.5, 1.0],   # Bias Heavy
+            [min_loss * 0.5, 2.0, 0.4, 0.1, 0.1, 0.4],    # Dense Heavy
+            [min_loss * 0.5, 0.1, 0.4, 2.0, 1.0, 0.4],    # Expert Heavy
+            [0.1, 1.0, 0.2, 1.0, 0.2, 0.2]                # Low Bias
+        ])
+        
+        best_x = None
+        best_cost = np.inf
+        
+        for g in guesses:
+            # Ensure guess is within bounds
+            g_clipped = np.clip(g, lb, ub)
+            
+            try:
+                # Use Trust Region Reflective algorithm for bound-constrained problems
+                # Use soft_l1 loss to be robust against outliers in the training data
+                res = least_squares(
+                    residuals, 
+                    x0=g_clipped, 
+                    bounds=(lb, ub), 
+                    method=&#x27;trf&#x27;, 
+                    loss=&#x27;soft_l1&#x27;, 
+                    f_scale=0.05, 
+                    max_nfev=1000
+                )
+                if res.cost &lt; best_cost:
+                    best_cost = res.cost
+                    best_x = res.x
+            except Exception:
+                continue
+                
+        if best_x is None:
+            # Fallback to constant predictor
+            best_x = np.array([min_loss, 0.0, 0.0, 0.0, 0.0, 0.0])
+            
+        results.append(best_x)
+        
+    return np.array(results)[0] if T == 1 else np.array(results)
+# EVOLVE-BLOCK-END</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#4</span>
+                    <span class="run-label">Run 2</span>
+                    <span class="r2-badge" style="background-color: #228B22; color: white;">
+                        R² = 0.841581
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-3')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-3"># EVOLVE-BLOCK-START
+&quot;&quot;&quot;
+Scaling law discovery for MoE LLMs
+Improved solution features:
+1.  Additive Decoupled Formulation: L = p0 + p1*N^-p2 + p3*N^-p5*E^-p4
+    - Physically grounded: Separates irreducible loss (p0), dense-reducible loss (p1 term), 
+      and expert-reducible loss (p3 term).
+    - Allows experts to scale differently with model size (p5) compared to the dense backbone (p2).
+2.  Robust Optimization via `scipy.optimize.least_squares`:
+    - Uses Trust Region Reflective algorithm which is more robust for bounded non-linear least squares 
+      than standard BFGS.
+    - Uses &#x27;soft_l1&#x27; loss to be robust against outliers in the scaling trends.
+3.  Hierarchical Initialization:
+    - First fits the Dense (E=1) subset to anchor the static backbone.
+    - Explores a grid of &quot;Expert Ratios&quot; (how much of the loss is expert-sensitive) to initialize 
+      the full model, avoiding local minima where experts are ignored.
+&quot;&quot;&quot;
+import numpy as np
+from scipy.optimize import least_squares
+
+def scaling_law_func(data_points, params):
+    # data_points: (N_samples, 2) array [num_experts, dense_parameter_count]
+    # params: (N_params, 6) or (6,) array
+    
+    # Input Processing
+    X = np.asarray(data_points, dtype=np.float64)
+    if X.ndim == 1:
+        X = X[None, :]
+        
+    E = X[:, 0]
+    # Normalize N to [1.0, 8.0] range (1e8 to 8e8 params)
+    # This O(1) scaling is crucial for optimizer convergence
+    N = X[:, 1] / 1e8
+    
+    # Parameter Broadcasting
+    P = np.asarray(params, dtype=np.float64)
+    squeeze_output = False
+    if P.ndim == 1:
+        P = P[None, :]
+        squeeze_output = True
+        
+    # Unpack Parameters
+    # Model: L = p0 + p1*N^-p2 + p3*N^-p5*E^-p4
+    # p0: Bias (Irreducible Loss)
+    # p1: Static Coefficient
+    # p2: Static Exponent (Scaling of non-expert part)
+    # p3: Dynamic Coefficient (Expert-reducible part)
+    # p4: Expert Decay Exponent (Diminishing returns of experts)
+    # p5: Dynamic Size Exponent (Interaction of Size and Expert gain)
+    
+    p0 = P[:, 0]
+    p1 = P[:, 1]
+    p2 = P[:, 2]
+    p3 = P[:, 3]
+    p4 = P[:, 4]
+    p5 = P[:, 5]
+    
+    # Safe Bases
+    N_safe = np.maximum(N, 1e-4)[:, None]
+    E_safe = np.maximum(E, 1e-4)[:, None]
+    
+    # Static Term: p1 * N^-p2
+    term_static = p1[None, :] * (N_safe ** (-p2[None, :]))
+    
+    # Dynamic Term: p3 * N^-p5 * E^-p4
+    term_dynamic = p3[None, :] * (N_safe ** (-p5[None, :])) * (E_safe ** (-p4[None, :]))
+    
+    # Total Loss
+    pred = p0[None, :] + term_static + term_dynamic
+    
+    if squeeze_output:
+        return pred[:, 0]
+    return pred
+
+def fit_scaling_law(data_points, loss_values):
+    X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
+    Y = np.asarray(loss_values, dtype=np.float64)
+    if Y.ndim == 1:
+        Y = Y[:, None]
+        
+    n_targets = Y.shape[1]
+    results = []
+    
+    # Identify dense data for anchoring (E=1)
+    dense_mask = (X[:, 0] == 1)
+    has_dense = np.sum(dense_mask) &gt;= 3
+    
+    # Base bounds: All params &gt;= 0, exponents &lt;= 4.0
+    # p0 (bias) is handled per target
+    base_lower = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    base_upper = [np.inf, np.inf, 4.0, np.inf, 4.0, 4.0]
+    
+    for i in range(n_targets):
+        y = Y[:, i]
+        y_min, y_max = np.min(y), np.max(y)
+        
+        # 1. Fit Dense Baseline (E=1) =&gt; L ~ a + b*N^-c
+        dense_params = None
+        if has_dense:
+            X_d = X[dense_mask, 1] / 1e8
+            y_d = y[dense_mask]
+            
+            # Objective for dense fit
+            def fun_dense(p):
+                # p = [a, b, c]
+                return (p[0] + p[1] * (X_d**-p[2])) - y_d
+            
+            best_d_cost = float(&#x27;inf&#x27;)
+            
+            # Grid search for exponent &#x27;c&#x27; to avoid local minima
+            for c_guess in [0.2, 0.5, 0.8, 1.2]:
+                # Heuristic init: bias ~ 0.9*min, scale ~ range
+                p_init = [np.min(y_d)*0.9, np.ptp(y_d), c_guess]
+                # Bound bias &lt; min(y_d)
+                d_bounds = ([0.0, 0.0, 0.0], [np.min(y_d)-1e-7, np.inf, 4.0])
+                
+                try:
+                    res = least_squares(fun_dense, p_init, bounds=d_bounds, loss=&#x27;soft_l1&#x27;)
+                    if res.cost &lt; best_d_cost:
+                        best_d_cost = res.cost
+                        dense_params = res.x
+                except:
+                    continue
+        
+        # 2. Formulate Guesses for Full Model
+        guesses = []
+        if dense_params is not None:
+            a, b, c = dense_params
+            # Distribute dense scale &#x27;b&#x27; into static &#x27;p1&#x27; and dynamic &#x27;p3&#x27;
+            # Assume initially p2 = p5 = c (same scaling with size)
+            
+            # Hypothesis: Experts handle &#x27;phi&#x27; fraction of the reducible loss
+            for phi in [0.1, 0.3, 0.5, 0.7, 0.9]:
+                p1_g = b * (1.0 - phi)
+                p3_g = b * phi
+                
+                # Hypothesis: Expert returns decay with E at rate &#x27;p4&#x27;
+                for p4_g in [0.1, c, 0.8]:
+                    guesses.append([a, p1_g, c, p3_g, p4_g, c])
+            
+            # Hypothesis: Experts scale differently with N (p5 != p2)
+            guesses.append([a, b*0.5, c, b*0.5, c, c*1.2]) # Experts gain more at scale
+            guesses.append([a, b*0.5, c, b*0.5, c, c*0.8]) # Experts gain less at scale
+            
+        else:
+            # Fallback guesses if no dense data
+            guesses.append([y_min*0.8, y_max-y_min, 0.5, y_max-y_min, 0.5, 0.5])
+            guesses.append([0.0, y_max, 1.0, y_max, 1.0, 1.0])
+            
+        # 3. Optimize Full Model
+        def fun_full(p):
+            pred = scaling_law_func(X, p)
+            return pred - y
+            
+        best_p = None
+        best_cost = float(&#x27;inf&#x27;)
+        
+        # Constraint: p0 must be &lt; global min loss to be physical
+        curr_upper = list(base_upper)
+        curr_upper[0] = y_min - 1e-7
+        
+        for g in guesses:
+            try:
+                # Least Squares with Trust Region Reflective
+                res = least_squares(fun_full, g, bounds=(base_lower, curr_upper), 
+                                    loss=&#x27;soft_l1&#x27;, f_scale=0.1, max_nfev=1000)
+                if res.cost &lt; best_cost:
+                    best_cost = res.cost
+                    best_p = res.x
+            except:
+                continue
+                
+        if best_p is None:
+            # Constant predictor fallback
+            best_p = np.array([y_min, 0.0, 0.0, 0.0, 0.0, 0.0])
+            
+        results.append(best_p)
+        
+    return np.array(results)[0] if n_targets == 1 else np.array(results)
+# EVOLVE-BLOCK-END</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#5</span>
+                    <span class="run-label">Run 5</span>
+                    <span class="r2-badge" style="background-color: #228B22; color: white;">
+                        R² = 0.841581
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-4')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-4">import numpy as np
+from scipy.optimize import least_squares
+
+def scaling_law_func(data_points, params):
+    &quot;&quot;&quot;
+    MoE Scaling Law Model:
+    L(N, E) = p0 + p1 * N^(-p2) + p3 * N^(-p5) * E^(-p4)
+    
+    This functional form decomposes the loss into:
+    1. Irreducible Loss (p0): The asymptotic floor.
+    2. Dense Backbone Loss (p1 * N^-p2): The loss component limited by the active parameter count N.
+       This represents the &quot;infinite expert&quot; limit where routing is perfect/free.
+    3. Sparse Penalty/Gain (p3 * N^-p5 * E^-p4): A term that represents the additional loss 
+       incurred by having finite experts. 
+       - As E increases, this term vanishes (E^-p4), representing the gain from experts.
+       - p4 controls the saturation rate of expert utility.
+       - p5 allows the utility of experts to scale differently with model size N compared 
+         to the dense backbone (p2), capturing &quot;decoupled&quot; scaling dynamics.
+    &quot;&quot;&quot;
+    # Ensure inputs are 2D arrays
+    X = np.atleast_2d(np.asarray(data_points))
+    E = X[:, 0]
+    # Normalize N to a range close to [1, 10] for optimization stability.
+    # The raw data is typically 1e8 to 8e8.
+    N = X[:, 1] / 1e8
+    
+    params = np.asarray(params)
+    squeeze_output = False
+    if params.ndim == 1:
+        params = params[None, :]
+        squeeze_output = True
+        
+    # Unpack parameters (num_sets, 6)
+    p0 = params[:, 0]
+    p1 = params[:, 1]
+    p2 = params[:, 2]
+    p3 = params[:, 3]
+    p4 = params[:, 4]
+    p5 = params[:, 5]
+    
+    # Broadcasting for vectorized evaluation
+    # N: (Samples, 1), Params: (1, Param_Sets)
+    N_bc = N[:, None]
+    E_bc = E[:, None]
+    
+    # Term 1: Dense Backbone Scaling
+    # p1 * N^(-p2)
+    term1 = p1[None, :] * (N_bc ** -p2[None, :])
+    
+    # Term 2: Expert Scaling Penalty
+    # p3 * N^(-p5) * E^(-p4)
+    term2 = p3[None, :] * (N_bc ** -p5[None, :]) * (E_bc ** -p4[None, :])
+    
+    # Total Loss
+    pred = p0[None, :] + term1 + term2
+    
+    if squeeze_output:
+        return pred[:, 0]
+    return pred
+
+def fit_scaling_law(data_points, loss_values):
+    &quot;&quot;&quot;
+    Fits the MoE scaling law using a robust multi-stage initialization and refinement process.
+    &quot;&quot;&quot;
+    X = np.atleast_2d(np.asarray(data_points))
+    y = np.asarray(loss_values)
+    
+    if y.ndim == 1:
+        ys = y[:, None]
+    else:
+        ys = y
+        
+    n_targets = ys.shape[1]
+    final_params = []
+    
+    # Pre-process features
+    E = X[:, 0]
+    N_norm = X[:, 1] / 1e8
+    
+    # Identify subsets for intelligent initialization
+    dense_mask = (E == 1)
+    has_dense = np.sum(dense_mask) &gt;= 3
+    
+    for i in range(n_targets):
+        y_curr = ys[:, i]
+        min_loss = np.min(y_curr)
+        
+        # Constraints
+        # p0 &lt;= min_loss - epsilon (Loss cannot be lower than irreducible error)
+        # Exponents (p2, p4, p5) restricted to [0, 4.0] to prevent unphysical spikes.
+        # Coefficients (p1, p3) restricted to [0, inf).
+        lb = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        ub = [min_loss - 1e-6, np.inf, 4.0, np.inf, 4.0, 4.0]
+        
+        guesses = []
+        
+        # --- Strategy 1: Dense Anchor Initialization ---
+        # If Dense (E=1) data exists, the model simplifies to:
+        # L(N, 1) = p0 + p1*N^-p2 + p3*N^-p5 = p0 + (p1 + p3)*N^-p_approx
+        # We fit this 1D power law to get a strong prior on the overall scale.
+        p_dense = None
+        if has_dense:
+            def dense_resid(p):
+                # p = [bias, coeff, exp]
+                return (p[0] + p[1] * (N_norm[dense_mask] ** -p[2])) - y_curr[dense_mask]
+            
+            try:
+                # Robust fit on dense data
+                res_d = least_squares(dense_resid, [min_loss*0.8, 1.0, 0.5], 
+                                      bounds=([0, 0, 0], [min_loss, np.inf, 4.0]),
+                                      loss=&#x27;soft_l1&#x27;)
+                p_dense = res_d.x
+            except:
+                pass
+        
+        if p_dense is not None:
+            pd0, pd_coeff, pd_exp = p_dense
+            # Decompose the single dense coefficient into p1 (base) and p3 (expert penalty).
+            # We don&#x27;t know the split, so we generate multiple guesses.
+            
+            # Guess A: Balanced split
+            guesses.append([pd0, pd_coeff*0.5, pd_exp, pd_coeff*0.5, 0.5, pd_exp])
+            # Guess B: Mostly Dense (Experts are a minor correction)
+            guesses.append([pd0, pd_coeff*0.9, pd_exp, pd_coeff*0.1, 0.5, pd_exp])
+            # Guess C: Mostly Expert (Experts are the main driver)
+            guesses.append([pd0, pd_coeff*0.1, pd_exp, pd_coeff*0.9, 0.5, pd_exp])
+            # Guess D: Decoupled N-scaling (Expert penalty scales faster/slower)
+            guesses.append([pd0, pd_coeff*0.5, pd_exp, pd_coeff*0.5, 0.5, pd_exp * 1.5])
+            
+        
+        # --- Strategy 2: Global Average Initialization ---
+        # Fit a simple power law to ALL data points, ignoring E.
+        # This provides a &quot;center of mass&quot; for the optimization.
+        try:
+            def global_resid(p):
+                return (p[0] + p[1] * (N_norm ** -p[2])) - y_curr
+            res_g = least_squares(global_resid, [min_loss*0.5, 1.0, 0.5],
+                                  bounds=([0, 0, 0], [min_loss, np.inf, 4.0]))
+            pg0, pg_coeff, pg_exp = res_g.x
+            guesses.append([pg0, pg_coeff*0.5, pg_exp, pg_coeff*0.5, 0.5, pg_exp])
+        except:
+            pass
+            
+        # --- Strategy 3: Generic Fallbacks ---
+        guesses.append([min_loss*0.9, 1.0, 0.5, 1.0, 0.5, 0.5])
+        guesses.append([0.0, 2.0, 1.0, 2.0, 0.5, 1.0])
+        
+        # --- Optimization Loop ---
+        best_res = None
+        best_cost = float(&#x27;inf&#x27;)
+        
+        def full_residuals(p):
+            # Evaluate model: p0 + p1*N^-p2 + p3*N^-p5*E^-p4
+            t1 = p[1] * (N_norm ** -p[2])
+            t2 = p[3] * (N_norm ** -p[5]) * (E ** -p[4])
+            return (p[0] + t1 + t2) - y_curr
+            
+        for g in guesses:
+            try:
+                # Clip guess to bounds to prevent immediate failure
+                g = np.clip(g, lb, ub)
+                # soft_l1 loss is crucial here to handle noise and potential outliers
+                res = least_squares(full_residuals, g, bounds=(lb, ub),
+                                    method=&#x27;trf&#x27;, loss=&#x27;soft_l1&#x27;, f_scale=0.1, max_nfev=500)
+                if res.cost &lt; best_cost:
+                    best_cost = res.cost
+                    best_res = res
+            except:
+                continue
+        
+        # --- Refinement Phase ---
+        # If we found a good solution, try to refine it by testing variations.
+        # This helps escape shallow local minima common in exponential fitting.
+        if best_res is not None:
+            p_best = best_res.x
+            variations = [p_best]
+            
+            # Variant 1: &quot;Coupled Scaling&quot; Hypothesis
+            # Force expert N-scaling (p5) to match dense N-scaling (p2).
+            # This is a physically likely mode.
+            p_coupled = p_best.copy()
+            p_coupled[5] = p_coupled[2]
+            variations.append(p_coupled)
+            
+            # Variant 2: Perturb coefficients
+            p_pert = p_best.copy()
+            p_pert[1] *= 1.1; p_pert[3] *= 0.9 # Shift weight slightly
+            variations.append(p_pert)
+            
+            for v in variations:
+                try:
+                    v = np.clip(v, lb, ub)
+                    # Run a shorter, tighter optimization
+                    res = least_squares(full_residuals, v, bounds=(lb, ub),
+                                        method=&#x27;trf&#x27;, loss=&#x27;soft_l1&#x27;, f_scale=0.1, max_nfev=300)
+                    if res.cost &lt; best_cost:
+                        best_cost = res.cost
+                        best_res = res
+                except:
+                    continue
+        
+        if best_res is not None:
+            final_params.append(best_res.x)
+        else:
+            # Safe fallback if everything fails
+            final_params.append([min_loss, 0, 0, 0, 0, 0])
+            
+    return np.array(final_params) if n_targets &gt; 1 else np.array(final_params[0])</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        </div>
+        
+        <footer class="footer">
+            <p>SLDBench | <a href="https://arxiv.org/abs/2507.21184" target="_blank">arXiv:2507.21184</a> | <a href="https://github.com/linhaowei1/SLD" target="_blank">GitHub</a></p>
+        </footer>
+    </div>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script>
+        function toggleRun(header) {
+            const content = header.nextElementSibling;
+            const isExpanded = content.style.display === 'block';
+            content.style.display = isExpanded ? 'none' : 'block';
+            header.classList.toggle('expanded', !isExpanded);
+        }
+        
+        function copyCode(event, codeId) {
+            event.stopPropagation();
+            const code = document.getElementById(codeId).textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                const btn = event.target;
+                btn.textContent = 'Copied!';
+                setTimeout(() => btn.textContent = 'Copy', 2000);
+            });
+        }
+        
+        Prism.highlightAll();
+    </script>
+</body>
+</html>

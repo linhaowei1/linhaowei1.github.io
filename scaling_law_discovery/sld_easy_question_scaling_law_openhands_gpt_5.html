@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SLD - U-shaped Scaling Law - openhands + GPT-5</title>
+    <link rel="icon" type="image/png" href="assets/sld_logo.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" rel="stylesheet" />
+    <style>
+        :root {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8f9fa;
+            --accent-primary: #2563eb;
+            --accent-secondary: #3b82f6;
+            --accent-gradient: linear-gradient(135deg, #2563eb 0%, #3b82f6 50%, #60a5fa 100%);
+            --text-primary: #1f2937;
+            --text-secondary: #4b5563;
+            --border-subtle: rgba(0, 0, 0, 0.1);
+            --glass-bg: rgba(0, 0, 0, 0.02);
+            --success: #10b981;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Sora', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            min-height: 100vh;
+            color: var(--text-primary);
+        }
+        
+        .bg-pattern {
+            display: none;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--accent-primary);
+            text-decoration: none;
+            font-size: 0.9rem;
+            margin-bottom: 1.5rem;
+            transition: color 0.2s;
+        }
+        
+        .back-link:hover {
+            color: var(--accent-secondary);
+        }
+        
+        .header {
+            background: var(--glass-bg);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            backdrop-filter: blur(10px);
+        }
+        
+        .header h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            background: var(--accent-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .meta-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+            margin-top: 1rem;
+        }
+        
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .meta-label {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+        
+        .meta-value {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .r2-badge {
+            display: inline-block;
+            padding: 0.3rem 0.6rem;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        .section-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+        
+        .runs-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .run-card {
+            background: var(--glass-bg);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            overflow: hidden;
+            transition: border-color 0.2s;
+        }
+        
+        .run-card:hover {
+            border-color: rgba(99, 102, 241, 0.3);
+        }
+        
+        .run-card.best-run {
+            border-color: var(--success);
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.1);
+        }
+        
+        .run-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 1.25rem;
+            background: rgba(255, 255, 255, 0.02);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .run-header:hover {
+            background: rgba(255, 255, 255, 0.04);
+        }
+        
+        .run-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .run-badge {
+            padding: 0.25rem 0.6rem;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-secondary);
+        }
+        
+        .run-badge.best-badge {
+            background: var(--success);
+            color: white;
+        }
+        
+        .run-label {
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+        
+        .expand-icon {
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            transition: transform 0.2s;
+        }
+        
+        .run-header.expanded .expand-icon {
+            transform: rotate(180deg);
+        }
+        
+        .run-content {
+            border-top: 1px solid var(--border-subtle);
+        }
+        
+        .code-container {
+            overflow: hidden;
+        }
+        
+        .code-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 1.25rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-bottom: 1px solid var(--border-subtle);
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+        
+        .copy-btn {
+            padding: 0.35rem 0.75rem;
+            background: rgba(99, 102, 241, 0.2);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 6px;
+            color: var(--accent-primary);
+            font-size: 0.75rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        
+        .copy-btn:hover {
+            background: rgba(99, 102, 241, 0.3);
+        }
+        
+        .code-container pre {
+            margin: 0;
+            padding: 1.25rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            line-height: 1.6;
+            overflow-x: auto;
+            background: transparent !important;
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 3rem;
+            padding-top: 2rem;
+            border-top: 1px solid var(--border-subtle);
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+        
+        .footer a {
+            color: var(--accent-primary);
+            text-decoration: none;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+            
+            .header h1 {
+                font-size: 1.25rem;
+            }
+            
+            .meta-row {
+                flex-direction: column;
+                gap: 0.75rem;
+            }
+            
+            .run-info {
+                flex-wrap: wrap;
+                gap: 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-pattern"></div>
+    
+    <div class="container">
+        <a href="sld_index.html" class="back-link">
+            ← Back to Leaderboard
+        </a>
+        
+        <div class="header">
+            <h1>U-shaped Scaling Law</h1>
+            <div class="meta-row">
+                <div class="meta-item">
+                    <span class="meta-label">Agent:</span>
+                    <span class="meta-value">openhands</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Model:</span>
+                    <span class="meta-value">GPT-5</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Best R²:</span>
+                    <span class="r2-badge" style="background-color: #D2691E; color: white;">
+                        0.241499
+                    </span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Mean R²:</span>
+                    <span class="meta-value">-0.278363</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Min R²:</span>
+                    <span class="meta-value">-1.000000</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Runs:</span>
+                    <span class="meta-value">5</span>
+                </div>
+            </div>
+        </div>
+        
+        <h2 class="section-title">All Runs (sorted by R²)</h2>
+        
+        <div class="runs-container">
+            
+        <div class="run-card best-run">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge best-badge">Best</span>
+                    <span class="run-label">Run 1</span>
+                    <span class="r2-badge" style="background-color: #D2691E; color: white;">
+                        R² = 0.241499
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: block;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-0')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-0">from typing import List, Dict
+
+# Discovered U-shaped scaling law (shared functional form across groups):
+#   brier_score = y0 + A * (log_flops - x0)**2
+# Parameters (x0, y0, A) are fitted per group. If an unknown group is provided,
+# a global fallback is used.
+
+_PARAMS: Dict[str, Dict[str, float]] = {
+    &quot;__global__&quot;: {&quot;x0&quot;: -2.491095, &quot;y0&quot;: -0.457328, &quot;A&quot;: 0.012506},
+    &quot;abstract_narrative_understanding&quot;: {&quot;x0&quot;: -2.491095, &quot;y0&quot;: -0.713674, &quot;A&quot;: 0.027345},
+    &quot;analogical_similarity&quot;: {&quot;x0&quot;: -2.311584, &quot;y0&quot;: -0.545771, &quot;A&quot;: 0.000228},
+    &quot;arc&quot;: {&quot;x0&quot;: -2.491095, &quot;y0&quot;: -0.159034, &quot;A&quot;: 0.008152},
+    &quot;arithmetic&quot;: {&quot;x0&quot;: -2.249114, &quot;y0&quot;: -0.344953, &quot;A&quot;: 0.012584},
+    &quot;conceptual_combinations&quot;: {&quot;x0&quot;: -2.065126, &quot;y0&quot;: -0.479229, &quot;A&quot;: 0.009269},
+    &quot;hellaswag&quot;: {&quot;x0&quot;: -2.491095, &quot;y0&quot;: -0.105888, &quot;A&quot;: 0.006045},
+    &quot;hindu_knowledge&quot;: {&quot;x0&quot;: 1.739063, &quot;y0&quot;: -0.449270, &quot;A&quot;: 0.007961},
+    &quot;mmlu&quot;: {&quot;x0&quot;: 2.596860, &quot;y0&quot;: -0.562981, &quot;A&quot;: 0.012202},
+    &quot;parsinlu_qa_mc&quot;: {&quot;x0&quot;: -2.491095, &quot;y0&quot;: -0.438630, &quot;A&quot;: 0.000321},
+}
+
+
+def _predict_brier(log_flops: float, params: Dict[str, float]) -&gt; float:
+    x0 = params[&quot;x0&quot;]
+    y0 = params[&quot;y0&quot;]
+    A = params[&quot;A&quot;]
+    dx = log_flops - x0
+    return y0 + A * (dx * dx)
+
+
+def law(input_data: List[Dict[str, float]], group: str) -&gt; List[Dict[str, float]]:
+    &quot;&quot;&quot;
+    Predicts output variables based on input variables according to a discovered scaling law.
+
+    Functional form (shared across groups):
+        brier_score = y0 + A * (log_flops - x0)**2
+
+    Args:
+        input_data: A list of dictionaries, where each dictionary is a single data
+                    point containing input variable names as keys and their
+                    corresponding values. Must include &#x27;log_flops&#x27;.
+        group: The name of the experimental group for which to make predictions.
+               Same functional form for all groups; parameters differ per group.
+
+    Returns:
+        A list of dictionaries with the predicted &#x27;brier_score&#x27; for each input.
+    &quot;&quot;&quot;
+    params = _PARAMS.get(group, _PARAMS[&quot;__global__&quot;])
+    out: List[Dict[str, float]] = []
+    for row in input_data:
+        x = float(row[&quot;log_flops&quot;])  # required input
+        yhat = _predict_brier(x, params)
+        out.append({&quot;brier_score&quot;: float(yhat)})
+    return out</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#2</span>
+                    <span class="run-label">Run 2</span>
+                    <span class="r2-badge" style="background-color: #D2691E; color: white;">
+                        R² = 0.225472
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-1')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-1">from __future__ import annotations
+from typing import List, Dict
+
+# Discovered U-shaped scaling law:
+# brier_score = k[group] + a[group] * (log_flops - x0[group])**2
+# Coefficients were fitted per group with robust least squares (a &gt;= 0).
+
+_PARAMS: Dict[str, Dict[str, float]] = {
+    &quot;abstract_narrative_understanding&quot;: {&quot;k&quot;: -0.748594533797, &quot;a&quot;: 0.024704417209, &quot;x0&quot;: -2.899629454882},
+    &quot;analogical_similarity&quot;: {&quot;k&quot;: -0.540756745907, &quot;a&quot;: 1e-08, &quot;x0&quot;: -2.898609539811},
+    &quot;arc&quot;: {&quot;k&quot;: -0.156787963822, &quot;a&quot;: 0.006677299024, &quot;x0&quot;: -2.899629454882},
+    &quot;arithmetic&quot;: {&quot;k&quot;: -0.278396491825, &quot;a&quot;: 0.006154937508, &quot;x0&quot;: -2.899629454878},
+    &quot;conceptual_combinations&quot;: {&quot;k&quot;: -0.511782360394, &quot;a&quot;: 0.007987946388, &quot;x0&quot;: -2.899629454882},
+    &quot;hellaswag&quot;: {&quot;k&quot;: -0.102537693293, &quot;a&quot;: 0.004835027871, &quot;x0&quot;: -2.899629454879},
+    &quot;hindu_knowledge&quot;: {&quot;k&quot;: -0.461621509031, &quot;a&quot;: 0.004504872299, &quot;x0&quot;: 2.859498558188},
+    &quot;mmlu&quot;: {&quot;k&quot;: -0.55637987553, &quot;a&quot;: 0.014239476708, &quot;x0&quot;: 2.259725760138},
+    &quot;parsinlu_qa_mc&quot;: {&quot;k&quot;: -0.431186105608, &quot;a&quot;: 1e-08, &quot;x0&quot;: -2.897535806965},
+    &quot;__fallback__&quot;: {&quot;k&quot;: -0.447878611334, &quot;a&quot;: 0.034094242543, &quot;x0&quot;: -0.895980722457},
+}
+
+
+def _predict(log_flops: float, p: Dict[str, float]) -&gt; float:
+    return p[&quot;k&quot;] + p[&quot;a&quot;] * (log_flops - p[&quot;x0&quot;]) ** 2
+
+
+def law(input_data: list[dict[str, float]], group: str) -&gt; list[dict[str, float]]:
+    &quot;&quot;&quot;
+    Predicts output variables based on input variables according to a discovered scaling law.
+
+    Args:
+        input_data: A list of dictionaries, where each dictionary is a single data
+                    point containing input variable names as keys and their
+                    corresponding values.
+        group: The name of the experimental group for which to make predictions.
+                The functional form of the law must be the same for all groups,
+                but the constant parameters/coefficients can differ per group.
+
+    Returns:
+        A list of dictionaries, corresponding to the input_data list, with each
+        dictionary containing the predicted output variable(s).
+    &quot;&quot;&quot;
+    params = _PARAMS.get(group, _PARAMS[&quot;__fallback__&quot;])
+    out: List[Dict[str, float]] = []
+    for row in input_data:
+        x = float(row.get(&quot;log_flops&quot;))
+        yhat = _predict(x, params)
+        out.append({&quot;brier_score&quot;: float(yhat)})
+    return out</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#3</span>
+                    <span class="run-label">Run 3</span>
+                    <span class="r2-badge" style="background-color: #D2691E; color: white;">
+                        R² = 0.141215
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-2')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-2">from typing import List, Dict
+
+# Discovered U-shaped scaling law (per-group parameters)
+# Functional form: brier_score = d + a * (log_flops - c)**2, with a &gt;= 0
+
+# Per-group coefficients fitted via constrained non-linear least squares
+COEFFS: Dict[str, Dict[str, float]] = {
+    &quot;abstract_narrative_understanding&quot;: {
+        &quot;a&quot;: 0.008467468113573256,
+        &quot;c&quot;: -10.0,
+        &quot;d&quot;: -1.3910788665280118,
+    },
+    &quot;analogical_similarity&quot;: {
+        &quot;a&quot;: 0.00013496608274505986,
+        &quot;c&quot;: -10.0,
+        &quot;d&quot;: -0.5594784378689742,
+    },
+    &quot;arc&quot;: {
+        &quot;a&quot;: 0.002670618953008418,
+        &quot;c&quot;: -10.0,
+        &quot;d&quot;: -0.3791484043679726,
+    },
+    &quot;arithmetic&quot;: {
+        &quot;a&quot;: 0.003889937618786338,
+        &quot;c&quot;: -10.0,
+        &quot;d&quot;: -0.6770289854837191,
+    },
+    &quot;conceptual_combinations&quot;: {
+        &quot;a&quot;: 0.002411414906857867,
+        &quot;c&quot;: -10.0,
+        &quot;d&quot;: -0.6810586583653832,
+    },
+    &quot;hellaswag&quot;: {
+        &quot;a&quot;: 0.0020058213876494877,
+        &quot;c&quot;: -10.0,
+        &quot;d&quot;: -0.27226736346486907,
+    },
+    &quot;hindu_knowledge&quot;: {
+        &quot;a&quot;: 0.0015094214985086043,
+        &quot;c&quot;: 10.0,
+        &quot;d&quot;: -0.5735731165193414,
+    },
+    &quot;mmlu&quot;: {
+        &quot;a&quot;: 0.01147626953954232,
+        &quot;c&quot;: 2.7435063200062424,
+        &quot;d&quot;: -0.5667445498636151,
+    },
+    &quot;parsinlu_qa_mc&quot;: {
+        &quot;a&quot;: 0.00032584434240010923,
+        &quot;c&quot;: -10.0,
+        &quot;d&quot;: -0.4746927422057731,
+    },
+}
+
+# Fallback coefficients (pooled fit across all groups)
+DEFAULT_COEFFS = {&quot;a&quot;: 0.023678322162278612, &quot;c&quot;: -0.8996294548824371, &quot;d&quot;: -0.3978978627033718}
+
+
+def _get_log_flops(row: Dict[str, float]) -&gt; float:
+    if &quot;log_flops&quot; in row and row[&quot;log_flops&quot;] is not None:
+        return float(row[&quot;log_flops&quot;])
+    # Optional fallback if only raw flops are provided
+    flops = row.get(&quot;flops&quot;, None)
+    if flops is not None and flops &gt; 0:
+        # log10(flops)
+        import math
+
+        return float(math.log10(flops))
+    return 0.0
+
+
+def law(input_data: List[Dict[str, float]], group: str) -&gt; List[Dict[str, float]]:
+    &quot;&quot;&quot;
+    Predicts output variables based on input variables according to a discovered scaling law.
+
+    Args:
+        input_data: A list of dictionaries, where each dictionary is a single data
+                    point containing input variable names as keys and their
+                    corresponding values.
+        group: The name of the experimental group for which to make predictions.
+                The functional form of the law must be the same for all groups,
+                but the constant parameters/coefficients can differ per group.
+
+    Returns:
+        A list of dictionaries, corresponding to the input_data list, with each
+        dictionary containing the predicted output variable(s).
+    &quot;&quot;&quot;
+    params = COEFFS.get(group, DEFAULT_COEFFS)
+    a, c, d = float(params[&quot;a&quot;]), float(params[&quot;c&quot;]), float(params[&quot;d&quot;])
+
+    outputs: List[Dict[str, float]] = []
+    for row in input_data:
+        x = _get_log_flops(row)
+        y_hat = d + a * (x - c) ** 2
+        outputs.append({&quot;brier_score&quot;: float(y_hat)})
+    return outputs</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#4</span>
+                    <span class="run-label">Run 4</span>
+                    <span class="r2-badge" style="background-color: #B22222; color: white;">
+                        R² = -1.000000
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-3')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-3"># Quadratic scaling law per group, fitted on the provided dataset at /app/data
+# brier_score_hat = a * (log_flops)**2 + b * (log_flops) + c
+
+def law(input_data: list[dict[str, float]], group: str) -&gt; list[dict[str, float]]:
+    &quot;&quot;&quot;
+    Predicts output variables based on input variables according to a discovered scaling law.
+
+    Args:
+        input_data: A list of dictionaries, where each dictionary is a single data
+                    point containing input variable names as keys and their
+                    corresponding values.
+        group: The name of the experimental group for which to make predictions.
+                The functional form of the law is quadratic for all groups,
+                while the coefficients differ per group.
+
+    Returns:
+        A list of dictionaries, corresponding to the input_data list, with each
+        dictionary containing the predicted output variable(s).
+    &quot;&quot;&quot;
+    coeffs_by_group: dict[str, dict[str, float]] = {
+        &quot;abstract_narrative_understanding&quot;: {&quot;a&quot;: -0.001002095718968019, &quot;b&quot;: 0.18472699005645857, &quot;c&quot;: -0.5431407140744654},
+        &quot;analogical_similarity&quot;: {&quot;a&quot;: -0.019175879672698144, &quot;b&quot;: 0.02791128748347238, &quot;c&quot;: -0.540575053773558},
+        &quot;arc&quot;: {&quot;a&quot;: -0.03686820639366876, &quot;b&quot;: 0.1176194903989729, &quot;c&quot;: -0.10711223271542945},
+        &quot;arithmetic&quot;: {&quot;a&quot;: -0.12997814962868384, &quot;b&quot;: 0.2353700979752282, &quot;c&quot;: -0.24753267771220774},
+        &quot;conceptual_combinations&quot;: {&quot;a&quot;: -0.07148356706471536, &quot;b&quot;: 0.09692595522861094, &quot;c&quot;: -0.40934554313141797},
+        &quot;hellaswag&quot;: {&quot;a&quot;: -0.033670645755682356, &quot;b&quot;: 0.09805145434945439, &quot;c&quot;: -0.06719686154646048},
+        &quot;hindu_knowledge&quot;: {&quot;a&quot;: -0.03440238896008094, &quot;b&quot;: -0.031143510554884568, &quot;c&quot;: -0.41031741937809096},
+        &quot;mmlu&quot;: {&quot;a&quot;: 0.011476264280523023, &quot;b&quot;: -0.06297043488789655, &quot;c&quot;: -0.48036465021983477},
+        &quot;parsinlu_qa_mc&quot;: {&quot;a&quot;: -0.05656739537407183, &quot;b&quot;: 0.09890583732640096, &quot;c&quot;: -0.43495071806820157},
+    }
+    global_coeffs: dict[str, float] = {&quot;a&quot;: 0.0026446732472713928, &quot;b&quot;: 0.07737556836857278, &quot;c&quot;: -0.3784396938370408}
+
+    coeffs = coeffs_by_group.get(group, global_coeffs)
+    a, b, c = coeffs[&quot;a&quot;], coeffs[&quot;b&quot;], coeffs[&quot;c&quot;]
+
+    outputs: list[dict[str, float]] = []
+    for row in input_data:
+        if &quot;log_flops&quot; not in row:
+            raise KeyError(&quot;Each input datum must include &#x27;log_flops&#x27;.&quot;)
+        x = float(row[&quot;log_flops&quot;])  
+        yhat = a * (x ** 2) + b * x + c
+        outputs.append({&quot;brier_score&quot;: float(yhat)})
+    return outputs</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#5</span>
+                    <span class="run-label">Run 5</span>
+                    <span class="r2-badge" style="background-color: #B22222; color: white;">
+                        R² = -1.000000
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-4')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-4">from __future__ import annotations
+from typing import Dict, List
+
+# Quadratic scaling law shared across groups:
+#   brier_score = a * (log_flops**2) + b * log_flops + c
+# Coefficients fitted per group via least-squares on /app/data
+_COEFFS: Dict[str, tuple[float, float, float]] = {
+    &quot;abstract_narrative_understanding&quot;: (-0.001002095718968019, 0.18472699005645857, -0.5431407140744654),
+    &quot;analogical_similarity&quot;: (-0.019175879672698144, 0.02791128748347238, -0.540575053773558),
+    &quot;arc&quot;: (-0.03686820639366876, 0.1176194903989729, -0.10711223271542945),
+    &quot;arithmetic&quot;: (-0.12997814962868384, 0.2353700979752282, -0.24753267771220774),
+    &quot;conceptual_combinations&quot;: (-0.07148356706471536, 0.09692595522861094, -0.40934554313141797),
+    &quot;hellaswag&quot;: (-0.033670645755682356, 0.09805145434945439, -0.06719686154646048),
+    &quot;hindu_knowledge&quot;: (-0.03440238896008094, -0.031143510554884568, -0.41031741937809096),
+    &quot;mmlu&quot;: (0.011476264280523023, -0.06297043488789655, -0.48036465021983477),
+    &quot;parsinlu_qa_mc&quot;: (-0.05656739537407183, 0.09890583732640096, -0.43495071806820157),
+}
+
+# Global fallback if a new/unknown group appears at evaluation time
+_DEFAULT_COEFFS: tuple[float, float, float] = (0.0026446732472713928, 0.07737556836857278, -0.3784396938370408)
+
+
+def _predict_single(x: float, coeffs: tuple[float, float, float]) -&gt; float:
+    a, b, c = coeffs
+    return a * (x ** 2) + b * x + c
+
+
+def law(input_data: List[Dict[str, float]], group: str) -&gt; List[Dict[str, float]]:
+    &quot;&quot;&quot;
+    Predicts output variables based on input variables according to a discovered scaling law.
+
+    Args:
+        input_data: A list of dictionaries, where each dictionary is a single data
+                    point containing input variable names as keys and their
+                    corresponding values.
+        group: The name of the experimental group for which to make predictions.
+                The functional form of the law must be the same for all groups,
+                but the constant parameters/coefficients can differ per group.
+
+    Returns:
+        A list of dictionaries, corresponding to the input_data list, with each
+        dictionary containing the predicted output variable(s).
+    &quot;&quot;&quot;
+    coeffs = _COEFFS.get(group, _DEFAULT_COEFFS)
+    out: List[Dict[str, float]] = []
+    for row in input_data:
+        x = float(row[&quot;log_flops&quot;])  # required input
+        y = _predict_single(x, coeffs)
+        out.append({&quot;brier_score&quot;: float(y)})
+    return out</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        </div>
+        
+        <footer class="footer">
+            <p>SLDBench | <a href="https://arxiv.org/abs/2507.21184" target="_blank">arXiv:2507.21184</a> | <a href="https://github.com/linhaowei1/SLD" target="_blank">GitHub</a></p>
+        </footer>
+    </div>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script>
+        function toggleRun(header) {
+            const content = header.nextElementSibling;
+            const isExpanded = content.style.display === 'block';
+            content.style.display = isExpanded ? 'none' : 'block';
+            header.classList.toggle('expanded', !isExpanded);
+        }
+        
+        function copyCode(event, codeId) {
+            event.stopPropagation();
+            const code = document.getElementById(codeId).textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                const btn = event.target;
+                btn.textContent = 'Copied!';
+                setTimeout(() => btn.textContent = 'Copy', 2000);
+            });
+        }
+        
+        Prism.highlightAll();
+    </script>
+</body>
+</html>
