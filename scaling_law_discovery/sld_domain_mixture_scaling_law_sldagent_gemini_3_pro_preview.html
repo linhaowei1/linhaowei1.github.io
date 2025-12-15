@@ -285,7 +285,7 @@
     <div class="bg-pattern"></div>
 
     <div class="container">
-      <a href="sld_index.html" class="back-link"> ← Back to Leaderboard </a>
+      <a href="index.html" class="back-link"> ← Back to Leaderboard </a>
 
       <div class="header">
         <h1>Domain Mixture Scaling Law</h1>
@@ -300,15 +300,15 @@
           </div>
           <div class="meta-item">
             <span class="meta-label">Best R²:</span>
-            <span class="r2-badge" style="background-color: #006400; color: white"> 0.989908 </span>
+            <span class="r2-badge" style="background-color: #006400; color: white"> 0.996946 </span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Mean R²:</span>
-            <span class="meta-value">0.989641</span>
+            <span class="meta-value">0.996107</span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Min R²:</span>
-            <span class="meta-value">0.989378</span>
+            <span class="meta-value">0.995604</span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Runs:</span>
@@ -320,12 +320,13 @@
       <h2 class="section-title">All Runs (sorted by R²)</h2>
 
       <div class="runs-container">
+
         <div class="run-card best-run">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge best-badge">Best</span>
-              <span class="run-label">Run 3</span>
-              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.989908 </span>
+              <span class="run-label">Run 5</span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.996946 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -336,177 +337,211 @@
                 <button class="copy-btn" onclick="copyCode(event, 'code-0')">Copy</button>
               </div>
               <pre><code class="language-python" id="code-0"># EVOLVE-BLOCK-START
+&quot;&quot;&quot;
+Scaling law discovery for LLM finetuning scenarios
+Improved with a &quot;Non-linear Signed Rank-1 Transfer&quot; Model (35 parameters).
+This model generalizes the successful Rank-1 approach by allowing the
+transfer impact to scale non-linearly with donor data size (tau parameter),
+while maintaining signed transfer (interference) and pre-training offsets.
+&quot;&quot;&quot;
 import numpy as np
 from scipy.optimize import minimize
 
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    Predicts multi-domain loss using an Effective Data Mixture Scaling Law.
-    Model: L_i = bias_i + (sum_j (w_ij^2 * x_j))^(-exp(alpha_i))
+    Non-linear Signed Rank-1 Transfer Scaling Law.
     
-    This function applies transformations to parameters to ensure physical validity:
-    - Weights are squared to be non-negative.
-    - Alpha is exponentiated to be strictly positive.
-    - Bias is linear (fitted to be effectively the asymptotic loss).
+    Model:
+    Loss_i = A_i * (D_total_i)^(-alpha_i) + E_i
+    D_total_i = D_pre_i + x_i + beta_i * sum_{j != i} (gamma_j * x_j^(tau_j))
     
-    Args:
-        data_points: (N, 5) array of domain mixture proportions.
-        params: Flat array of 35 parameters (7 per domain: 1 bias, 1 log_alpha, 5 weights).
-        
-    Returns:
-        Predicted losses: (N, 5) array.
+    Parameters (35):
+    0-4:   log_A (Amplitude)
+    5-9:   log_alpha (Scaling exponent)
+    10-14: log_E (Irreducible loss)
+    15-19: logit_beta (Receptivity)
+    20-24: raw_gamma (Transferability strength, signed)
+    25-29: log_D_pre (Pre-training offset)
+    30-34: log_tau (Transfer non-linearity)
     &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points))
-    params = np.asarray(params)
+    params = np.asarray(params).flatten()
     
-    # Constants
-    n_domains = 5
-    n_params_per = 7  # 1 bias, 1 log_alpha, 5 weights
-    total_len = n_domains * n_params_per
+    # Parameter Extraction
+    log_A = params[0:5]
+    log_alpha = params[5:10]
+    log_E = params[10:15]
+    logit_beta = params[15:20]
+    raw_gamma = params[20:25]
+    log_D_pre = params[25:30]
+    log_tau = params[30:35]
     
-    # Robust parameter reshaping
-    if params.size != total_len:
-        flat = params.ravel()
-        if flat.size &lt; total_len:
-            flat = np.pad(flat, (0, total_len - flat.size), constant_values=0.1)
-        params = flat[:total_len]
-        
-    P = params.reshape(n_domains, n_params_per)
+    # Transformation to physical space
+    A = np.exp(log_A)
+    alpha = np.exp(log_alpha)
+    E = np.exp(log_E)
+    beta = 1.0 / (1.0 + np.exp(-logit_beta))
+    gamma = np.tanh(raw_gamma)
+    D_pre = np.exp(log_D_pre)
+    tau = np.exp(log_tau)
     
-    # Extract and transform parameters
-    bias = P[:, 0]
-    # Clip log_alpha to valid range [~0.006, ~20.0] to prevent overflow/underflow
-    log_alpha = np.clip(P[:, 1], -5.0, 3.0) 
-    weights = P[:, 2:] ** 2
+    # Compute transformed inputs for transfer
+    # Use small epsilon for numerical stability of gradients (log(0))
+    # X_trans_j = x_j ^ tau_j
+    X_safe = X + 1e-9
+    X_trans = X_safe ** tau[None, :]
     
-    # Calculate Effective Data: D_eff = X @ W.T
-    # Maps mixture proportions to an effective dataset size for each domain
-    D_eff = np.dot(X, weights.T)
-    D_eff = np.maximum(D_eff, 1e-10) # Numerical stability
+    # Weighted transfer components
+    # Gamma_X: (N, 5)
+    Gamma_X = X_trans * gamma[None, :]
     
-    # Power Law Term: D^(-alpha)
-    term = D_eff ** (-np.exp(log_alpha)[None, :])
+    # Sum of all transfer sources (N, 1)
+    Sum_Gamma_X = np.sum(Gamma_X, axis=1, keepdims=True)
     
-    # Prediction: Bias + Term
-    return bias[None, :] + term
+    # Transfer to i from others: Sum - Self
+    # Subtract own contribution: gamma_i * x_i^tau_i
+    Transfer_Input = Sum_Gamma_X - Gamma_X
+    
+    # Apply receptivity
+    # beta is (5,) -&gt; (1, 5)
+    Transfer_Term = beta[None, :] * Transfer_Input
+    
+    # Total Effective Data
+    # D_total = D_pre + x_i + Transfer
+    # Note: Target domain data x_i is treated linearly (standard scaling)
+    D_total = D_pre[None, :] + X + Transfer_Term
+    
+    # Numerical stability
+    D_total = np.maximum(D_total, 1e-8)
+    
+    # Predictions
+    pred = A[None, :] * (D_total ** -alpha[None, :]) + E[None, :]
+    
+    return pred
 
 def fit_scaling_law(data_points, loss_values):
-    &quot;&quot;&quot;
-    Fits the scaling law using a robust hybrid strategy:
-    1. Generates multiple weight priors (Correlation-based, Diagonal, Uniform).
-    2. Performs a coarse grid search for Bias and Alpha for each weight prior.
-    3. Optimizes the best candidate using BFGS to find the global minimum.
-    &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points))
     Y = np.atleast_2d(np.asarray(loss_values))
-    
-    # Align shapes
-    if Y.shape[0] != X.shape[0] and Y.shape[1] == X.shape[0]:
-        Y = Y.T
-        
     n_domains = 5
-    n_feat = 5
-    final_params = []
     
-    # --- 1. Pre-compute Correlation Priors ---
-    # Determine which features correlate with performance (negative correlation with loss)
-    w_corrs_all = []
-    for t in range(n_domains):
-        y = Y[:, t]
-        corrs = []
-        for j in range(n_feat):
-            if np.std(X[:, j]) &gt; 1e-9:
-                corrs.append(np.corrcoef(X[:, j], y)[0, 1])
-            else:
-                corrs.append(0.0)
-        # Convert correlation to weight: Strong neg correlation -&gt; High weight
-        w_c = np.sqrt(np.maximum(-np.array(corrs), 0) + 0.05)
-        w_c /= np.max(w_c) # Normalize
-        w_corrs_all.append(w_c)
-
-    # --- 2. Fit Each Domain ---
-    for t in range(n_domains):
-        y_tgt = Y[:, t]
-        y_min = np.min(y_tgt)
+    # --- Stage 1: Robust Independent Fit ---
+    # Fit A, alpha, E, D_pre assuming no transfer.
+    # This establishes the baseline scaling curve for each domain.
+    
+    init_params_list = []
+    
+    for i in range(n_domains):
+        x_i = X[:, i]
+        y_i = Y[:, i]
+        y_min, y_max = np.min(y_i), np.max(y_i)
         
-        # Weight Candidates
-        # A. Correlation: Data-driven guess
-        # B. Diagonal: Self-data is most important
-        w_diag = np.full(n_feat, np.sqrt(0.01))
-        if t &lt; n_feat: w_diag[t] = 1.0
-        # C. Uniform: All data helps equally
-        w_uni = np.full(n_feat, np.sqrt(0.2))
+        # Grid search for initialization to avoid local minima
+        best_mse = float(&#x27;inf&#x27;)
+        best_p = None
         
-        candidates = [w_corrs_all[t], w_diag, w_uni]
+        # Heuristic grid
+        # alpha: slope, d_guess: offset
+        for d_guess in [1e-4, 1e-2, 0.1]:
+            for alpha_guess in [0.3, 0.7, 1.5]:
+                # Estimate A based on endpoints
+                # y_range ~ A * (d^-alpha - (1+d)^-alpha)
+                denom = (d_guess**-alpha_guess) - ((1.0+d_guess)**-alpha_guess)
+                if denom &lt; 1e-6: denom = 1e-6
+                A_guess = max((y_max - y_min) / denom, 1e-4)
+                
+                p0_local = [
+                    np.log(A_guess),
+                    np.log(alpha_guess),
+                    np.log(max(y_min - 0.05, 1e-5)),
+                    np.log(d_guess)
+                ]
+                
+                def obj_local(p):
+                    A = np.exp(p[0])
+                    al = np.exp(p[1])
+                    E = np.exp(p[2])
+                    d = np.exp(p[3])
+                    pred = A * ((x_i + d)**-al) + E
+                    return np.mean((pred - y_i)**2)
+                
+                try:
+                    # L-BFGS-B with bounds
+                    # alpha in [0.05, 7], E &lt; y_min, D_pre in [1e-6, 1]
+                    bounds = [(None, None), (-3, 2), (None, np.log(y_min)), (-14, 0)]
+                    res = minimize(obj_local, p0_local, method=&#x27;L-BFGS-B&#x27;, bounds=bounds)
+                    if res.fun &lt; best_mse:
+                        best_mse = res.fun
+                        best_p = res.x
+                except:
+                    pass
         
-        # Grid Search for Basins
-        best_mse = np.inf
-        best_p0 = None
+        if best_p is None:
+            # Fallback
+            best_p = np.array([0.0, -0.5, np.log(max(y_min-0.1, 1e-5)), -4.6])
+            
+        init_params_list.append(best_p)
         
-        # Bias: Asymptotic loss is usually bounded by observed min loss
-        bias_grid = [max(0, y_min - 0.01), max(0, y_min - 0.5), 0.0]
-        # Alpha: Standard scaling exponents
-        alpha_grid = [0.1, 0.5, 1.0]
+    init_params_list = np.array(init_params_list)
+    
+    # --- Stage 2: Joint Optimization ---
+    # Initialize full model parameters.
+    # Start with tau = 1.0 (log_tau = 0) -&gt; Linear transfer initially.
+    # Start with beta small, gamma neutral.
+    
+    p0_joint = np.concatenate([
+        init_params_list[:, 0], # log_A
+        init_params_list[:, 1], # log_alpha
+        init_params_list[:, 2], # log_E
+        np.full(5, -3.0),       # logit_beta (sigmoid(-3) ~ 0.05)
+        np.full(5, 0.0),        # raw_gamma (tanh(0) = 0)
+        init_params_list[:, 3], # log_D_pre
+        np.full(5, 0.0)         # log_tau (tau = 1)
+    ])
+    
+    def obj_joint(p):
+        preds = scaling_law_func(X, p)
+        mse = np.mean((preds - Y)**2)
         
-        for w_base in candidates:
-            # Pre-calc effective data for this weight vector
-            w_sq = w_base**2
-            d_eff = np.dot(X, w_sq)
-            d_eff = np.maximum(d_eff, 1e-10)
-            
-            for b_val in bias_grid:
-                for a_val in alpha_grid:
-                    pred = b_val + d_eff**(-a_val)
-                    mse = np.mean((pred - y_tgt)**2)
-                    
-                    if mse &lt; best_mse:
-                        best_mse = mse
-                        best_p0 = np.concatenate(([b_val, np.log(a_val)], w_base))
-                        
-        # --- 3. Optimization ---
-        def objective(p):
-            b = p[0]
-            log_a = np.clip(p[1], -5.0, 3.0)
-            a = np.exp(log_a)
-            w = p[2:]**2
-            
-            d = np.dot(X, w)
-            d = np.maximum(d, 1e-10)
-            pred = b + d**(-a)
-            
-            mse = np.mean((pred - y_tgt)**2)
-            
-            # Penalties / Priors
-            pen = 0.0
-            # Soft constraint: Bias should be effectively positive
-            if b &lt; 0: pen += 100.0 * b**2
-            # Soft constraint: Bias shouldn&#x27;t exceed min observed loss too much
-            if b &gt; y_min: pen += 10.0 * (b - y_min)**2
-            
-            # L2 Regularization on weights to improve convexity
-            reg = 1e-7 * np.sum(w**2)
-            
-            return mse + pen + reg
-
-        try:
-            # BFGS is efficient and robust for this smooth problem
-            res = minimize(objective, best_p0, method=&#x27;BFGS&#x27;, tol=1e-6)
-            final_params.append(res.x)
-        except Exception:
-            final_params.append(best_p0)
-            
-    return np.concatenate(final_params)
+        # Regularization
+        
+        # 1. Weak L2 on all params to prevent drift
+        reg_l2 = 1e-7 * np.sum(p**2)
+        
+        # 2. Sparsity on gamma (prefer simpler transfer models)
+        # indices 20-25 are raw_gamma
+        reg_gamma = 1e-5 * np.sum(p[20:25]**2)
+        
+        # 3. Regularize tau towards 1.0 (log_tau towards 0)
+        # indices 30-35 are log_tau
+        # We prefer linear transfer unless data strongly suggests otherwise
+        reg_tau = 1e-4 * np.sum(p[30:35]**2)
+        
+        # 4. Stability for D_pre (indices 25-30)
+        # Penalize if log_d &lt; -12 (d &lt; 6e-6) to avoid numerical instability
+        log_d = p[25:30]
+        pen_d = 1e-3 * np.sum(np.maximum(0, -12.0 - log_d)**2)
+        
+        return mse + reg_l2 + reg_gamma + reg_tau + pen_d
+        
+    try:
+        # BFGS is efficient for 35 parameters
+        res = minimize(obj_joint, p0_joint, method=&#x27;BFGS&#x27;, 
+                      options={&#x27;maxiter&#x27;: 2000, &#x27;gtol&#x27;: 1e-6})
+        best_p = res.x
+    except:
+        best_p = p0_joint
+        
+    return best_p
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#2</span>
-              <span class="run-label">Run 5</span>
-              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.989802 </span>
+              <span class="run-label">Run 2</span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.996107 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -517,154 +552,150 @@ def fit_scaling_law(data_points, loss_values):
                 <button class="copy-btn" onclick="copyCode(event, 'code-1')">Copy</button>
               </div>
               <pre><code class="language-python" id="code-1"># EVOLVE-BLOCK-START
-&quot;&quot;&quot;
-Scaling law discovery for LLM finetuning scenarios.
-Implements an Effective Data Mixture scaling law with L1-regularized weights.
-Model: L_i = c_i + ( sum_j (w_{ij}^2) * x_j ) ^ -exp(log_alpha_i)
-Improvements:
-- L1 regularization on effective weights (sparsity inducing)
-- Soft penalty for negative bias to maintain physical plausibility
-- Multi-start optimization with BFGS to avoid local minima
-Total params: 5 domains * 7 params/domain = 35 params.
-&quot;&quot;&quot;
 import numpy as np
-from scipy.optimize import minimize
+from scipy.optimize import minimize, nnls
 
 def scaling_law_func(data_points, params):
-    X = np.atleast_2d(np.asarray(data_points))
-    params = np.asarray(params)
+    # data_points: (N, 5) array of domain proportions
+    # params: Flat array of 35 parameters (5 domains * 7 parameters)
     
-    # Ensure parameter array size matches expectation
-    expected_size = 35
-    if params.size &lt; expected_size:
-        params = np.pad(params, (0, expected_size - params.size), &#x27;constant&#x27;)
-    elif params.size &gt; expected_size:
-        params = params[:expected_size]
+    X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
+    P = np.asarray(params, dtype=np.float64).reshape(5, 7)
+    
+    # Extract parameters per domain
+    # P[:, 0]: log(A)
+    # P[:, 1]: log(alpha)
+    # P[:, 2]: log(E)
+    # P[:, 3:]: logits for betas (4 values)
+    
+    A = np.exp(P[:, 0])      # (5,)
+    alpha = np.exp(P[:, 1])  # (5,)
+    E = np.exp(P[:, 2])      # (5,)
+    
+    # Build Transfer Matrix B (5, 5)
+    # Allows transfer &gt; 1.0 (up to 3.0) to capture high-quality data
+    B = np.eye(5)
+    for i in range(5):
+        logits = P[i, 3:]
+        # Sigmoid scaled to [0, 3]
+        betas = 3.0 / (1.0 + np.exp(-logits))
+        mask = np.arange(5) != i
+        B[i, mask] = betas
         
-    P = params.reshape(5, 7)
+    # Effective data: D_eff = X @ B.T
+    # Add epsilon for numerical stability
+    effective_data = X @ B.T + 1e-9
     
-    # Parameters
-    # c: bias
-    # alpha: power law exponent (enforced positive via exp)
-    # W: mixing weights (enforced positive via square)
+    # Power law: L = A * D^-alpha + E
+    pred = A * (effective_data ** -alpha) + E
     
-    c = P[:, 0]
-    alpha = np.exp(P[:, 1])
-    W = P[:, 2:]**2
-    
-    # Effective data: D = X @ W.T
-    # D shape: (N, 5)
-    D_eff = X @ W.T
-    
-    # Power law term: D^-alpha
-    # Numerical stability: max(D, 1e-10)
-    term = np.maximum(D_eff, 1e-10) ** (-alpha[None, :])
-    
-    pred = c[None, :] + term
-    
-    if pred.shape[1] == 1:
-        return pred[:, 0]
     return pred
 
 def fit_scaling_law(data_points, loss_values):
-    X = np.atleast_2d(np.asarray(data_points))
-    Y = np.atleast_2d(np.asarray(loss_values))
-    if Y.ndim == 1: Y = Y[:, None]
-    if Y.shape[0] != X.shape[0]: Y = Y.T
+    X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
+    Y = np.atleast_2d(np.asarray(loss_values, dtype=np.float64))
     
-    _, n_dims = X.shape
-    _, n_domains = Y.shape
+    n_domains = 5
+    all_params = []
     
-    final_params = []
-    
-    for t in range(n_domains):
-        y_t = Y[:, t]
-        y_min = np.min(y_t)
+    # Fit each domain independently
+    for i in range(n_domains):
+        y_i = Y[:, i]
+        x_self = X[:, i]
+        mask_others = np.arange(n_domains) != i
+        X_others = X[:, mask_others] # (N, 4)
         
-        # Objective function
+        # Objective: MSE + weak regularization
         def objective(p):
-            c = p[0]
-            log_a = p[1]
-            w_raw = p[2:]
+            A = np.exp(p[0])
+            a = np.exp(p[1])
+            E_val = np.exp(p[2])
             
-            # Derived parameters
-            alpha = np.exp(log_a)
-            w = w_raw**2
+            b_logits = p[3:]
+            # Match the scaling in scaling_law_func
+            b = 3.0 / (1.0 + np.exp(-b_logits))
             
-            # Prediction
-            d = X @ w
-            pred = c + np.maximum(d, 1e-10)**(-alpha)
+            d_eff = x_self + X_others @ b + 1e-9
+            pred = A * (d_eff ** -a) + E_val
             
-            mse = np.mean((pred - y_t)**2)
-            
-            # Regularization
-            # 1. Sparsity on effective weights (L1 on W &lt;=&gt; L2 on w_raw)
-            # This encourages selecting only relevant domains
-            reg_w = 1e-6 * np.sum(w)
-            
-            # 2. Soft penalty for negative bias
-            # Allows transient negative exploration but penalizes final solution
-            pen_c = 0.0
-            if c &lt; 0:
-                pen_c = 100.0 * c**2
-            
-            # 3. Soft penalty for extreme alpha
-            # log_alpha should be in reasonable range [-5, 3]
-            pen_a = 0.0
-            if log_a &lt; -5: pen_a += (log_a + 5)**2
-            if log_a &gt; 3: pen_a += (log_a - 3)**2
-                
-            return mse + reg_w + pen_c + pen_a
+            mse = np.mean((pred - y_i)**2)
+            # Regularize: keep params from exploding, prefer sparse transfer
+            reg = 1e-6 * (np.sum(p[:3]**2) + np.sum(b_logits**2))
+            return mse + reg
 
-        # Initialization Strategies
-        candidates = []
+        # Robust Initialization Strategy
+        # 1. Grid search over alpha and a shared scalar beta
+        # 2. Use NNLS to find optimal A, E for each grid point
+        best_mse = np.inf
+        best_p0 = np.zeros(7)
         
-        # Strategy 1: &quot;Standard&quot; 
-        # Bias near minimum, modest diagonal dominance
-        c1 = max(0.0, y_min - 0.2)
-        w1 = np.full(n_dims, 0.2)
-        if t &lt; n_dims: w1[t] = 1.0 # Self-weight 1.0, others 0.04
-        p1 = np.concatenate(([c1, 0.0], np.sqrt(w1)))
-        candidates.append(p1)
+        # Grid ranges
+        alphas = [0.1, 0.3, 0.5, 0.8, 1.2, 1.8, 2.5]
+        # Scalar betas corresponding to transfer strengths
+        # 0.01 (negligible), 1.0 (equal), 1.5 (strong)
+        scalar_betas = [0.01, 0.1, 0.5, 1.0, 1.5]
         
-        # Strategy 2: &quot;Low Bias&quot;
-        # Bias very low, relying more on power law (good for steep curves)
-        c2 = max(0.0, y_min - 1.0)
-        w2 = np.full(n_dims, 0.3)
-        if t &lt; n_dims: w2[t] = 1.2
-        p2 = np.concatenate(([c2, np.log(0.5)], np.sqrt(w2)))
-        candidates.append(p2)
+        for a_guess in alphas:
+            for b_val in scalar_betas:
+                # Effective data assumption: all other domains contribute equally b_val
+                d_guess = x_self + b_val * np.sum(X_others, axis=1) + 1e-9
+                
+                # Linear features for A, E
+                feat = d_guess ** -a_guess
+                M = np.vstack([feat, np.ones_like(feat)]).T
+                
+                # NNLS solve
+                try:
+                    sol, resid_norm = nnls(M, y_i)
+                    A_est, E_est = sol[0], sol[1]
+                    # resid_norm is ||Ax-y||
+                    curr_mse = (resid_norm**2) / len(y_i)
+                except:
+                    A_est, E_est = 1.0, np.min(y_i)
+                    curr_mse = np.inf
+                
+                if curr_mse &lt; best_mse:
+                    best_mse = curr_mse
+                    
+                    # Inverse transform for initialization
+                    # A, alpha, E are log
+                    A_est = max(A_est, 1e-6)
+                    E_est = max(E_est, 1e-6)
+                    
+                    # b_val = 3 * sigmoid(logit) -&gt; sigmoid = b/3
+                    # logit = log(sig / (1-sig)) = log( (b/3) / (1 - b/3) ) = log(b / (3-b))
+                    # Clip b_val to safe range (0, 3)
+                    safe_b = np.clip(b_val, 1e-4, 2.99)
+                    logit_b = np.log(safe_b / (3.0 - safe_b))
+                    
+                    best_p0 = np.array([
+                        np.log(A_est),
+                        np.log(a_guess),
+                        np.log(E_est),
+                        logit_b, logit_b, logit_b, logit_b
+                    ])
         
         # Optimization
-        best_p = None
-        best_loss = np.inf
-        
-        for p0 in candidates:
-            try:
-                res = minimize(objective, p0, method=&#x27;BFGS&#x27;, tol=1e-6, options={&#x27;maxiter&#x27;: 500})
-                if res.fun &lt; best_loss:
-                    best_loss = res.fun
-                    best_p = res.x
-            except Exception:
-                continue
-                
-        if best_p is None:
-            best_p = candidates[0]
+        try:
+            # BFGS with gradient approximation
+            res = minimize(objective, best_p0, method=&#x27;BFGS&#x27;, options={&#x27;maxiter&#x27;: 200, &#x27;gtol&#x27;: 1e-6})
+            final_p = res.x
+        except:
+            final_p = best_p0
             
-        final_params.append(best_p)
-        
-    return np.concatenate(final_params)
+        all_params.append(final_p)
+            
+    return np.concatenate(all_params)
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#3</span>
-              <span class="run-label">Run 4</span>
-              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.989715 </span>
+              <span class="run-label">Run 3</span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.996106 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -677,134 +708,242 @@ def fit_scaling_law(data_points, loss_values):
               <pre><code class="language-python" id="code-2"># EVOLVE-BLOCK-START
 &quot;&quot;&quot;
 Scaling law discovery for LLM finetuning scenarios
-Improved model using Effective Data Mixture formulation.
-Models loss as L_t = bias_t + (sum_j (w_{tj}^2 * x_j))^(-alpha_t)
-Uses 7 parameters per domain * 5 domains = 35 parameters total.
+Model: Domain-Specific Power Law with Low-Rank Transfer Matrix (Rank-1 + Bias)
+Improved with Robust Initialization and Multi-Stage Optimization
 &quot;&quot;&quot;
 import numpy as np
 from scipy.optimize import minimize
 
 def scaling_law_func(data_points, params):
-    # data_points: (N, 5) domain proportions
-    # params: (35,) flat array representing parameters for 5 domains
+    &quot;&quot;&quot;
+    Predicts multi-domain loss based on domain proportions.
+    Uses a Rank-1 + Bias parameterization for the transfer matrix logits.
     
-    X = np.atleast_2d(np.asarray(data_points, dtype=float))
-    params = np.asarray(params, dtype=float)
+    Args:
+        data_points: (N, 5) array of domain mixture proportions.
+        params: Flat array of 35 parameters.
     
-    n_domains = 5
-    n_params_per_domain = 7
-    expected_size = n_domains * n_params_per_domain
+    Returns:
+        (N, 5) array of predicted losses.
+    &quot;&quot;&quot;
+    X = np.atleast_2d(np.asarray(data_points))
+    params = np.asarray(params)
     
-    # Robustly handle parameter shape
-    # If parameters are passed from a different sized model or messed up, we handle it
-    if params.size != expected_size:
-        flat_params = params.ravel()
-        if flat_params.size &lt; expected_size:
-            # Pad with sensible defaults if too small
-            # bias=2.0, alpha=0.5, weights=0.1
-            padding = np.tile(np.array([2.0, 0.5, 0.1, 0.1, 0.1, 0.1, 0.1]), n_domains)
-            flat_params = np.concatenate([flat_params, padding])[:expected_size]
-        else:
-            flat_params = flat_params[:expected_size]
-        P = flat_params.reshape(n_domains, n_params_per_domain)
-    else:
-        P = params.reshape(n_domains, n_params_per_domain)
-        
-    bias = P[:, 0]          # (5,)
-    alpha = P[:, 1]         # (5,)
-    weights = P[:, 2:]      # (5, 5)
+    # Unpack parameters (35 total)
+    # 0-4:   log A      (Amplitude)
+    # 5-9:   log alpha  (Scaling exponent)
+    # 10-14: log E      (Irreducible loss)
+    # 15-19: b          (Target receptivity bias)
+    # 20-24: s          (Source quality bias)
+    # 25-29: u          (Interaction factor U)
+    # 30-34: v          (Interaction factor V)
     
-    # Weights squared for positivity (learns magnitude of contribution)
-    W = weights ** 2        # (5, 5)
-    # Alpha positive for power law decay
-    A = np.abs(alpha)       # (5,)
+    log_A = params[0:5]
+    log_alpha = params[5:10]
+    log_E = params[10:15]
+    b = params[15:20]
+    s = params[20:25]
+    u = params[25:30]
+    v = params[30:35]
     
-    # Compute effective data: D_eff[n, t] = sum_j (X[n, j] * W[t, j])
-    # This represents the &quot;equivalent dataset size&quot; for domain t derived from the mixture
-    D_eff = np.dot(X, W.T)
+    A = np.exp(log_A)
+    alpha = np.exp(log_alpha)
+    E = np.exp(log_E)
     
-    # Stability: prevent division by zero or effectively zero data
-    D_eff = np.maximum(D_eff, 1e-6)
+    # Calculate Transfer Matrix W (5, 5) via Low-Rank Logits
+    # W_ij = sigmoid(b_i + s_j + u_i * v_j)
+    # b_i: Base receptivity of target domain i
+    # s_j: Base quality of source domain j
+    # u_i * v_j: Specific interaction/alignment between i and j
     
-    # Power law: D_eff ^ -alpha
-    # Broadcasting: (N, 5) ^ (1, 5)
-    power_term = D_eff ** (-A[None, :])
+    # Broadcasting: (5,1) + (1,5) + (5,1)*(1,5) -&gt; (5,5)
+    logits = b[:, None] + s[None, :] + (u[:, None] * v[None, :])
+    W = 1.0 / (1.0 + np.exp(-logits))
     
-    pred = bias[None, :] + power_term
+    # Calculate Effective Data
+    # D_eff_i = x_i + sum_{j!=i} W_ij * x_j
+    # We compute X @ W.T. 
+    # (X @ W.T)_ki = sum_j x_kj * W_ij
+    # We need to ensure the diagonal term is treated as 1 (self-transfer)
+    # The formula D_eff = x_i + sum_{j!=i} W_ij x_j
+    # is equivalent to: (X @ W.T) - (X * diag(W)) + X
     
-    if pred.shape[1] == 1:
-        return pred[:, 0]
+    term_total = X @ W.T
+    w_diag = np.diag(W)
+    term_diag = X * w_diag[None, :]
+    
+    effective_data = term_total - term_diag + X
+    
+    # Add epsilon for numerical stability
+    effective_data = np.maximum(effective_data, 1e-8)
+    
+    # Power Law Prediction
+    # pred = A * D_eff^-alpha + E
+    pred = A[None, :] * (effective_data ** -alpha[None, :]) + E[None, :]
+    
     return pred
 
 def fit_scaling_law(data_points, loss_values):
-    X = np.atleast_2d(np.asarray(data_points, dtype=float))
-    Y = np.asarray(loss_values, dtype=float)
+    &quot;&quot;&quot;
+    Fits the scaling law parameters using a robust multi-stage strategy.
+    &quot;&quot;&quot;
+    X = np.atleast_2d(np.asarray(data_points))
+    Y = np.atleast_2d(np.asarray(loss_values))
+    N, D = X.shape
     
-    if Y.ndim == 1:
-        Y = Y[:, None]
-        
-    n_domains = 5
-    n_features = X.shape[1]
+    # --- Stage 1: Robust Independent Fit (Grid Search + Optimization) ---
+    # Fit each domain with a simplified model: L = A * (x + beta*(1-x))^-alpha + E
+    # This establishes the baseline power law parameters and average transfer (beta).
     
-    all_params = []
+    init_params_indep = []
     
-    # Fit each domain independently for stability
-    for t in range(n_domains):
-        y_target = Y[:, t]
-        min_y = np.min(y_target)
+    for i in range(D):
+        x_i = X[:, i]
+        y_i = Y[:, i]
+        y_min, y_max = np.min(y_i), np.max(y_i)
         
-        # Objective: MSE
-        def objective(p):
-            b = p[0]
-            a = p[1]
-            w = p[2:]
+        def obj_indep(p):
+            # p: [log A, logit beta, log alpha, log E]
+            A_val = np.exp(p[0])
+            beta_val = 1.0 / (1.0 + np.exp(-p[1]))
+            alpha_val = np.exp(p[2])
+            E_val = np.exp(p[3])
             
-            w_sq = w ** 2
-            d_eff = np.dot(X, w_sq)
-            d_eff = np.maximum(d_eff, 1e-6)
-            
-            pred = b + d_eff ** (-a)
-            return np.mean((pred - y_target)**2)
-            
-        # Initialization
-        # Bias is the asymptotic floor, likely slightly below min observed loss
-        bias_init = min_y - 0.1
-        # Alpha is the scaling exponent, typically 0.1-1.0
-        alpha_init = 0.5
-        # Weights: assume diagonal dominance (domain helps itself most)
-        w_init = np.full(n_features, np.sqrt(0.1))
-        if t &lt; n_features:
-            w_init[t] = 1.0
-            
-        p0 = np.concatenate(([bias_init, alpha_init], w_init))
+            eff = x_i + beta_val * (1.0 - x_i) + 1e-8
+            pred = A_val * (eff ** -alpha_val) + E_val
+            mse = np.mean((pred - y_i)**2)
+            # Weak regularization to keep params in check
+            reg = 1e-6 * np.sum(p**2)
+            return mse + reg
         
-        # Bounds: 
-        # Bias &lt; min_y to prevent unphysical negative power terms
-        # Alpha &gt; 0
-        bounds = [(None, min_y - 1e-4), (1e-2, 5.0)] + [(None, None)] * n_features
+        # Grid Search for initialization
+        best_local_loss = float(&#x27;inf&#x27;)
+        best_local_p = None
+        
+        # Grid: 
+        # A: derived from range
+        # beta: weak transfer (-3), moderate (-1)
+        # alpha: low (0.3), medium (0.7), high (1.2)
+        # E: min y
+        
+        log_A_est = np.log(max(y_max - y_min, 1e-3))
+        log_E_est = np.log(max(y_min - 0.1, 1e-4))
+        
+        beta_logits = [-3.0, -1.0] 
+        alpha_vals = [0.3, 0.7, 1.2]
+        
+        for bl in beta_logits:
+            for av in alpha_vals:
+                p0 = [log_A_est, bl, np.log(av), log_E_est]
+                try:
+                    res = minimize(obj_indep, p0, method=&#x27;BFGS&#x27;, options={&#x27;gtol&#x27;: 1e-4, &#x27;maxiter&#x27;: 100})
+                    if res.fun &lt; best_local_loss:
+                        best_local_loss = res.fun
+                        best_local_p = res.x
+                except:
+                    continue
+        
+        if best_local_p is None:
+            # Fallback
+            best_local_p = np.array([0.0, -2.0, -0.5, -2.0])
+            
+        init_params_indep.append(best_local_p)
+            
+    init_params_indep = np.array(init_params_indep) # (5, 4)
+    
+    # Extract baseline parameters
+    log_A_base = init_params_indep[:, 0]
+    logit_beta_base = init_params_indep[:, 1]
+    log_alpha_base = init_params_indep[:, 2]
+    log_E_base = init_params_indep[:, 3]
+    
+    # --- Stage 2: Global Optimization with Interaction Refinement ---
+    
+    # Initial guess construction
+    # We initialize b (target receptivity) with the fitted logit_beta.
+    # We initialize s, u, v with small random noise to break symmetry but start near the independent fit solution.
+    
+    def get_global_obj(params_full):
+        pred = scaling_law_func(X, params_full)
+        mse = np.mean((pred - Y)**2)
+        
+        # Regularization
+        # 1. Interaction Sparsity (u, v): Prefer Rank-0 (Bias only) if sufficient
+        reg_uv = 1e-5 * np.sum(params_full[25:35]**2)
+        
+        # 2. Source Bias (s): Prefer 0 (all sources equal)
+        reg_s = 1e-5 * np.sum(params_full[20:25]**2)
+        
+        # 3. Target Bias (b): Stay close to independent fit beta (prior)
+        # This prevents the model from drifting too far from the robust independent signals
+        b_curr = params_full[15:20]
+        reg_b = 1e-6 * np.sum((b_curr - logit_beta_base)**2)
+        
+        # 4. Base params: Weak L2
+        reg_base = 1e-7 * np.sum(params_full[:15]**2)
+        
+        return mse + reg_uv + reg_s + reg_b + reg_base
+
+    # Multi-start optimization for global fit
+    best_global_loss = float(&#x27;inf&#x27;)
+    best_global_params = None
+    
+    seeds = [0, 1, 2]
+    
+    for seed in seeds:
+        np.random.seed(seed)
+        
+        # Jitter the base params slightly
+        p_base = np.concatenate([log_A_base, log_alpha_base, log_E_base])
+        p_base += np.random.normal(0, 0.01, size=p_base.shape)
+        
+        # Initialize interaction terms
+        b_init = logit_beta_base.copy()
+        s_init = np.random.normal(0, 0.05, D)
+        u_init = np.random.normal(0, 0.05, D)
+        v_init = np.random.normal(0, 0.05, D)
+        
+        p0_global = np.concatenate([p_base, b_init, s_init, u_init, v_init])
         
         try:
-            res = minimize(objective, p0, method=&#x27;L-BFGS-B&#x27;, bounds=bounds)
-            p_opt = res.x
-        except:
-            # Fallback to initialization if optimization fails
-            p_opt = p0
+            # First phase: Optimize only interaction terms (15:35) keeping base fixed
+            # This aligns the transfer matrix before tuning the power law
+            def obj_interact_only(p_interact):
+                p_full = np.concatenate([p_base, p_interact])
+                return get_global_obj(p_full)
             
-        all_params.append(p_opt)
+            res_interact = minimize(obj_interact_only, p0_global[15:], method=&#x27;BFGS&#x27;, 
+                                    options={&#x27;gtol&#x27;: 1e-4, &#x27;maxiter&#x27;: 200})
+            p0_global[15:] = res_interact.x
+            
+            # Second phase: Global optimization
+            res = minimize(get_global_obj, p0_global, method=&#x27;BFGS&#x27;, 
+                           options={&#x27;gtol&#x27;: 1e-6, &#x27;maxiter&#x27;: 1500})
+            
+            if res.fun &lt; best_global_loss:
+                best_global_loss = res.fun
+                best_global_params = res.x
+        except:
+            continue
+            
+    if best_global_params is None:
+        # Fallback to independent fit params extended with zeros
+        best_global_params = np.concatenate([
+            log_A_base, log_alpha_base, log_E_base,
+            logit_beta_base, np.zeros(15)
+        ])
         
-    # Concatenate all parameters into a flat array of 35 (5 domains * 7 params)
-    return np.concatenate(all_params)
+    return best_global_params
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#4</span>
-              <span class="run-label">Run 1</span>
-              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.989400 </span>
+              <span class="run-label">Run 4</span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.995770 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -817,150 +956,213 @@ def fit_scaling_law(data_points, loss_values):
               <pre><code class="language-python" id="code-3"># EVOLVE-BLOCK-START
 &quot;&quot;&quot;
 Scaling law discovery for LLM finetuning scenarios
-Implements an Effective Data Mixture scaling law.
-Model: Loss_t = Bias_t + (Sum_j (W_tj^2 * x_j))^(-exp(alpha_t))
-This captures how data from different domains contributes to the effective training size for a target domain.
-Uses exactly 35 parameters (7 per domain * 5 domains).
+Improved Full Transfer Matrix Model (35 parameters).
+Uses a 3-stage fitting process with a Log-Linear Grid Search for robust initialization.
+Structure: 
+1. Independent fit using grid search over E and linear regression for (A, alpha).
+2. Global Rank-1 Transfer fit to capture domain relationships.
+3. Per-domain Full Matrix relaxation with regularization towards Rank-1 prior.
 &quot;&quot;&quot;
 import numpy as np
 from scipy.optimize import minimize
 
 def scaling_law_func(data_points, params):
     # data_points: (N, 5) array of domain proportions
-    # params: (35,) flat array or (5, 7) array
+    # params: Flat array of 35 parameters (7 per domain)
     
     X = np.atleast_2d(np.asarray(data_points))
-    params = np.asarray(params)
+    # Reshape params: 5 domains x 7 parameters
+    # [log_A, log_alpha, log_E, logit_rho_1, logit_rho_2, logit_rho_3, logit_rho_4]
+    P = np.asarray(params).flatten().reshape(5, 7)
     
-    # Parameter unpacking and shape handling
-    # We use 7 parameters per domain: 1 bias, 1 log_alpha, 5 weights
-    params_per_domain = 7
+    # Extract physical parameters
+    A = np.exp(P[:, 0])      # Amplitude
+    alpha = np.exp(P[:, 1])  # Scaling exponent
+    E = np.exp(P[:, 2])      # Irreducible loss
     
-    if params.ndim == 1:
-        # Infer number of domains from parameter size
-        # Expected size is 35 for 5 domains
-        if params.size % params_per_domain == 0:
-            T = params.size // params_per_domain
-            P = params.reshape(T, params_per_domain)
-        else:
-            # Fallback for mismatched size, possibly just return bias or crash safely
-            # Assuming 5 domains if size is weird but we want to try
-            T = 5
-            # Resize or truncate would be dangerous, just let reshape fail if needed
-            P = params.reshape(T, params_per_domain) 
-    else:
-        P = params
-        T = P.shape[0]
-
-    # Extract parameters
-    # P structure: [bias, log_alpha, w0_sqrt, w1_sqrt, w2_sqrt, w3_sqrt, w4_sqrt]
-    bias = P[:, 0]              # (T,)
-    log_alpha = P[:, 1]         # (T,)
-    w_sqrt = P[:, 2:]           # (T, F) - F is number of weight params, should match X.shape[1]
+    # Transfer coefficients (off-diagonal elements)
+    rhos = 1.0 / (1.0 + np.exp(-P[:, 3:]))
     
-    # Enforce constraints via transforms
-    # Alpha must be positive. exp() ensures this. Clip to avoid overflow.
-    alpha = np.exp(np.clip(log_alpha, -5.0, 4.0)) 
-    # Weights must be positive. Square of parameter ensures this.
-    weights = w_sqrt ** 2       
+    # Construct Transfer Matrix R where D_eff = X @ R^T
+    # Diagonal is 1.0, Off-diagonals are rhos
+    R = np.eye(5)
+    mask = ~np.eye(5, dtype=bool)
+    R[mask] = rhos.flatten()
     
-    # Compute Effective Data for each target domain
-    # D_eff = X @ W.T
-    # X: (N, 5), Weights: (T, 5) -&gt; D_eff: (N, T)
-    # If dimensions mismatch (e.g. testing with fewer features), handle gracefully
-    if X.shape[1] != weights.shape[1]:
-        F_in = min(X.shape[1], weights.shape[1])
-        D_eff = X[:, :F_in] @ weights[:, :F_in].T
-    else:
-        D_eff = X @ weights.T
+    # Calculate Effective Data Size
+    # D_eff: (N, 5)
+    effective_data = X @ R.T + 1e-9
     
-    # Numerical stability: Effective data cannot be 0 or negative
-    D_eff = np.maximum(D_eff, 1e-8)
+    # Compute power law: L = A * D^-alpha + E
+    # Broadcasting: A, alpha, E are (1, 5)
+    pred = A[None, :] * (effective_data ** -alpha[None, :]) + E[None, :]
     
-    # Power law term: (D_eff) ^ (-alpha)
-    term = D_eff ** (-alpha[None, :])
-    
-    # Final prediction: bias + term
-    pred = bias[None, :] + term
-    
-    # Return shape handling
-    if pred.shape[1] == 1:
-        return pred[:, 0]
     return pred
+
 
 def fit_scaling_law(data_points, loss_values):
     X = np.atleast_2d(np.asarray(data_points))
-    Y = np.asarray(loss_values)
-    if Y.ndim == 1:
-        Y = Y[:, None]
-        
-    N, F = X.shape
-    _, T = Y.shape
+    Y = np.atleast_2d(np.asarray(loss_values))
+    n_domains = 5
     
-    # Model uses 7 params per output domain: bias (1), log_alpha (1), weights (5)
-    # Total params = 7 * T. For T=5, Total=35.
+    # --- Stage 1: Robust Independent Fit ---
+    # Initialize A, alpha, E per domain by scanning E and solving linear regression for log(A), alpha
+    init_phys_params = []
     
-    all_params = []
-    
-    for t in range(T):
-        y_target = Y[:, t]
+    for i in range(n_domains):
+        x = X[:, i]
+        y = Y[:, i]
+        y_min = np.min(y)
         
-        # Heuristic Initialization
-        # Bias: Irreducible loss. Start near minimum observed loss.
-        bias_init = np.min(y_target) - 0.2
+        best_mse = np.inf
+        # Default fallback
+        best_p = [np.log(1.0), np.log(0.5), np.log(max(y_min - 0.1, 1e-3))]
         
-        # Alpha: Scaling exponent. Start with typical value ~0.5 (log_alpha ~ -0.7)
-        log_alpha_init = -0.7
-        
-        # Weights: Start with diagonal dominance (self-transfer is best)
-        # sqrt(1.0) = 1.0, sqrt(0.1) ~ 0.316
-        w_init = np.full(F, 0.32)
-        if t &lt; F:
-            w_init[t] = 1.0
+        # Grid search for E
+        # Power law L = A*x^-a + E =&gt; log(L-E) = log(A) - a*log(x)
+        # We scan reasonable fractions of min_loss for E
+        valid_mask = x &gt; 1e-4
+        if np.sum(valid_mask) &gt;= 5:
+            x_v = x[valid_mask]
+            y_v = y[valid_mask]
+            log_x = np.log(x_v)
             
-        p0 = np.concatenate(([bias_init, log_alpha_init], w_init))
+            for e_frac in [0.0, 0.5, 0.8, 0.9, 0.95, 0.99]:
+                e_val = y_min * e_frac
+                if e_val &lt; 1e-6: e_val = 1e-6
+                
+                # Check feasibility
+                if np.any(y_v &lt;= e_val): continue
+                
+                log_y_shifted = np.log(y_v - e_val)
+                
+                # Linear fit
+                cov = np.cov(log_x, log_y_shifted)
+                if cov[0,0] &lt; 1e-9: continue
+                
+                slope = cov[0, 1] / cov[0, 0]
+                intercept = np.mean(log_y_shifted) - slope * np.mean(log_x)
+                
+                alpha_est = -slope
+                A_est = np.exp(intercept)
+                
+                # Check physical plausibility (scaling laws usually have alpha &gt; 0)
+                if alpha_est &lt;= 0.01 or alpha_est &gt; 4.0: continue
+                
+                # Evaluate MSE on full data
+                pred = A_est * (x**-alpha_est + 1e-9) + e_val
+                mse = np.mean((pred - y)**2)
+                
+                if mse &lt; best_mse:
+                    best_mse = mse
+                    best_p = [np.log(A_est), np.log(alpha_est), np.log(e_val)]
         
-        def objective(p):
-            # Decode params
-            b = p[0]
-            log_a = np.clip(p[1], -5.0, 4.0)
-            a = np.exp(log_a)
-            w = p[2:] ** 2
+        # Refine with BFGS
+        def obj_indep(p):
+            A = np.exp(p[0])
+            alp = np.exp(p[1])
+            E = np.exp(p[2])
+            pred = A * ((x + 1e-9)**-alp) + E
+            return np.mean((pred - y)**2) + 1e-6*np.sum(p**2)
             
-            # Compute effective data
-            d = X @ w
-            d = np.maximum(d, 1e-8)
-            
-            # Predict
-            pred = b + d**(-a)
-            
-            # MSE Loss
-            return np.mean((pred - y_target)**2)
-        
-        # Optimize
-        # BFGS is robust enough for this unconstrained formulation (due to transforms)
         try:
-            res = minimize(objective, p0, method=&#x27;BFGS&#x27;)
-            best_p = res.x
-        except Exception:
-            # Fallback to init if optimization crashes
-            best_p = p0
+            res = minimize(obj_indep, best_p, method=&#x27;BFGS&#x27;, options={&#x27;gtol&#x27;: 1e-5})
+            init_phys_params.append(res.x)
+        except:
+            init_phys_params.append(best_p)
             
-        all_params.append(best_p)
+    init_phys_params = np.array(init_phys_params)
+
+    # --- Stage 2: Global Rank-1 Transfer Fit ---
+    # Fit rho_ij = beta_i * gamma_j
+    # Params: 15 (phys) + 5 (logit_beta) + 5 (logit_gamma) = 25
     
-    # Return flattened parameters array (size 35)
-    return np.concatenate(all_params)
+    p_rank1_init = np.concatenate([
+        init_phys_params.flatten(),
+        np.full(5, -2.0), # beta ~ 0.12
+        np.full(5, 0.0)   # gamma ~ 0.5
+    ])
+    
+    def obj_rank1(p):
+        P_phys = p[:15].reshape(5, 3)
+        A = np.exp(P_phys[:, 0])
+        alpha = np.exp(P_phys[:, 1])
+        E = np.exp(P_phys[:, 2])
+        
+        beta = 1.0 / (1.0 + np.exp(-p[15:20]))
+        gamma = 1.0 / (1.0 + np.exp(-p[20:25]))
+        
+        # Effective Data: D = X + beta * (sum(gamma*X) - gamma*X)
+        GX = X * gamma[None, :]
+        transfer = np.sum(GX, axis=1, keepdims=True) - GX
+        D_eff = X + beta[None, :] * transfer + 1e-9
+        
+        pred = A[None, :] * (D_eff ** -alpha[None, :]) + E[None, :]
+        return np.mean((pred - Y)**2) + 1e-6*np.sum(p**2)
+
+    try:
+        res_rank1 = minimize(obj_rank1, p_rank1_init, method=&#x27;BFGS&#x27;, options={&#x27;maxiter&#x27;: 200})
+        p_rank1 = res_rank1.x
+    except:
+        p_rank1 = p_rank1_init
+
+    # --- Stage 3: Full Matrix Relaxation (Per Domain) ---
+    # Initialize with Rank-1 parameters, but allow deviation
+    
+    phys = p_rank1[:15].reshape(5, 3)
+    beta = 1.0 / (1.0 + np.exp(-p_rank1[15:20]))
+    gamma = 1.0 / (1.0 + np.exp(-p_rank1[20:25]))
+    
+    final_params = []
+    
+    for i in range(n_domains):
+        # Calculate initial rhos from Rank-1
+        rhos_init = []
+        for j in range(n_domains):
+            if i == j: continue
+            val = np.clip(beta[i] * gamma[j], 1e-4, 1.0 - 1e-4)
+            rhos_init.append(np.log(val / (1.0 - val)))
+            
+        p0_i = np.concatenate([phys[i], rhos_init])
+        
+        y_target = Y[:, i]
+        others_idx = [j for j in range(5) if j != i]
+        X_others = X[:, others_idx]
+        
+        def obj_full(p):
+            A = np.exp(p[0])
+            alp = np.exp(p[1])
+            E = np.exp(p[2])
+            
+            curr_rhos = 1.0 / (1.0 + np.exp(-p[3:]))
+            
+            # D_eff = x_i + sum(rho * x_other)
+            d_eff = X[:, i] + X_others @ curr_rhos + 1e-9
+            
+            pred = A * (d_eff ** -alp) + E
+            mse = np.mean((pred - y_target)**2)
+            
+            # Trust-region regularization towards Rank-1 initialization
+            reg = 1e-4 * np.sum((p - p0_i)**2)
+            return mse + reg
+            
+        try:
+            res_full = minimize(obj_full, p0_i, method=&#x27;BFGS&#x27;, options={&#x27;gtol&#x27;: 1e-6})
+            final_params.append(res_full.x)
+        except:
+            final_params.append(p0_i)
+            
+    return np.concatenate(final_params)
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#5</span>
-              <span class="run-label">Run 2</span>
-              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.989378 </span>
+              <span class="run-label">Run 1</span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.995604 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -973,116 +1175,185 @@ def fit_scaling_law(data_points, loss_values):
               <pre><code class="language-python" id="code-4"># EVOLVE-BLOCK-START
 &quot;&quot;&quot;
 Scaling law discovery for LLM finetuning scenarios
-Implements an Effective Data Mixture scaling law:
-L_i = bias_i + (sum_j (w_{ij}^2 * x_j))^(-exp(alpha_i))
-This models how mixing data from different domains contributes to reducing loss in a specific domain.
-Uses exactly 35 parameters (7 per domain * 5 domains).
+Improved with a Domain-Specific Power Law and Low-Rank Transfer Matrix.
+Uses Weighted MSE optimization to balance domain performance and L-BFGS-B with bounds for stability.
 &quot;&quot;&quot;
 import numpy as np
 from scipy.optimize import minimize
 
 def scaling_law_func(data_points, params):
     # data_points: (N, 5) array of domain proportions
-    # params: (35,) array of parameters
+    # params: Flat array of 35 parameters
+    # Structure:
+    # 0-4: log A (Amplitude)
+    # 5-9: log alpha (Scaling exponent)
+    # 10-14: log E (Irreducible loss)
+    # 15-19: b (Target receptivity bias)
+    # 20-24: s (Source quality bias)
+    # 25-29: u (interaction factor 1)
+    # 30-34: v (interaction factor 2)
     
-    # Ensure inputs are correct type and shape
-    X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
-    params = np.asarray(params, dtype=np.float64).ravel()
+    X = np.atleast_2d(np.asarray(data_points))
+    params = np.asarray(params)
     
-    N, F = X.shape
-    num_domains = 5
-    params_per_domain = 7
+    # Unpack parameters
+    log_A = params[0:5]
+    log_alpha = params[5:10]
+    log_E = params[10:15]
+    b = params[15:20]
+    s = params[20:25]
+    u = params[25:30]
+    v = params[30:35]
     
-    # Reshape parameters
-    # Expected size is 35 (5 domains * 7 params).
-    expected = num_domains * params_per_domain
-    if params.size &lt; expected:
-        params = np.pad(params, (0, expected - params.size), &#x27;constant&#x27;)
-    elif params.size &gt; expected:
-        params = params[:expected]
-        
-    P = params.reshape(num_domains, params_per_domain)
+    A = np.exp(log_A)
+    alpha = np.exp(log_alpha)
+    E = np.exp(log_E)
     
-    # Extract parameter components
-    # col 0: bias
-    # col 1: log_alpha (exponent)
-    # col 2-6: raw weights for the 5 input features
+    # Calculate transfer matrix W (5, 5)
+    # W_ij = sigmoid(b_i + s_j + u_i * v_j)
+    # models transfer efficiency from domain j to domain i
+    W_logits = b[:, None] + s[None, :] + (u[:, None] * v[None, :])
+    W = 1.0 / (1.0 + np.exp(-W_logits))
     
-    bias = P[:, 0]              # (5,)
-    alpha = np.exp(P[:, 1])     # (5,) - ensure positive exponent
-    weights = P[:, 2:] ** 2     # (5, 5) - ensure positive contribution
+    # Calculate effective data size for each domain i
+    # D_eff_i = x_i + sum_{j!=i} W_ij * x_j
+    # We treat in-domain data x_i as having weight 1.0 (identity).
     
-    # Calculate Effective Data
-    # D_eff_i = sum_j (w_ij^2 * x_j)
-    # X: (N, 5), W^T: (5, 5) -&gt; D_eff: (N, 5)
-    D_eff = X @ weights.T
+    # Computation:
+    # 1. Weighted sum of all sources: X @ W.T
+    # 2. Remove diagonal contribution: X * diag(W)
+    # 3. Add identity contribution: X
+    term_interaction = X @ W.T
+    W_diag = np.diag(W)
+    term_correction = X * W_diag[None, :]
     
-    # Avoid numerical instability with power law near 0
-    D_eff = np.maximum(D_eff, 1e-6)
+    effective_data = X + term_interaction - term_correction
+    effective_data = np.maximum(effective_data, 1e-9)
     
-    # Calculate Power Law Term
-    # term_i = D_eff_i ^ (-alpha_i)
-    # Broadcasting: (N, 5) ^ (1, 5) -&gt; (N, 5)
-    power_term = D_eff ** (-alpha[None, :])
+    # Power law prediction
+    # pred_i = A_i * (D_eff_i)^(-alpha_i) + E_i
+    pred = A[None, :] * (effective_data ** -alpha[None, :]) + E[None, :]
     
-    # Final Prediction
-    pred = bias[None, :] + power_term
-    
-    # Match output requirements
-    if pred.shape[1] == 1:
-        return pred[:, 0]
     return pred
 
 
 def fit_scaling_law(data_points, loss_values):
-    X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
-    Y = np.asarray(loss_values, dtype=np.float64)
-    if Y.ndim == 1:
-        Y = Y[:, None]
-        
-    N, F = X.shape
-    _, num_domains = Y.shape
+    X = np.atleast_2d(np.asarray(data_points))
+    Y = np.atleast_2d(np.asarray(loss_values))
+    N, D = X.shape
     
-    all_params = []
+    # Calculate weights for objective function to balance domain importance
+    # We weight by inverse variance to normalize the error contribution of each domain
+    y_var = np.var(Y, axis=0)
+    y_var = np.maximum(y_var, 1e-6) # Safety floor
+    weights = 1.0 / y_var
+    weights = weights / np.sum(weights) * D # Normalize to sum to D
     
-    # Fit each domain independently
-    for t in range(num_domains):
-        y_tgt = Y[:, t]
+    # --- Step 1: Robust Independent Fits ---
+    # Fit each domain independently to get baseline A, alpha, E and beta (avg transfer)
+    # Model: y = A * (x + beta * (1-x))^-alpha + E
+    
+    init_params_list = []
+    
+    for i in range(D):
+        x_i = X[:, i]
+        y_i = Y[:, i]
         
-        # Heuristic Initialization
-        min_y = np.min(y_tgt)
-        bias_init = max(0.0, min_y - 0.2)
-        log_alpha_init = np.log(0.5) # Start with sqrt decay
-        
-        # Initialize weights
-        # Domain i usually learns best from data i, so diagonal should be larger
-        w_init = np.full(F, np.sqrt(0.1)) 
-        if t &lt; F:
-            w_init[t] = 1.0 
+        def obj_indep(p):
+            A_val = np.exp(p[0])
+            beta_val = 1.0 / (1.0 + np.exp(-p[1]))
+            alpha_val = np.exp(p[2])
+            E_val = np.exp(p[3])
             
-        p0 = np.concatenate(([bias_init, log_alpha_init], w_init))
+            eff = x_i + beta_val * (1.0 - x_i) + 1e-9
+            pred = A_val * (eff ** -alpha_val) + E_val
+            return np.mean((pred - y_i)**2)
         
-        def objective(p):
-            b = p[0]
-            # Constrain alpha to reasonable range to prevent overflow
-            a = np.exp(np.clip(p[1], -3.0, 3.0)) 
-            w = p[2:] ** 2
-            
-            d = X @ w
-            d = np.maximum(d, 1e-6)
-            pred = b + d**(-a)
-            
-            return np.mean((pred - y_tgt)**2)
+        # Grid search initialization candidates
+        y_min, y_max = np.min(y_i), np.max(y_i)
+        log_A_est = np.log(max(y_max - y_min, 0.01))
+        log_E_est = np.log(max(y_min - 0.1, 1e-5))
         
-        try:
-            res = minimize(objective, p0, method=&#x27;BFGS&#x27;, tol=1e-5)
-            best_p = res.x
-        except Exception:
-            best_p = p0
-            
-        all_params.append(best_p)
+        candidates = [
+            [log_A_est, -2.0, -0.5, log_E_est],       # Default
+            [log_A_est, -0.5, -0.5, log_E_est],       # High transfer
+            [log_A_est + 1.0, -2.0, -0.5, log_E_est - 1.0], # High A, Low E
+            [log_A_est, -4.0, -0.3, log_E_est],       # Low transfer
+        ]
         
-    return np.concatenate(all_params)
+        best_p = candidates[0]
+        best_err = np.inf
+        
+        for p0 in candidates:
+            try:
+                # Use L-BFGS-B with bounds for stability during init
+                res = minimize(obj_indep, p0, method=&#x27;L-BFGS-B&#x27;, 
+                               bounds=[(-5, 5), (-5, 5), (-3, 2), (-10, 5)])
+                if res.fun &lt; best_err:
+                    best_err = res.fun
+                    best_p = res.x
+            except:
+                continue
+        init_params_list.append(best_p)
+            
+    initial_params_indep = np.array(init_params_list)
+    
+    # --- Step 2: Initialize Global Parameters ---
+    log_A_init = initial_params_indep[:, 0]
+    beta_logits_init = initial_params_indep[:, 1]
+    log_alpha_init = initial_params_indep[:, 2]
+    log_E_init = initial_params_indep[:, 3]
+    
+    # Initialize Transfer Matrix components
+    # b: initialized to beta_logits (assuming source bias s=0 initially)
+    b_init = beta_logits_init
+    s_init = np.zeros(D)
+    
+    # u, v: initialized with small noise to break symmetry
+    rng = np.random.RandomState(42)
+    u_init = rng.uniform(-0.01, 0.01, D)
+    v_init = rng.uniform(-0.01, 0.01, D)
+    
+    p_global_0 = np.concatenate([
+        log_A_init, log_alpha_init, log_E_init, 
+        b_init, s_init, u_init, v_init
+    ])
+    
+    # --- Step 3: Global Optimization with Weighted MSE ---
+    
+    def global_objective(p):
+        pred = scaling_law_func(X, p)
+        
+        # Weighted MSE across domains
+        mse_per_dim = np.mean((pred - Y)**2, axis=0)
+        weighted_mse = np.sum(mse_per_dim * weights)
+        
+        # Regularization
+        # L2 on interaction params (s, u, v) to prevent overfitting
+        reg_interact = 1e-5 * np.sum(p[20:35]**2)
+        # Very weak L2 on others to prevent drift
+        reg_base = 1e-8 * np.sum(p[:20]**2)
+        
+        return weighted_mse + reg_interact + reg_base
+
+    # Bounds for all 35 parameters
+    # A: (-5, 5), alpha: (-3, 2), E: (-10, 5), others: (-10, 10)
+    bounds = []
+    bounds.extend([(-5, 5)] * 5)   # A
+    bounds.extend([(-3, 2)] * 5)   # alpha
+    bounds.extend([(-10, 5)] * 5)  # E
+    bounds.extend([(-10, 10)] * 20) # b, s, u, v
+
+    try:
+        # L-BFGS-B handles bounds and is robust
+        res = minimize(global_objective, p_global_0, method=&#x27;L-BFGS-B&#x27;, 
+                       bounds=bounds,
+                       options={&#x27;maxiter&#x27;: 5000, &#x27;gtol&#x27;: 1e-7})
+        best_p = res.x
+    except:
+        best_p = p_global_0
+        
+    return best_p
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>

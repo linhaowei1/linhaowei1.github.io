@@ -285,7 +285,7 @@
     <div class="bg-pattern"></div>
 
     <div class="container">
-      <a href="sld_index.html" class="back-link"> ← Back to Leaderboard </a>
+      <a href="index.html" class="back-link"> ← Back to Leaderboard </a>
 
       <div class="header">
         <h1>U-shaped Scaling Law</h1>
@@ -300,15 +300,15 @@
           </div>
           <div class="meta-item">
             <span class="meta-label">Best R²:</span>
-            <span class="r2-badge" style="background-color: #daa520; color: white"> 0.662093 </span>
+            <span class="r2-badge" style="background-color: #228B22; color: white"> 0.933141 </span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Mean R²:</span>
-            <span class="meta-value">0.617187</span>
+            <span class="meta-value">0.928994</span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Min R²:</span>
-            <span class="meta-value">0.577087</span>
+            <span class="meta-value">0.922070</span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Runs:</span>
@@ -320,12 +320,13 @@
       <h2 class="section-title">All Runs (sorted by R²)</h2>
 
       <div class="runs-container">
+
         <div class="run-card best-run">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge best-badge">Best</span>
-              <span class="run-label">Run 3</span>
-              <span class="r2-badge" style="background-color: #daa520; color: white"> R² = 0.662093 </span>
+              <span class="run-label">Run 2</span>
+              <span class="r2-badge" style="background-color: #228B22; color: white"> R² = 0.933141 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -336,99 +337,78 @@
                 <button class="copy-btn" onclick="copyCode(event, 'code-0')">Copy</button>
               </div>
               <pre><code class="language-python" id="code-0">import numpy as np
-from scipy.optimize import least_squares
+from scipy.optimize import minimize
 
 def scaling_law_func(data_points, params):
+    # EVOLVE-BLOCK-START
     &quot;&quot;&quot;
-    U-shaped scaling law: a quadratic valley plus a smooth tanh tail shift.
-    params = [a, b, c, d, e, f]
-      a &gt; 0 : curvature of the quadratic valley
-      b     : abscissa of the valley minimum
-      c     : baseline offset
-      d     : amplitude of the late‐scale shift (tanh tail)
-      e &gt; 0 : steepness of the transition in the tail
-      f     : center of the tail transition
-    y(x) = a*(x - b)^2 + c + d * tanh( e*(x - f) )
+    U-shaped scaling law: convex parabola + Gaussian dip + linear tilt + offset.
+    params: [p0,p1,p2,p3,p4,p5]
+      α = exp(p0)   &gt;0 parabola curvature
+      β = -exp(p1)  &lt;0 dip amplitude
+      γ = exp(p2)   &gt;0 dip width
+      δ = p3        shift
+      θ = p4        tilt
+      ε = p5        offset
+    y(x) = α*(x+δ)^2 + β*exp(-γ*(x+δ)^2) + θ*(x+δ) + ε
     &quot;&quot;&quot;
-    x = np.asarray(data_points).reshape(-1)
-    a, b, c, d, e, f = params
-    z = e * (x - f)
-    return a * (x - b)**2 + c + d * np.tanh(z)
-
-def _jacobian(params, x):
-    &quot;&quot;&quot;
-    Analytic Jacobian of scaling_law_func w.r.t. params at points x.
-    &quot;&quot;&quot;
-    a, b, c, d, e, f = params
-    dx = x - b
-    z = e * (x - f)
-    t = np.tanh(z)
-    sech2 = 1.0 - t*t
-    m = x.size
-    J = np.empty((m, 6), dtype=float)
-    # d/d a
-    J[:, 0] = dx**2
-    # d/d b
-    J[:, 1] = -2.0 * a * dx
-    # d/d c
-    J[:, 2] = 1.0
-    # d/d d
-    J[:, 3] = t
-    # d/d e
-    J[:, 4] = d * dx * sech2
-    # d/d f
-    J[:, 5] = -d * e * sech2
-    return J
+    X = np.asarray(data_points).ravel()
+    p = np.asarray(params).ravel()
+    α = np.exp(p[0])
+    β = -np.exp(p[1])
+    γ = np.exp(p[2])
+    δ, θ, ε = p[3], p[4], p[5]
+    Z = X + δ
+    # clamp exponent to avoid overflow
+    expo = -np.minimum(γ * Z*Z, 50.0)
+    return α * Z*Z + β * np.exp(expo) + θ * Z + ε
+    # EVOLVE-BLOCK-END
 
 def fit_scaling_law(data_points, loss_values):
+    # EVOLVE-BLOCK-START
     &quot;&quot;&quot;
-    Fit the 6-parameter U-shaped scaling law to (log_flops, brier_score) data.
-    Returns optimized params [a, b, c, d, e, f].
+    Fit U-shaped law via global Differential Evolution + local L-BFGS-B.
     &quot;&quot;&quot;
-    x = np.asarray(data_points).reshape(-1)
-    y = np.asarray(loss_values).reshape(-1)
-    xmin, xmax = x.min(), x.max()
-    # Heuristic initial guess
-    span = max(y.max() - y.min(), 1e-6)
-    a0 = span / ((xmax - xmin)**2 + 1e-6)
-    b0 = x[np.argmin(y)]
-    c0 = np.median(y)
-    d0 = (np.min(y) - c0)
-    e0 = 1.0
-    f0 = x[np.argmin(y)]
-    p0 = np.array([a0, b0, c0, d0, e0, f0], dtype=float)
+    from scipy.optimize import differential_evolution
 
-    # Bounds: enforce positive curvature &amp; steepness; centers within data range
-    lower = [1e-8, xmin,   -np.inf, -np.inf, 1e-8, xmin]
-    upper = [np.inf,  xmax,  np.inf,  np.inf, np.inf, xmax]
+    X = np.asarray(data_points).ravel()
+    y = np.asarray(loss_values).ravel()
 
-    # Residual &amp; Jacobian
-    def resid(p):
-        return scaling_law_func(x, p) - y
-    def jac(p):
-        return _jacobian(p, x)
+    def mse(p):
+        pred = scaling_law_func(X, p)
+        return np.mean((pred - y)**2)
 
-    # Robust non-linear least squares
-    result = least_squares(
-        resid,
-        p0,
-        jac=jac,
-        bounds=(lower, upper),
-        loss=&#x27;soft_l1&#x27;,
-        f_scale=0.1,
-        max_nfev=2000
-    )
-    return result.x if result.success else p0</code></pre>
+    # bounds for log-params and shifts
+    xmin, xmax = X.min(), X.max()
+    ymin, ymax = y.min(), y.max()
+    bounds = [
+        (-5, 5), (-5, 5), (-5, 5),
+        (xmin - xmax, xmax - xmin),
+        (-(abs(ymax)+abs(ymin)), abs(ymax)+abs(ymin)),
+        (ymin - abs(ymax - ymin), ymax + abs(ymax - ymin))
+    ]
+
+    # global search
+    try:
+        de = differential_evolution(mse, bounds, maxiter=50, popsize=10, tol=1e-3, polish=False)
+        p0 = de.x
+    except Exception:
+        p0 = np.zeros(6)
+
+    # local refinement
+    res = minimize(mse, p0, method=&#x27;L-BFGS-B&#x27;, bounds=bounds,
+                   options={&#x27;maxiter&#x27;:500, &#x27;ftol&#x27;:1e-12})
+    return res.x if res.success else p0
+    # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#2</span>
-              <span class="run-label">Run 2</span>
-              <span class="r2-badge" style="background-color: #daa520; color: white"> R² = 0.635787 </span>
+              <span class="run-label">Run 3</span>
+              <span class="r2-badge" style="background-color: #228B22; color: white"> R² = 0.931929 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -438,100 +418,105 @@ def fit_scaling_law(data_points, loss_values):
                 <span>Python</span>
                 <button class="copy-btn" onclick="copyCode(event, 'code-1')">Copy</button>
               </div>
-              <pre><code class="language-python" id="code-1"># EVOLVE-BLOCK-START
-import numpy as np
-from scipy.optimize import least_squares
-from scipy.special import expit
+              <pre><code class="language-python" id="code-1">import numpy as np
+from scipy.optimize import minimize
+
+# EVOLVE-BLOCK-START
 
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    U-shaped scaling law: quadratic curvature + logistic tail adjustment.
-    y(x) = a*(x - b)^2 + c + d / (1 + exp(-e*(x - f)))
-    params: [a, b, c, d, e, f]
-      a &gt;= 0      controls U-shape curvature
-      b ∈ [xmin,xmax]    center of the quadratic trough
-      c ∈ ℝ       baseline at x=b
-      d ∈ ℝ       amplitude of logistic tail (improvement plateau)
-      e &gt;= 0      steepness of logistic transition
-      f ∈ [xmin,xmax]    center of logistic transition
+    6-parameter U-shaped scaling law:
+      y(x) = offset + α·(x−δ)^2 + β·exp(−γ·(x−δ)^2) + θ·(x−δ)
+    with α&gt;0, β&lt;0, γ&gt;0 enforced via exponentials.
+    params = [offset, log α, δ, log|β|, log γ, θ]
     &quot;&quot;&quot;
-    X = np.atleast_2d(np.asarray(data_points))
-    x = X[:, 0]
-    a, b, c, d, e, f = np.ravel(params)
-    # Quadratic U-shape
-    quad = a * (x - b)**2
-    # Stable logistic tail: d/(1 + exp(-e*(x - f)))
-    z = -e * (x - f)
-    z = np.clip(z, -50.0, 50.0)
-    logi = d * (1.0 - expit(z))
-    return quad + c + logi
+    X = np.asarray(data_points).ravel()
+    p = np.asarray(params).ravel()
+    offset = p[0]
+    alpha  = np.exp(p[1])
+    delta  = p[2]
+    beta   = -np.exp(p[3])
+    gamma  = np.exp(p[4]) + 1e-12
+    tilt   = p[5]
+    Z = X - delta
+    return offset + alpha * Z**2 + beta * np.exp(-gamma * Z**2) + tilt * Z
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Fit the six-parameter U-shaped scaling law via robust least-squares.
-    Returns optimized params [a,b,c,d,e,f].
+    Fit the 6-parameter law by minimizing MSE with data-informed
+    initialization plus a few restarts.
+    Returns the best parameter vector of length 6.
     &quot;&quot;&quot;
-    X = np.atleast_2d(np.asarray(data_points))
-    x = X[:, 0]
-    y = np.ravel(loss_values)
+    X = np.asarray(data_points).ravel()
+    y = np.asarray(loss_values).ravel()
 
-    # Data bounds
-    xmin, xmax = x.min(), x.max()
-    xm = np.median(x)
+    # 1) Data-informed initial guess
+    offset0 = np.median(y)
+    i_peak  = np.argmax(y)                 # worst loss → center of dip
+    delta0  = X[i_peak]
+    beta0   = max(y[i_peak] - offset0, 1e-3)
+    half_h  = offset0 + beta0 * 0.5
+    left    = X[(X &lt; delta0) &amp; (y &gt; half_h)]
+    right   = X[(X &gt; delta0) &amp; (y &gt; half_h)]
+    x1      = left[-1]  if left.size  else X.min()
+    x2      = right[0]  if right.size else X.max()
+    span    = abs(x2 - x1)
+    sigma0  = span/2 if span&gt;1e-8 else (X.max() - X.min())/4
+    gamma0  = 1.0 / (2 * sigma0**2 + 1e-6)
+    span_sq = max((X.max()-delta0)**2, (delta0-X.min())**2)
+    alpha0  = beta0 / (span_sq + 1e-6)
+    tilt0   = 0.5 * (y.max() - y.min()) / (X.max() - X.min() + 1e-6)
 
-    # Initial estimates:
-    # 1) Quadratic trough at median x
-    b0 = xm
-    # 2) Baseline c0 by local interpolation at xm
-    c0 = np.interp(xm, x, y)
-    # 3) Curvature a0 from variance estimate
-    span = xmax - xmin + 1e-6
-    a0 = max(1e-8, np.var(y) / (span**2))
-    # 4) Tail amplitude d0 from mean on right minus baseline
-    right_mask = x &gt;= xm
-    if right_mask.sum() &gt;= 3:
-        d0 = np.mean(y[right_mask]) - c0
-    else:
-        d0 = -abs(np.median(y)) * 0.1
-    # 5) Logistic steepness e0
-    e0 = 1.0
-    # 6) Transition center f0 at median
-    f0 = xm
+    init0 = np.array([
+        offset0,
+        np.log(alpha0),
+        delta0,
+        np.log(beta0),
+        np.log(gamma0),
+        tilt0
+    ])
+    # 2) Zero fallback
+    init1 = np.zeros(6)
+    # 3) A few small random restarts
+    rng = np.random.RandomState(0)
+    inits = [init0, init1] + [init0 + rng.randn(6)*0.1 for _ in range(3)]
 
-    p0 = np.array([a0, b0, c0, d0, e0, f0], dtype=float)
+    # Bound δ within the observed X range
+    bounds = [
+        (None, None),         # offset
+        (None, None),         # log α
+        (X.min(), X.max()),   # δ
+        (None, None),         # log|β|
+        (None, None),         # log γ
+        (None, None)          # tilt
+    ]
 
-    # Parameter bounds
-    lower = [0.0,        xmin,   -np.inf,   -np.inf,  0.0,    xmin]
-    upper = [np.inf,     xmax,    np.inf,    np.inf,  np.inf, xmax]
+    def mse_obj(p):
+        pred = scaling_law_func(X, p)
+        return np.mean((pred - y)**2)
 
-    def residuals(p):
-        return scaling_law_func(X, p) - y
+    best_p, best_loss = None, np.inf
+    for init in inits:
+        res = minimize(
+            mse_obj, init, method=&#x27;L-BFGS-B&#x27;,
+            bounds=bounds,
+            options={&#x27;maxiter&#x27;: 500, &#x27;ftol&#x27;: 1e-12}
+        )
+        if res.success and res.fun &lt; best_loss:
+            best_loss, best_p = res.fun, res.x
 
-    # Robust fitting with Cauchy loss to mitigate outliers
-    result = least_squares(
-        residuals,
-        p0,
-        bounds=(lower, upper),
-        loss=&#x27;cauchy&#x27;,
-        f_scale=0.1,
-        max_nfev=4000,
-        xtol=1e-8,
-        ftol=1e-8,
-        gtol=1e-8
-    )
+    return best_p if best_p is not None else init1
 
-    return result.x if result.success else p0
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#3</span>
-              <span class="run-label">Run 5</span>
-              <span class="r2-badge" style="background-color: #daa520; color: white"> R² = 0.629766 </span>
+              <span class="run-label">Run 1</span>
+              <span class="r2-badge" style="background-color: #228B22; color: white"> R² = 0.931495 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -543,83 +528,105 @@ def fit_scaling_law(data_points, loss_values):
               </div>
               <pre><code class="language-python" id="code-2"># EVOLVE-BLOCK-START
 import numpy as np
-from scipy.optimize import least_squares
+from scipy.optimize import differential_evolution, minimize
 
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    U-shaped law: convex quadratic minus a logistic “improvement” tail.
-    params = [a, b, c, d, e, f]:
-      a ≥ 0    curvature of U
-      b        center of U
-      c        baseline offset
-      d ≥ 0    amplitude of the late‐scale improvement
-      e ≥ 0    steepness of the improvement
-      f        center of the improvement transition
+    6-parameter U-shaped law:
+      y(x) = a*(x - h)^2 + B / (1 + ((x - mu)/s)^2) + c
+
+    params:
+      p[0] = log(a)      (a &gt; 0)
+      p[1] = h           (parabola center)
+      p[2] = B           (bump amplitude, can be + or -)
+      p[3] = mu          (bump center)
+      p[4] = log(s)      (s &gt; 0, bump width)
+      p[5] = c           (vertical offset)
     &quot;&quot;&quot;
-    x = np.asarray(data_points).ravel()
-    a, b, c, d, e, f = np.ravel(params)
-    quad = a * (x - b)**2
-    tail = d / (1.0 + np.exp(-e * (x - f)))
-    # subtract the tail so that performance first degrades then improves
-    return quad + c - tail
+    X = np.asarray(data_points).ravel()
+    p = np.asarray(params).ravel()
+    a  = np.exp(p[0])
+    h  = p[1]
+    B  = p[2]
+    mu = p[3]
+    s  = np.exp(p[4]) + 1e-12
+    c  = p[5]
+    z  = (X - mu) / s
+    return a * (X - h)**2 + B / (1.0 + z*z) + c
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Fit the six‐parameter U‐shaped law
-        y = a*(x-b)^2 + c - d/(1+exp(-e*(x-f)))
-    via robust least_squares with soft‐L1 loss.
+    Fit the 6-parameter U-shape law by:
+      1) Robust global search (Tukey&#x27;s biweight via Differential Evolution)
+      2) Local robust refinement (L-BFGS-B on Tukey loss)
+      3) Final MSE refinement (L-BFGS-B on MSE)
     &quot;&quot;&quot;
-    x = np.asarray(data_points).ravel()
+    X = np.asarray(data_points).ravel()
     y = np.asarray(loss_values).ravel()
+    y_std = np.std(y) + 1e-12
 
-    # residuals for optimizer
-    def resid(p):
-        return scaling_law_func(x, p) - y
+    # Tukey&#x27;s biweight loss for robustness
+    def tukey_obj(p):
+        r    = scaling_law_func(X, p) - y
+        c0   = 4.685 * y_std
+        absr = np.abs(r)
+        t    = r / c0
+        rho  = np.empty_like(r)
+        mask = absr &lt;= c0
+        rho[mask]  = (c0**2 / 6.0) * (1.0 - (1.0 - t[mask]**2)**3)
+        rho[~mask] = (c0**2 / 6.0)
+        return np.mean(rho)
 
-    # data bounds
-    xmin, xmax = x.min(), x.max()
-    y_min, y_max = y.min(), y.max()
+    # Mean-squared-error for final polishing
+    def mse_obj(p):
+        r = scaling_law_func(X, p) - y
+        return np.mean(r*r)
 
-    # sensible initialization
-    a0 = (y_max - y_min) / (((xmax - xmin)**2) + 1e-12)
-    # place the U-center at the best observed performance
-    idx_best = np.argmin(y)
-    b0 = float(x[idx_best])
-    c0 = float(np.median(y))
-    d0 = max(1e-6, c0 - y_min)
-    e0 = 1.0
-    f0 = b0
+    # parameter bounds based on data ranges
+    xmin, xmax = X.min(), X.max()
+    ymin, ymax = y.min(), y.max()
+    b = 2 * y_std
+    bounds = [
+        (-10.0, 10.0),               # log(a)
+        (xmin - 1.0, xmax + 1.0),    # h
+        (ymin - b, ymax + b),        # B
+        (xmin - 1.0, xmax + 1.0),    # mu
+        (-10.0,  5.0),               # log(s)
+        (ymin - b, ymax + b)         # c
+    ]
 
-    p0 = np.array([a0, b0, c0, d0, e0, f0], dtype=np.float64)
-
-    # enforce non-negativity on a, d, e and keep centers within data range
-    lower = [0.0,    xmin,   -np.inf, 0.0,    0.0,    xmin]
-    upper = [np.inf, xmax,    np.inf, np.inf,  np.inf,  xmax]
-
-    result = least_squares(
-        resid,
-        p0,
-        bounds=(lower, upper),
-        loss=&#x27;soft_l1&#x27;,
-        f_scale=0.1,
-        ftol=1e-9,
-        xtol=1e-9,
-        gtol=1e-9,
-        max_nfev=2000
+    # 1) Global search with Tukey loss
+    de_res = differential_evolution(
+        tukey_obj, bounds,
+        maxiter=80, popsize=20,
+        tol=1e-6, polish=True
     )
 
-    return result.x if result.success else p0
+    # 2) Local robust refinement
+    local_robust = minimize(
+        tukey_obj, de_res.x,
+        method=&#x27;L-BFGS-B&#x27;, bounds=bounds,
+        options={&#x27;ftol&#x27;:1e-12, &#x27;maxiter&#x27;:2000}
+    )
+    best_p = local_robust.x if local_robust.success else de_res.x
+
+    # 3) Final MSE polishing
+    final = minimize(
+        mse_obj, best_p,
+        method=&#x27;L-BFGS-B&#x27;, bounds=bounds,
+        options={&#x27;ftol&#x27;:1e-12, &#x27;maxiter&#x27;:1000}
+    )
+    return final.x if final.success else best_p
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#4</span>
-              <span class="run-label">Run 4</span>
-              <span class="r2-badge" style="background-color: #daa520; color: white"> R² = 0.581204 </span>
+              <span class="run-label">Run 5</span>
+              <span class="r2-badge" style="background-color: #228B22; color: white"> R² = 0.926337 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -629,76 +636,96 @@ def fit_scaling_law(data_points, loss_values):
                 <span>Python</span>
                 <button class="copy-btn" onclick="copyCode(event, 'code-3')">Copy</button>
               </div>
-              <pre><code class="language-python" id="code-3"># EVOLVE-BLOCK-START
-import numpy as np
-from scipy.optimize import least_squares
+              <pre><code class="language-python" id="code-3">import numpy as np
+from scipy.optimize import minimize
 
+# EVOLVE-BLOCK-START
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    U-shaped law: quadratic baseline + logistic tail (6 params).
-      y = a*(x-b)^2 + c + d/(1+exp(-e*(x-f)))
-    where a,e &gt;= 0, d &lt;= 0.
+    6-parameter U-shaped model: convex parabola + Cauchy bump
+      f(x) = a*(x - mu)^2 + d*x + e + b / (1 + (|x - mu|/c)^2)
+    params = [log_a, mu, b, log_c, d, e]
     &quot;&quot;&quot;
-    x = np.ravel(data_points)
-    a, b, c, d, e, f = params
-    return a*(x - b)**2 + c + d/(1 + np.exp(-e*(x - f)))
+    X = np.asarray(data_points).ravel()
+    p = np.asarray(params).ravel()
+    a  = np.exp(p[0])
+    mu = p[1]
+    b  = p[2]
+    c  = np.exp(p[3]) + 1e-12
+    d  = p[4]
+    e  = p[5]
+    dx = X - mu
+    # convex parabola + Cauchy-style bump
+    return a * dx * dx + d * X + e + b / (1.0 + (np.abs(dx) / c)**2)
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Fit the 6-parameter U-shaped scaling law via a two-stage least-squares:
-    1) robust soft-L1 to handle outliers
-    2) final linear (L2) to refine the fit
+    Fit the 6-parameter Cauchy-bump U-shaped model:
+      1) Quadratic baseline (a, d, e) via least squares on [X^2, X, 1]
+      2) Bump center mu &amp; amplitude b from largest positive residual
+      3) Bump width c from IQR of X
+      4) Multi-start L-BFGS-B to refine all parameters
     &quot;&quot;&quot;
-    x = np.ravel(data_points)
-    y = np.ravel(loss_values)
-    xmin, xmax = x.min(), x.max()
-    span = max(xmax - xmin, 1.0)
+    X = np.asarray(data_points).ravel()
+    y = np.asarray(loss_values).ravel()
 
-    # Smart initial guesses
-    a0 = np.ptp(y)/(span**2 + 1e-6)        # curvature ~ variation/span^2
-    b0 = float(x[np.argmax(y)])           # center at worst performance
-    c0 = np.median(y)                     # baseline
-    d0 = min(np.min(y) - c0, 0.0)         # negative tail amplitude
-    e0 = 1.0                              # logistic steepness
-    f0 = b0                               # logistic midpoint at b0
-    p0 = np.array([a0, b0, c0, d0, e0, f0])
+    # 1) Quadratic baseline init: y ≈ a*X^2 + d*X + e
+    A = np.vstack([X**2, X, np.ones_like(X)]).T
+    coef, *_ = np.linalg.lstsq(A, y, rcond=None)
+    a0 = max(coef[0], 1e-8)
+    d0 = coef[1]
+    e0 = coef[2]
 
-    # Bounds: a,e &gt;= 0; d &lt;= 0; b,f within [xmin, xmax]
-    lower = [0.0,      xmin, -np.inf, -np.inf, 0.0,    xmin]
-    upper = [np.inf,   xmax,  np.inf,   0.0,   np.inf, xmax]
+    # 2) Residuals for bump init
+    baseline = a0 * X**2 + d0 * X + e0
+    resid    = y - baseline
+    idx      = np.argmax(resid)
+    mu0      = X[idx]
+    b0       = resid[idx]
 
-    # Stage 1: robust fit
-    res1 = least_squares(
-        lambda p: scaling_law_func(x, p) - y,
-        p0,
-        bounds=(lower, upper),
-        loss=&#x27;soft_l1&#x27;,
-        f_scale=1.0,
-        max_nfev=2000
-    )
-    if not res1.success:
-        return p0
+    # 3) Width init via interquartile range
+    iqr = np.percentile(X, 75) - np.percentile(X, 25)
+    c0  = max(iqr, 1e-6)
 
-    # Stage 2: refine with true L2 loss
-    res2 = least_squares(
-        lambda p: scaling_law_func(x, p) - y,
-        res1.x,
-        bounds=(lower, upper),
-        loss=&#x27;linear&#x27;,
-        max_nfev=2000
-    )
-    return res2.x if res2.success else res1.x
+    # Pack into params: [log_a, mu, b, log_c, d, e]
+    p0 = np.array([np.log(a0), mu0, b0, np.log(c0), d0, e0])
+
+    # Parameter bounds
+    bounds = [
+        (-20, 20),             # log_a
+        (X.min(), X.max()),    # mu
+        (None, None),          # b
+        (-20, 20),             # log_c
+        (None, None),          # d
+        (None, None)           # e
+    ]
+
+    # Objective: mean squared error
+    def mse(p):
+        return np.mean((scaling_law_func(X, p) - y)**2)
+
+    # 4) Multi-start L-BFGS-B refinement
+    best_p   = p0.copy()
+    best_val = mse(best_p)
+    # one baseline start + several small perturbations
+    for init in [p0] + [p0 + np.random.randn(6) * 0.1 for _ in range(6)]:
+        res = minimize(mse, init, method=&#x27;L-BFGS-B&#x27;,
+                       bounds=bounds,
+                       options={&#x27;maxiter&#x27;: 1000, &#x27;ftol&#x27;: 1e-9})
+        if res.success and res.fun &lt; best_val:
+            best_val, best_p = res.fun, res.x
+
+    return best_p
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#5</span>
-              <span class="run-label">Run 1</span>
-              <span class="r2-badge" style="background-color: #daa520; color: white"> R² = 0.577087 </span>
+              <span class="run-label">Run 4</span>
+              <span class="r2-badge" style="background-color: #228B22; color: white"> R² = 0.922070 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -709,69 +736,70 @@ def fit_scaling_law(data_points, loss_values):
                 <button class="copy-btn" onclick="copyCode(event, 'code-4')">Copy</button>
               </div>
               <pre><code class="language-python" id="code-4"># EVOLVE-BLOCK-START
-&quot;&quot;&quot;
-U-shaped scaling law: quadratic valley minus a logistic-improvement tail.
-Six parameters:
-  a - curvature of the U (≥0)
-  b - center of the quadratic valley (in log_flops)
-  c - baseline offset
-  d - amplitude of improvement tail (≥0)
-  e - steepness of improvement logistic (≥0)
-  f - center of the improvement logistic (in log_flops)
-&quot;&quot;&quot;
 import numpy as np
 from scipy.optimize import least_squares
 
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    data_points: (N,1) array of log_flops
-    params: [a,b,c,d,e,f]
-    returns: (N,) predicted brier_score (negative is better)
+    6-parameter U-shaped law: quadratic baseline + skewed Gaussian dip/hump.
+    y(x) = C + A*(x - M)^2 + B*(x - μ)*exp(-0.5*((x - μ)/σ)^2)
+    params = [C, logA, M, B, μ, logσ]
     &quot;&quot;&quot;
-    X = np.atleast_2d(data_points)
-    x = X[:,0]
-    a, b, c, d, e, f = params
-    quad = a * (x - b)**2
-    tail = d / (1.0 + np.exp(-e * (x - f)))
-    # subtract tail to model late improvement
-    return quad + c - tail
+    X = np.asarray(data_points).ravel()
+    C, logA, M, B, mu, logS = params
+    A = np.exp(logA)
+    S = np.exp(logS) + 1e-8
+    # Quadratic baseline plus skewed Gaussian term for U-shape flexibility
+    return C + A * (X - M)**2 + B * (X - mu) * np.exp(-0.5 * ((X - mu) / S)**2)
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Fit the 6-parameter U-shape minus logistic tail via robust least squares.
-    Returns optimized [a,b,c,d,e,f].
+    Fit the 6-parameter U-shaped law via robust least-squares with multiple starts.
+    Uses a soft-L1 loss (pseudo-Huber) for outlier resilience.
     &quot;&quot;&quot;
-    X = np.atleast_2d(data_points)
-    x = X[:,0]
-    y = np.ravel(loss_values)
-    xmin, xmax = x.min(), x.max()
+    X = np.asarray(data_points).ravel()
+    y = np.asarray(loss_values).ravel()
+    # Basic statistics for initialization and bounds
+    XR = max(X.max() - X.min(), 1e-6)
+    yr = max(y.max() - y.min(), 1e-6)
+    C0     = np.median(y)
+    logA0  = np.log(yr / (XR**2 + 1e-6) + 1e-6)
+    M0     = X[np.argmax(y)]
+    B0     = 0.0
+    mu0    = X.mean()
+    logS0  = np.log(XR / 4 + 1e-6)
+    p0     = np.array([C0, logA0, M0, B0, mu0, logS0], dtype=float)
 
-    def resid(p):
+    # Parameter bounds
+    lower = [y.min(),   -20, X.min() - XR, -2*yr, X.min() - XR, -10]
+    upper = [y.max(),    20, X.max() + XR,  2*yr, X.max() + XR,  10]
+    bounds = (lower, upper)
+
+    # Residual function for least_squares
+    def residuals(p):
         return scaling_law_func(X, p) - y
 
-    # initial guesses
-    span = xmax - xmin if xmax &gt; xmin else 1.0
-    a0 = (np.ptp(y) / (span**2)) if span&gt;0 else 1.0
-    b0 = np.median(x)
-    c0 = np.median(y)
-    d0 = max(0.0, c0 - np.min(y))
-    e0 = 1.0
-    f0 = xmin + 0.75 * span
-    p0 = np.array([a0, b0, c0, d0, e0, f0])
+    # Multi-start to avoid local minima
+    best_p, best_cost = p0, np.inf
+    rng = np.random.default_rng(42)
+    # try the base init plus a few noisy restarts
+    for noise in np.vstack([np.zeros(6), rng.normal(scale=0.1, size=(4, 6))]):
+        p_init = p0 + noise
+        try:
+            res = least_squares(
+                residuals,
+                p_init,
+                bounds=bounds,
+                loss=&#x27;soft_l1&#x27;,
+                f_scale=yr * 0.5,
+                max_nfev=1000
+            )
+            if res.success and res.cost &lt; best_cost:
+                best_cost, best_p = res.cost, res.x
+        except Exception:
+            pass
 
-    # bounds: enforce a,d,e ≥ 0, centers within [xmin,xmax]
-    lower = [0.0, xmin, -np.inf, 0.0, 0.0, xmin]
-    upper = [np.inf, xmax, np.inf, np.inf, np.inf, xmax]
-
-    result = least_squares(
-        resid,
-        p0,
-        bounds=(lower, upper),
-        loss=&#x27;huber&#x27;,
-        f_scale=0.1,
-        max_nfev=1500
-    )
-    return result.x if result.success else p0
+    return best_p
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>

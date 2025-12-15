@@ -285,7 +285,7 @@
     <div class="bg-pattern"></div>
 
     <div class="container">
-      <a href="sld_index.html" class="back-link"> ← Back to Leaderboard </a>
+      <a href="index.html" class="back-link"> ← Back to Leaderboard </a>
 
       <div class="header">
         <h1>MoE Scaling Law</h1>
@@ -300,15 +300,15 @@
           </div>
           <div class="meta-item">
             <span class="meta-label">Best R²:</span>
-            <span class="r2-badge" style="background-color: #228b22; color: white"> 0.863257 </span>
+            <span class="r2-badge" style="background-color: #006400; color: white"> 0.962352 </span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Mean R²:</span>
-            <span class="meta-value">0.827948</span>
+            <span class="meta-value">0.958229</span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Min R²:</span>
-            <span class="meta-value">0.763915</span>
+            <span class="meta-value">0.949784</span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Runs:</span>
@@ -320,12 +320,13 @@
       <h2 class="section-title">All Runs (sorted by R²)</h2>
 
       <div class="runs-container">
+
         <div class="run-card best-run">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge best-badge">Best</span>
-              <span class="run-label">Run 5</span>
-              <span class="r2-badge" style="background-color: #228b22; color: white"> R² = 0.863257 </span>
+              <span class="run-label">Run 2</span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.962352 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -337,152 +338,160 @@
               </div>
               <pre><code class="language-python" id="code-0"># EVOLVE-BLOCK-START
 &quot;&quot;&quot;
-Enhanced MoE scaling law with multiplicative-additive hybrid form
-Combines multiplicative expert-parameter interaction with independent scaling terms
-Uses hybrid optimization for better convergence and global exploration
+Scaling law for MoE architectures using refined log-normalized power-law
+Improved numerical stability and optimization strategy while maintaining theoretical soundness
 &quot;&quot;&quot;
 import numpy as np
 from scipy.optimize import minimize, differential_evolution
 
 def scaling_law_func(data_points, params):
-    X = np.atleast_2d(np.asarray(data_points))
-    n_experts = X[:, 0]
-    dense_params = X[:, 1]
+    &quot;&quot;&quot;
+    Refined log-normalized power-law: loss = a + b*E_norm^α + c*P_norm^β + d*E_norm^α*P_norm^β
+    where E_norm = log(num_experts / 16), P_norm = log(dense_parameter_count / 4e8)
     
-    # Hybrid form: loss = a + b*n_experts^(-alpha)*dense_params^(-beta) + c*dense_params^(-gamma)
-    # Main term: multiplicative scaling (experts and parameters jointly reduce loss)
-    # Additional term: parameter-only independent effect
-    a, b, alpha, beta, c, gamma = params[:6]
+    Improvements:
+    - Smoother handling of signed powers using expm1/log1p for stability
+    - Better numerical behavior across full range
+    - Interaction term with independent exponents
     
-    # Stability constraints
-    alpha = np.clip(alpha, 0.01, 1.5)
-    beta = np.clip(beta, 0.01, 1.5)
-    gamma = np.clip(gamma, 0.01, 1.5)
-    b = np.clip(b, -200, 200)
-    c = np.clip(c, -100, 100)
+    params: [a, b, c, d, alpha, beta] (6 parameters)
+    &quot;&quot;&quot;
+    X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
     
-    # Multiplicative term captures expert-parameter synergy
-    mult_term = b * (n_experts ** (-alpha)) * (dense_params ** (-beta))
-    # Additional independent parameter scaling
-    param_term = c * (dense_params ** (-gamma))
+    E = np.maximum(X[:, 0], 1.0)  # num_experts
+    P = np.maximum(X[:, 1], 1e7)  # dense_parameter_count
     
-    pred = a + mult_term + param_term
+    # Log-normalization with data-informed reference points
+    E_norm = np.log(E / 16.0)
+    P_norm = np.log(P / 4e8)
     
-    return pred
+    params = np.asarray(params, dtype=np.float64).flatten()
+    a = params[0]
+    b = params[1]
+    c = params[2]
+    d = params[3]
+    alpha = params[4]
+    beta = params[5]
+    
+    # Clip exponents for stability
+    alpha_safe = np.clip(alpha, -1.5, 1.5)
+    beta_safe = np.clip(beta, -1.5, 1.5)
+    
+    # Improved power calculation: handle signs more carefully
+    # For small |x|, use Taylor expansion behavior; for large |x|, use direct power
+    def safe_signed_power(x, exponent):
+        &quot;&quot;&quot;Compute x^exponent with proper sign handling&quot;&quot;&quot;
+        abs_x = np.abs(x)
+        # Add small epsilon for numerical stability
+        result = np.sign(x) * np.power(abs_x + 1e-12, exponent)
+        return result
+    
+    E_alpha = safe_signed_power(E_norm, alpha_safe)
+    P_beta = safe_signed_power(P_norm, beta_safe)
+    
+    # Loss model with multiplicative interaction
+    loss = a + b * E_alpha + c * P_beta + d * E_alpha * P_beta
+    
+    return np.squeeze(loss)
 
 
 def fit_scaling_law(data_points, loss_values):
-    X = np.atleast_2d(np.asarray(data_points))
-    y = np.asarray(loss_values).ravel()
+    &quot;&quot;&quot;
+    Multi-stage optimization with adaptive parameters
+    Stage 1: Coarse global search with larger population
+    Stage 2: Fine-tuned local search with stricter convergence
+    &quot;&quot;&quot;
+    X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
+    y = np.asarray(loss_values, dtype=np.float64).flatten()
+    
+    y_min = np.min(y)
+    y_max = np.max(y)
+    y_mean = np.mean(y)
+    y_std = np.std(y)
     
     def objective(params):
         try:
             pred = scaling_law_func(X, params)
+            # Check for NaN/Inf
+            if not np.all(np.isfinite(pred)):
+                return 1e10
             mse = np.mean((pred - y) ** 2)
             return mse if np.isfinite(mse) else 1e10
         except:
             return 1e10
     
-    y_min, y_max = np.min(y), np.max(y)
-    y_range = y_max - y_min
-    
-    # Normalize data for better numerical stability
-    X_norm = X / np.array([np.max(X[:, 0]), np.max(X[:, 1])])
-    
-    def objective_norm(params):
-        try:
-            pred = scaling_law_func(X_norm, params)
-            mse = np.mean((pred - y) ** 2)
-            return mse if np.isfinite(mse) else 1e10
-        except:
-            return 1e10
-    
-    # Bounds for 6 parameters
+    # Adaptive bounds based on loss statistics
     bounds = [
-        (y_min - 0.5 * y_range, y_max + 0.5 * y_range),  # a: intercept
-        (-200, 200),                                        # b: multiplicative coefficient
-        (0.01, 1.5),                                       # alpha: expert exponent
-        (0.01, 1.5),                                       # beta: parameter exponent
-        (-100, 100),                                       # c: parameter coefficient
-        (0.01, 1.5)                                        # gamma: param independent exponent
+        (y_min - 0.4, y_max + 0.4),   # a: baseline loss with margin
+        (-3.0, 3.0),                   # b: expert coefficient (expanded range)
+        (-3.0, 3.0),                   # c: parameter coefficient (expanded range)
+        (-2.0, 2.0),                   # d: interaction coefficient
+        (-1.5, 1.5),                   # alpha: expert exponent
+        (-1.5, 1.5),                   # beta: parameter exponent
     ]
     
-    best_params = None
-    best_loss = np.inf
+    # Stage 1: Global search with differential evolution
+    # Increased iterations and population for better exploration
+    result_de = differential_evolution(
+        objective,
+        bounds,
+        seed=42,
+        maxiter=400,
+        popsize=20,
+        atol=1e-11,
+        tol=1e-11,
+        workers=1,
+        updating=&#x27;deferred&#x27;,
+        strategy=&#x27;best1bin&#x27;,
+        recombination=0.8,
+        mutation=(0.5, 1.5),
+        polish=False
+    )
     
-    # Strategy 1: Multiple smart initializations based on data characteristics
-    inits = []
+    # Stage 2: L-BFGS-B for precise local refinement
+    result_local = minimize(
+        objective,
+        result_de.x,
+        method=&#x27;L-BFGS-B&#x27;,
+        bounds=bounds,
+        options={
+            &#x27;maxiter&#x27;: 300,
+            &#x27;ftol&#x27;: 1e-13,
+            &#x27;gtol&#x27;: 1e-10,
+            &#x27;maxcor&#x27;: 20
+        }
+    )
     
-    # Init 1: Conservative
-    inits.append(np.array([y_min, (y_max - y_min) * 8, 0.4, 0.4, 1.0, 0.3]))
-    
-    # Init 2: Moderate
-    inits.append(np.array([y_min, (y_max - y_min) * 5, 0.5, 0.5, 0.5, 0.5]))
-    
-    # Init 3: Aggressive
-    inits.append(np.array([y_min, (y_max - y_min) * 12, 0.6, 0.6, 2.0, 0.7]))
-    
-    # Init 4: Mid-range focus
-    inits.append(np.array([(y_min + y_max) / 2, (y_max - y_min) * 3, 0.45, 0.55, 0.2, 0.4]))
-    
-    # Try each initialization with L-BFGS-B
-    for init in inits:
-        try:
-            result = minimize(
-                objective, init,
-                method=&#x27;L-BFGS-B&#x27;,
-                bounds=bounds,
-                options={&#x27;maxiter&#x27;: 5000, &#x27;ftol&#x27;: 1e-13}
-            )
-            if result.fun &lt; best_loss:
-                best_loss = result.fun
-                best_params = result.x
-        except:
-            pass
-    
-    # Strategy 2: Global exploration with differential evolution
-    try:
-        result_de = differential_evolution(
-            objective, bounds,
-            seed=42, maxiter=300, atol=1e-11, tol=1e-11,
-            workers=1, updating=&#x27;deferred&#x27;
+    # Stage 3: Additional refinement if needed
+    if result_local.fun &gt; result_de.fun * 0.95:  # If local didn&#x27;t improve much
+        result_local = minimize(
+            objective,
+            result_de.x,
+            method=&#x27;L-BFGS-B&#x27;,
+            bounds=bounds,
+            options={
+                &#x27;maxiter&#x27;: 200,
+                &#x27;ftol&#x27;: 1e-14,
+                &#x27;gtol&#x27;: 1e-11,
+                &#x27;maxcor&#x27;: 25
+            }
         )
-        if result_de.fun &lt; best_loss:
-            best_loss = result_de.fun
-            best_params = result_de.x
-    except:
-        pass
     
-    # Strategy 3: Final local refinement
-    if best_params is not None and np.isfinite(best_loss):
-        try:
-            result_final = minimize(
-                objective, best_params,
-                method=&#x27;L-BFGS-B&#x27;,
-                bounds=bounds,
-                options={&#x27;maxiter&#x27;: 3000, &#x27;ftol&#x27;: 1e-14}
-            )
-            if result_final.fun &lt; best_loss:
-                best_params = result_final.x
-        except:
-            pass
-    
-    # Fallback to reasonable default
-    if best_params is None:
-        best_params = np.array([np.mean(y), 5.0, 0.5, 0.5, 0.5, 0.5])
+    # Return best result
+    best_params = result_local.x if result_local.fun &lt; result_de.fun else result_de.x
     
     return best_params
+
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#2</span>
-              <span class="run-label">Run 2</span>
-              <span class="r2-badge" style="background-color: #228b22; color: white"> R² = 0.847632 </span>
+              <span class="run-label">Run 5</span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.961899 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -494,161 +503,109 @@ def fit_scaling_law(data_points, loss_values):
               </div>
               <pre><code class="language-python" id="code-1"># EVOLVE-BLOCK-START
 &quot;&quot;&quot;
-Scaling law discovery for MoE LLM architectures
-Optimized Chinchilla-inspired scaling with adaptive refinement
+Refined scaling law for MoE architectures with improved generalization
+Balances expressiveness with parameter efficiency and numerical stability
 &quot;&quot;&quot;
 import numpy as np
 from scipy.optimize import minimize, differential_evolution
 
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    Scaling law: loss = a * E^b * P^c + d * log(E+1) * P^g + e * P^(-f)
+    Scaling law with 6 parameters for MoE architectures.
     
-    Enhanced with interaction term between log(experts) and parameters:
-    - a * E^b * P^c: Primary multiplicative expert-parameter interaction
-    - d * log(E+1) * P^g: Coupled expert regularization (expert-aware parameter scaling)
-    - e * P^(-f): Parameter efficiency diminishing returns
-    
-    Using 6 parameters: [a, b, c, d, e, f] with implicit g=-0.15
+    Model: loss = a + b*dense_norm^c + d*log(experts+1)^e + f*log(experts+1)*dense_norm^c
+    - Unified power-law exponent c for dense parameters (numerical stability)
+    - Flexible expert count scaling with power of logarithm
+    - Interaction term naturally captures expert-parameter dynamics
+    - All 6 parameters used with clear interpretability
     &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
     params = np.atleast_1d(np.asarray(params, dtype=np.float64))
     
-    E = X[:, 0]  # num_experts
-    P = X[:, 1]  # dense_parameter_count
+    num_experts = X[:, 0]
+    dense_params = X[:, 1]
     
-    # Ensure exactly 6 parameters
-    p = np.zeros(6)
-    p[:len(params)] = params[:6]
-    a, b, c, d, e, f = p
+    # Normalize dense parameters for numerical stability
+    dense_norm = dense_params / 1e8
     
-    # Numerical safety with normalization factors
-    E_safe = np.maximum(E, 1.0)
-    P_safe = np.maximum(P, 1e6)
-    P_norm = P_safe / 1e8  # Normalize to prevent extreme exponents
+    a, b, c, d, e, f = params[0], params[1], params[2], params[3], params[4], params[5]
     
-    # Term 1: Multiplicative scaling (Chinchilla-inspired)
-    term1 = a * np.power(E_safe, b) * np.power(P_norm, c)
+    # Compute base features
+    log_experts = np.log(num_experts + 1.0)
+    dense_power = np.power(dense_norm, c)
+    log_experts_power = np.power(log_experts, e)
     
-    # Term 2: Expert regularization with parameter coupling
-    # Interaction: experts and parameters work together (not independently)
-    g = -0.15  # Fixed weak negative coupling for stability
-    term2 = d * np.log(E_safe + 1.0) * np.power(P_norm, g)
+    # Combine terms: baseline + dense scaling + expert effect + interaction
+    pred = a + b * dense_power + d * log_experts_power + f * log_experts * dense_power
     
-    # Term 3: Parameter efficiency diminishing returns
-    term3 = e * np.power(P_norm + 0.1, -f)
-    
-    loss = term1 + term2 + term3
-    
-    return loss
+    return pred
 
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Hybrid optimization with intelligent refinement:
-    1. Data-aware global search via differential evolution
-    2. Adaptive local refinement via L-BFGS-B based on convergence quality
+    Fit scaling law with efficient two-stage optimization.
+    Global search with moderate effort followed by local refinement.
     &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
     y = np.atleast_1d(np.asarray(loss_values, dtype=np.float64))
     
-    # Compute data statistics for smart initialization
-    E_mean = np.mean(X[:, 0])
-    E_std = np.std(X[:, 0]) + 1e-6
-    P_mean = np.mean(X[:, 1])
-    y_mean = np.mean(y)
-    y_std = np.std(y)
-    
     def objective(params):
-        &quot;&quot;&quot;MSE objective with stability checks&quot;&quot;&quot;
         try:
             pred = scaling_law_func(X, params)
+            # Check for numerical issues
+            if np.any(np.isnan(pred)) or np.any(np.isinf(pred)):
+                return 1e10
             mse = np.mean((pred - y) ** 2)
             return mse if np.isfinite(mse) else 1e10
         except:
             return 1e10
     
-    # Data-informed bounds
+    # Bounds informed by data characteristics and physical constraints
     bounds = [
-        (1e-3, 10.0),       # a: coefficient (scaled to data range)
-        (-1.5, 0.3),        # b: expert exponent
-        (-0.6, 0.2),        # c: parameter exponent
-        (-5.0, 5.0),        # d: log regularization
-        (-15.0, 15.0),      # e: efficiency coefficient
-        (0.05, 1.5),        # f: efficiency exponent
+        (1.0, 4.0),      # a: baseline loss (loss range is 1.8-3.8)
+        (-3.0, 2.0),     # b: dense parameter coefficient (allows improvement)
+        (-1.0, 0.5),     # c: dense parameter exponent (typically negative for scaling)
+        (-2.0, 2.0),     # d: expert count log power coefficient
+        (-1.0, 2.0),     # e: expert count exponent (power of log)
+        (-2.0, 2.0)      # f: interaction coefficient
     ]
     
-    # Smart initialization based on data characteristics
-    init_guess = np.array([
-        y_std / (E_mean ** 0.1),  # a
-        -0.3,                      # b
-        -0.2,                      # c
-        (y_mean - y_std) / np.log(E_mean + 1),  # d
-        0.5,                       # e
-        0.4                        # f
-    ])
-    init_guess = np.clip(init_guess, 
-                         [b[0] for b in bounds], 
-                         [b[1] for b in bounds])
+    # Stage 1: Global optimization with differential evolution
+    # Reduced maxiter for efficiency, sufficient for convergence on this problem
+    result_de = differential_evolution(
+        objective,
+        bounds,
+        seed=42,
+        maxiter=600,
+        popsize=18,
+        atol=1e-8,
+        tol=1e-8,
+        workers=1,
+        updating=&#x27;immediate&#x27;,
+        polish=True
+    )
     
-    # Global search with differential evolution
-    try:
-        result_de = differential_evolution(
-            objective,
-            bounds,
-            seed=42,
-            maxiter=300,
-            popsize=30,
-            atol=1e-10,
-            tol=1e-10,
-            workers=1,
-            updating=&#x27;deferred&#x27;,
-            polish=True,
-            init=&#x27;latinhypercube&#x27;
-        )
-        x_best = result_de.x
-        f_best = result_de.fun
-    except Exception:
-        x_best = init_guess
-        f_best = 1e10
+    # Stage 2: Local refinement with L-BFGS-B from best global solution
+    result_local = minimize(
+        objective,
+        result_de.x,
+        method=&#x27;L-BFGS-B&#x27;,
+        bounds=bounds,
+        options={&#x27;maxiter&#x27;: 1500, &#x27;ftol&#x27;: 1e-9, &#x27;gtol&#x27;: 1e-9}
+    )
     
-    # Adaptive local refinement
-    try:
-        # Determine tolerance based on convergence quality
-        adaptive_ftol = 1e-11 if f_best &lt; np.mean(y) ** 2 else 1e-9
-        
-        result_lbfgs = minimize(
-            objective,
-            x_best,
-            method=&#x27;L-BFGS-B&#x27;,
-            bounds=bounds,
-            options={
-                &#x27;maxiter&#x27;: 2000,
-                &#x27;ftol&#x27;: adaptive_ftol,
-                &#x27;gtol&#x27;: 1e-9,
-                &#x27;maxcor&#x27;: 15
-            }
-        )
-        
-        if result_lbfgs.fun &lt; f_best:
-            x_best = result_lbfgs.x
-            f_best = result_lbfgs.fun
-    except Exception:
-        pass
-    
-    return x_best
-
+    # Return best result from both stages
+    return result_local.x if result_local.fun &lt; result_de.fun else result_de.x
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#3</span>
-              <span class="run-label">Run 4</span>
-              <span class="r2-badge" style="background-color: #228b22; color: white"> R² = 0.834330 </span>
+              <span class="run-label">Run 3</span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.958840 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -660,122 +617,162 @@ def fit_scaling_law(data_points, loss_values):
               </div>
               <pre><code class="language-python" id="code-2"># EVOLVE-BLOCK-START
 &quot;&quot;&quot;
-Scaling law for MoE architectures using proven inverse scaling form
-loss = a + b/(num_experts^c * dense_params^d) + e*log(num_experts+1) + f*log(dense_params+1)
-
-Simplified approach using compute-optimal principles with robust global optimization.
+Simplified MoE scaling law with data-driven normalization and focused optimization
+Hybrid power-law model: L = a * (E/E_ref)^b * (P/P_ref)^c + d * (E*P)^e + f
+Uses 6 parameters with improved numerical stability and faster convergence
 &quot;&quot;&quot;
 import numpy as np
-from scipy.optimize import differential_evolution
+from scipy.optimize import minimize, differential_evolution
 
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    Inverse scaling law for MoE architectures:
-    loss = a + b/(E^c * P^d) + e*log(E+1) + f*log(P+1)
-    
-    Physical interpretation:
-    - a: baseline/irreducible loss
-    - b/(E^c * P^d): inverse scaling with experts and parameters (synergistic effect)
-    - e*log(E+1): log-scale expert overhead (diminishing returns)
-    - f*log(P+1): log-scale parameter overhead (diminishing returns)
-    
-    params: [a, b, c, d, e, f] (6 parameters)
+    Simplified hybrid scaling law with interaction term
+    L = a * (E/E_ref)^b * (P/P_ref)^c + d * (E*P)^e + f
+    6 parameters: [a, b, c, d, e, f]
     &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
-    params = np.asarray(params, dtype=np.float64).ravel()
+    
+    if X.shape[0] == 0:
+        return np.array([])
+    
+    params = np.asarray(params, dtype=np.float64)
     
     num_experts = X[:, 0]
     dense_params = X[:, 1]
     
+    # Data-driven normalization
+    E_norm = num_experts / 32.0
+    P_norm = dense_params / 4e8
+    
+    # Safety clipping
+    E_norm = np.clip(E_norm, 0.01, 100.0)
+    P_norm = np.clip(P_norm, 0.01, 100.0)
+    
     a, b, c, d, e, f = params[0], params[1], params[2], params[3], params[4], params[5]
     
-    # Ensure numerical stability
-    safe_experts = np.maximum(num_experts, 1.0)
-    safe_params = np.maximum(dense_params, 1.0)
+    # Clip exponents
+    b = np.clip(b, -1.5, 1.5)
+    c = np.clip(c, -1.5, 1.5)
+    e = np.clip(e, -1.5, 1.5)
     
-    # Inverse scaling: both experts and parameters in denominator
-    # Exponents capture different scaling rates
-    inverse_term = b / (np.power(safe_experts, c) * np.power(safe_params, d))
+    # Main power law term
+    term1 = a * np.power(E_norm, b) * np.power(P_norm, c)
     
-    # Log penalty terms: capture overhead that grows logarithmically
-    # Negative coefficients represent efficiency gains with increased scale
-    expert_log_term = e * np.log(safe_experts + 1.0)
-    param_log_term = f * np.log(safe_params + 1.0)
+    # Interaction term (replaces logarithmic)
+    interaction = E_norm * P_norm
+    term2 = d * np.power(interaction, e)
     
-    loss = a + inverse_term + expert_log_term + param_log_term
+    loss = term1 + term2 + f
     
-    return loss
+    return np.clip(loss, 0.5, 5.5)
 
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Single-stage global optimization using differential evolution.
-    
-    Avoids over-optimization and local refinement that can hurt generalization.
-    Focuses on finding good parameter region efficiently.
+    Focused multi-stage optimization with data-driven initialization
     &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
-    y = np.asarray(loss_values, dtype=np.float64).ravel()
+    y = np.asarray(loss_values, dtype=np.float64)
+    
+    if len(y) &lt; 3:
+        return np.array([1.0, -0.5, -0.5, 0.1, -0.5, 2.5])
+    
+    y_mean = np.mean(y)
+    y_std = np.std(y)
+    y_min = np.min(y)
+    y_max = np.max(y)
+    
+    # Extract features
+    E = X[:, 0]
+    P = X[:, 1]
+    
+    # Compute relationships for initialization
+    E_norm = E / 32.0
+    P_norm = P / 4e8
     
     def objective(params):
-        &quot;&quot;&quot;Objective function with robustness checks&quot;&quot;&quot;
         try:
             pred = scaling_law_func(X, params)
-            
-            # Check for numerical issues
-            if np.any(np.isnan(pred)) or np.any(np.isinf(pred)):
-                return 1e10
-            
-            # MSE as primary loss
             mse = np.mean((pred - y) ** 2)
-            return mse
+            return mse if np.isfinite(mse) else 1e10
         except:
             return 1e10
     
-    # Carefully calibrated bounds based on proven approach
-    # a: baseline loss [0.5, 5.0]
-    # b: inverse scaling coefficient [0.01, 100.0]
-    # c: expert exponent [0.1, 2.0]
-    # d: parameter exponent [0.1, 2.0]
-    # e: expert log penalty [-1.0, 0.1]
-    # f: parameter log penalty [-1.0, 0.1]
+    # Tighter, data-driven bounds
     bounds = [
-        (0.5, 5.0),
-        (0.01, 100.0),
-        (0.1, 2.0),
-        (0.1, 2.0),
-        (-1.0, 0.1),
-        (-1.0, 0.1)
+        (0.5, 3.0),                           # a: amplitude
+        (-1.5, 1.0),                          # b: expert exponent
+        (-1.5, 1.0),                          # c: parameter exponent
+        (-0.5, 1.0),                          # d: interaction amplitude
+        (-1.5, 0.5),                          # e: interaction exponent
+        (y_min - y_std, y_max + y_std)        # f: bias
     ]
     
-    # Global optimization with differential evolution
-    # Balanced settings: good quality without excessive computation
-    result = differential_evolution(
-        objective,
-        bounds,
-        seed=42,
-        maxiter=300,
-        popsize=15,
-        atol=1e-6,
-        tol=1e-6,
-        workers=1,
-        updating=&#x27;deferred&#x27;,
-        polish=False
-    )
+    # Focused initialization: 4 diverse candidates
+    inits = [
+        np.array([1.5, -0.2, -0.3, 0.1, -0.3, y_mean]),     # Conservative
+        np.array([1.0, -0.3, -0.5, 0.05, -0.2, y_mean]),    # Param-heavy
+        np.array([2.0, -0.1, -0.2, 0.2, -0.4, y_mean]),     # Expert-heavy
+        np.array([1.3, -0.25, -0.35, 0.08, -0.25, y_mean]), # Balanced
+    ]
     
-    return result.x
-
+    best_params = None
+    best_loss = float(&#x27;inf&#x27;)
+    
+    # Stage 1: Multi-start local optimization with aggressive tolerance
+    for init in inits:
+        try:
+            result = minimize(
+                objective,
+                init,
+                method=&#x27;L-BFGS-B&#x27;,
+                bounds=bounds,
+                options={&#x27;maxiter&#x27;: 1500, &#x27;ftol&#x27;: 1e-12, &#x27;gtol&#x27;: 1e-11}
+            )
+            
+            if result.fun &lt; best_loss:
+                best_loss = result.fun
+                best_params = result.x
+        except:
+            pass
+    
+    # Stage 2: Global optimization only if needed
+    if best_loss &gt; 0.3:
+        try:
+            result = differential_evolution(
+                objective,
+                bounds,
+                maxiter=800,
+                popsize=30,
+                seed=42,
+                atol=1e-9,
+                tol=1e-9,
+                workers=1,
+                updating=&#x27;deferred&#x27;,
+                polish=True
+            )
+            
+            if result.fun &lt; best_loss:
+                best_loss = result.fun
+                best_params = result.x
+        except:
+            pass
+    
+    # Fallback
+    if best_params is None:
+        best_params = np.array([1.3, -0.25, -0.35, 0.1, -0.3, y_mean])
+    
+    return best_params
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#4</span>
-              <span class="run-label">Run 3</span>
-              <span class="r2-badge" style="background-color: #228b22; color: white"> R² = 0.830604 </span>
+              <span class="run-label">Run 4</span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.958269 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -787,149 +784,118 @@ def fit_scaling_law(data_points, loss_values):
               </div>
               <pre><code class="language-python" id="code-3"># EVOLVE-BLOCK-START
 &quot;&quot;&quot;
-Scaling law discovery for MoE architectures
-Streamlined and improved with independent interaction exponents
+Scaling law for MoE LLM training with expert and parameter efficiency
+Captures scaling relationships through power law with interaction effects
+Optimized for accuracy and robustness across diverse MoE configurations
 &quot;&quot;&quot;
 import numpy as np
 from scipy.optimize import minimize, differential_evolution
 
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    Improved scaling law: L = a + b*E^-α + c*P^-β + d*E^-γ*P^-β
-    where E = num_experts, P = dense_parameter_count (in units of 1e8)
-    Independent γ exponent captures asymmetric interaction dynamics
-    params: [a, b, c, d, alpha, beta] (6 parameters, γ derived)
-    Note: γ is constrained to reduce to simpler forms when optimal
+    Scaling law: loss = a + b*E^c + d*P^e + f*E^c*P^e
+    where E = num_experts, P = dense_parameter_count (normalized to 1e8)
+    params: [a, b, c, d, e, f] - 6 parameters
     &quot;&quot;&quot;
-    X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
-    params = np.asarray(params, dtype=np.float64)
+    X = np.atleast_2d(np.asarray(data_points))
     
-    if params.ndim == 1:
-        params = params[None, :]
+    num_experts = X[:, 0]
+    dense_params = X[:, 1]
     
-    a = params[:, 0]
-    b = params[:, 1]
-    c = params[:, 2]
-    d = params[:, 3]
-    alpha = np.clip(params[:, 4], 0.001, 1.8)
-    beta = np.clip(params[:, 5], 0.001, 1.8)
+    # Normalize dense_params to scale 1-8
+    dense_params_norm = dense_params / 1e8
     
-    num_experts = np.maximum(X[:, 0], 1.0)
-    dense_params = np.maximum(X[:, 1] / 1e8, 0.1)
+    a, b, c, d, e, f = params[:6]
     
-    # Compute terms: L = a + b/E^α + c/P^β + d/E^(α/2)/P^β
-    # The γ = α/2 provides asymmetry while maintaining stability
-    expert_term = b[:, None] / (num_experts[None, :] ** alpha[:, None])
-    param_term = c[:, None] / (dense_params[None, :] ** beta[:, None])
-    interact_term = d[:, None] / ((num_experts[None, :] ** (alpha[:, None] * 0.5)) * (dense_params[None, :] ** beta[:, None]))
+    # Compute scaling law with interaction term
+    expert_term = b * np.power(num_experts, c)
+    param_term = d * np.power(dense_params_norm, e)
+    interaction_term = f * np.power(num_experts, c) * np.power(dense_params_norm, e)
     
-    pred = a[:, None] + expert_term + param_term + interact_term
+    loss = a + expert_term + param_term + interaction_term
     
-    return pred[0, :] if pred.shape[0] == 1 else pred[:, 0]
+    return loss
 
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Two-stage optimized fitting: efficient global search + local refinement
-    Simplified pipeline without trust-constr overhead
+    Fit scaling law using differential evolution followed by local optimization
+    Two-stage refinement for robust convergence
     &quot;&quot;&quot;
-    X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
-    y = np.asarray(loss_values, dtype=np.float64).flatten()
+    X = np.atleast_2d(np.asarray(data_points))
+    y = np.asarray(loss_values)
     
-    y_min, y_max, y_mean = y.min(), y.max(), y.mean()
-    y_range = y_max - y_min
-    
-    num_experts = X[:, 0]
-    dense_params = X[:, 1] / 1e8
-    
-    log_E_range = np.log(np.maximum(num_experts.max() / num_experts.min(), 1.01))
-    log_P_range = np.log(np.maximum(dense_params.max() / dense_params.min(), 1.01))
-    total_range = log_E_range + log_P_range
-    
-    def objective(params_flat):
-        &quot;&quot;&quot;MSE with numerical safety&quot;&quot;&quot;
+    def objective(params):
         try:
-            pred = scaling_law_func(X, params_flat.reshape(1, 6))
-            if np.any(np.isnan(pred)) or np.any(np.isinf(pred)):
-                return 1e12
+            pred = scaling_law_func(X, params)
             mse = np.mean((pred - y) ** 2)
-            return min(mse, 1e12)
+            # Regularization to prevent extreme parameter values
+            penalty = 0.001 * np.sum(np.abs(params))
+            return mse + penalty
         except:
-            return 1e12
+            return 1e10
     
-    # Smart initialization: allocate budget proportional to feature ranges
-    expert_weight = log_E_range / total_range if total_range &gt; 0 else 0.5
-    param_weight = log_P_range / total_range if total_range &gt; 0 else 0.5
-    
-    a_init = y_max + 0.05 * y_range
-    b_init = y_range * 0.38 * expert_weight
-    c_init = y_range * 0.38 * param_weight
-    d_init = y_range * 0.12
-    alpha_init = 0.2 + 0.35 * expert_weight
-    beta_init = 0.2 + 0.35 * param_weight
-    
-    init_params = np.array([a_init, b_init, c_init, d_init, alpha_init, beta_init])
-    
-    # Tighter, more physically motivated bounds
+    # Bounds for parameters: [a, b, c, d, e, f]
+    # a: baseline loss around 2-4
+    # b: expert coefficient
+    # c: expert exponent
+    # d: parameter coefficient
+    # e: parameter exponent (typically negative)
+    # f: interaction coefficient
     bounds = [
-        (y_min - 0.5*y_range, y_max + 0.8*y_range),
-        (y_range * 0.005, y_range * 2.5),
-        (y_range * 0.005, y_range * 2.5),
-        (y_range * 0.0001, y_range * 1.2),
-        (0.001, 1.8),
-        (0.001, 1.8),
+        (1.0, 4.0),      # a: baseline loss
+        (-2.0, 2.0),     # b: expert coefficient
+        (-1.0, 1.0),     # c: expert exponent
+        (-2.0, 2.0),     # d: parameter coefficient
+        (-1.0, 0.5),     # e: parameter exponent
+        (-2.0, 2.0),     # f: interaction coefficient
     ]
     
-    best_params = init_params
-    best_loss = objective(init_params)
+    # Stage 1: Global search with differential evolution
+    result_de = differential_evolution(
+        objective, 
+        bounds, 
+        seed=42, 
+        maxiter=300, 
+        popsize=15,
+        atol=1e-6,
+        tol=1e-6,
+        workers=1,
+        updating=&#x27;immediate&#x27;
+    )
     
-    # Stage 1: Global search with optimized DE parameters
-    try:
-        result_de = differential_evolution(
-            objective,
-            bounds,
-            seed=42,
-            maxiter=600,
-            popsize=24,
-            atol=1e-8,
-            tol=1e-8,
-            mutation=(0.4, 1.6),
-            recombination=0.8,
-            workers=1,
-            updating=&#x27;deferred&#x27;
-        )
-        if result_de.fun &lt; best_loss:
-            best_params = result_de.x
-            best_loss = result_de.fun
-    except:
-        pass
+    # Stage 2: First local refinement with L-BFGS-B
+    result_local_1 = minimize(
+        objective,
+        result_de.x,
+        method=&#x27;L-BFGS-B&#x27;,
+        bounds=bounds,
+        options={&#x27;maxiter&#x27;: 500, &#x27;ftol&#x27;: 1e-8}
+    )
     
-    # Stage 2: Local refinement - enhanced L-BFGS-B for precision
-    try:
-        result_lbfgs = minimize(
-            objective,
-            best_params,
-            method=&#x27;L-BFGS-B&#x27;,
-            bounds=bounds,
-            options={&#x27;maxiter&#x27;: 2000, &#x27;ftol&#x27;: 1e-11, &#x27;gtol&#x27;: 1e-10}
-        )
-        if result_lbfgs.fun &lt; best_loss:
-            best_params = result_lbfgs.x
-    except:
-        pass
+    # Stage 3: Second refinement pass for final convergence
+    result_local_2 = minimize(
+        objective,
+        result_local_1.x,
+        method=&#x27;L-BFGS-B&#x27;,
+        bounds=bounds,
+        options={&#x27;maxiter&#x27;: 300, &#x27;ftol&#x27;: 1e-9, &#x27;gtol&#x27;: 1e-8}
+    )
     
-    return best_params
+    # Return best result
+    params_opt = result_local_2.x if result_local_2.fun &lt; result_local_1.fun else result_local_1.x
+    
+    return params_opt
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#5</span>
               <span class="run-label">Run 1</span>
-              <span class="r2-badge" style="background-color: #daa520; color: white"> R² = 0.763915 </span>
+              <span class="r2-badge" style="background-color: #228B22; color: white"> R² = 0.949784 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -941,158 +907,103 @@ def fit_scaling_law(data_points, loss_values):
               </div>
               <pre><code class="language-python" id="code-4"># EVOLVE-BLOCK-START
 &quot;&quot;&quot;
-Scaling law discovery for MoE architectures
-Physics-informed model combining dense scaling and expert efficiency
+Improved MoE scaling law with enhanced numerical stability
+Simplified form: loss = a + b*experts^(-c) + d*log(params) + e*log(experts)*log(params) + f*log(params)^2
+Physical interpretation: baseline + expert benefit + parameter benefit + interaction + parameter curvature
 &quot;&quot;&quot;
 import numpy as np
-from scipy.optimize import minimize, differential_evolution
+from scipy.optimize import least_squares
 
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    MoE scaling law with 6 parameters:
+    Scaling law with 6 parameters:
+    loss = a + b*experts^(-c) + d*log(dense_params) + e*log(experts)*log(dense_params) + f*log(dense_params)^2
     
-    Model: Loss = c * P^a * (1 - alpha * log(1 + E)^gamma) + delta
-    
-    Where:
-    - Dense scaling: c * P^a (primary loss component)
-    - Expert efficiency: multiplicative factor reducing loss
-    - Saturation: log-based with power exponent for flexible saturation
-    - Bias: offset for minimum achievable loss
-    
-    params[0]: c - dense coefficient
-    params[1]: a - dense exponent (negative)
-    params[2]: alpha - expert efficiency strength
-    params[3]: gamma - expert saturation exponent
-    params[4]: delta - bias/offset term
-    params[5]: beta - expert-parameter coupling strength
+    params: [a, b, c, d, e, f]
+    - a: baseline loss
+    - b: expert coefficient
+    - c: expert decay exponent
+    - d: linear log-parameter term
+    - e: interaction coefficient
+    - f: quadratic log-parameter term
     &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
-    
-    E = X[:, 0]  # num_experts
-    P = X[:, 1]  # dense_params
+    num_experts = np.maximum(X[:, 0], 1.0)
+    dense_params = np.maximum(X[:, 1], 1.0)
     
     params = np.asarray(params, dtype=np.float64)
+    if params.size &lt; 6:
+        params = np.pad(params, (0, 6 - params.size), mode=&#x27;constant&#x27;, constant_values=0)
     
-    # Extract and clip for numerical stability
-    c = np.clip(params[0], 0.5, 100.0)
-    a = np.clip(params[1], -1.5, -0.05)
-    alpha = np.clip(params[2], 0.0, 2.0)
-    gamma = np.clip(params[3], 0.3, 1.5)
-    delta = np.clip(params[4], 1.2, 3.5)
-    beta = np.clip(params[5], 0.0, 1.0)
+    a, b, c, d, e, f = params[:6]
+    c = np.maximum(c, 0.01)
     
-    # Normalize inputs
-    P_norm = P / 1e8
-    E_norm = np.log(1.0 + E)
+    log_experts = np.log(num_experts)
+    log_params = np.log(dense_params)
     
-    # Dense model baseline loss: c * P^a
-    dense_loss = c * np.power(P_norm, a)
+    expert_term = b * np.power(num_experts, -c)
+    log_param_term = d * log_params
+    interaction_term = e * log_experts * log_params
+    quad_param_term = f * log_params * log_params
     
-    # Expert benefit with saturation and parameter coupling
-    # Experts help more in smaller models (multiplicative reduction)
-    expert_factor = np.power(E_norm, gamma)
-    
-    # Coupling: expert benefit scales with model size
-    # Larger models have more capacity to benefit from specialized experts
-    coupling_factor = 1.0 + beta * P_norm
-    
-    # Combined expert benefit
-    expert_reduction = alpha * expert_factor * coupling_factor / (1.0 + coupling_factor)
-    
-    # Final prediction: dense loss reduced by expert efficiency
-    pred = dense_loss * (1.0 - expert_reduction) + delta
-    
-    # Ensure valid predictions
-    pred = np.clip(pred, 1.5, 4.5)
-    
-    return pred
+    return a + expert_term + log_param_term + interaction_term + quad_param_term
+
 
 def fit_scaling_law(data_points, loss_values):
-    &quot;&quot;&quot;
-    Two-stage robust optimization with adaptive scaling
-    &quot;&quot;&quot;
+    &quot;&quot;&quot;Fit with smart initialization and robust optimization&quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
-    y = np.asarray(loss_values, dtype=np.float64)
+    y = np.asarray(loss_values, dtype=np.float64).flatten()
     
-    # Robust normalization
+    best_params = None
+    best_error = np.inf
+    
+    # Compute data statistics for smart initialization
+    num_experts = np.maximum(X[:, 0], 1.0)
+    dense_params = np.maximum(X[:, 1], 1.0)
+    log_experts = np.log(num_experts)
+    log_params = np.log(dense_params)
+    
     y_mean = np.mean(y)
     y_std = np.std(y)
-    y_norm = (y - y_mean) / (y_std + 1e-8)
     
-    def objective(params):
-        try:
-            pred = scaling_law_func(X, params)
-            
-            # Check for invalid predictions
-            if np.any(~np.isfinite(pred)):
-                return 1e10
-            
-            pred_norm = (pred - y_mean) / (y_std + 1e-8)
-            residuals = pred_norm - y_norm
-            
-            # Smooth robust loss: combination of L2 and L1
-            # Reduces outlier influence while maintaining convexity near optimum
-            abs_res = np.abs(residuals)
-            robust_loss = np.where(
-                abs_res &lt;= 1.5,
-                residuals ** 2,
-                3.0 * abs_res - 2.25
-            )
-            
-            return np.mean(robust_loss)
-        except:
-            return 1e10
-    
-    # Parameter bounds based on data characteristics
-    bounds = [
-        (0.5, 100.0),     # c: dense coefficient
-        (-1.5, -0.05),    # a: dense exponent (negative)
-        (0.0, 2.0),       # alpha: expert efficiency strength
-        (0.3, 1.5),       # gamma: expert saturation exponent
-        (1.2, 3.5),       # delta: bias term
-        (0.0, 1.0)        # beta: expert-parameter coupling
+    initializations = [
+        # Physics-informed: experts help, params help, interaction small
+        np.array([y_mean, 0.8, 1.0, -0.2, -0.05, 0.02]),
+        # Strong expert effect
+        np.array([y_mean, 1.2, 1.2, -0.15, -0.08, 0.01]),
+        # Strong parameter effect with curvature
+        np.array([y_mean + 0.2, 0.5, 0.8, -0.3, -0.02, 0.03]),
+        # Balanced with quadratic
+        np.array([y_mean, 0.7, 0.9, -0.25, -0.06, 0.025]),
+        # Interaction-dominant
+        np.array([y_mean + 0.1, 0.6, 1.1, -0.1, -0.1, 0.015]),
     ]
     
-    # Stage 1: Global search with differential evolution
-    result_de = differential_evolution(
-        objective,
-        bounds,
-        seed=42,
-        maxiter=400,
-        popsize=25,
-        atol=1e-11,
-        tol=1e-11,
-        workers=1,
-        updating=&#x27;deferred&#x27;,
-        polish=True,
-        init=&#x27;sobol&#x27;,
-        mutation=(0.5, 1.5),
-        recombination=0.8
-    )
+    def residuals(params):
+        return scaling_law_func(X, params) - y
     
-    x0 = result_de.x
+    for init in initializations:
+        try:
+            result = least_squares(
+                residuals,
+                init,
+                bounds=(
+                    [1.0, -5.0, 0.01, -2.0, -2.0, -0.5],
+                    [4.5, 5.0, 3.0, 1.0, 1.0, 0.5]
+                ),
+                ftol=1e-9,
+                xtol=1e-9,
+                gtol=1e-9,
+                max_nfev=12000
+            )
+            error = np.sum(result.fun ** 2)
+            if error &lt; best_error:
+                best_error = error
+                best_params = result.x
+        except:
+            pass
     
-    # Stage 2: Local refinement with L-BFGS-B
-    result_local = minimize(
-        objective,
-        x0,
-        method=&#x27;L-BFGS-B&#x27;,
-        bounds=bounds,
-        options={
-            &#x27;maxiter&#x27;: 1000,
-            &#x27;ftol&#x27;: 1e-13,
-            &#x27;gtol&#x27;: 1e-12,
-            &#x27;eps&#x27;: 1e-8
-        }
-    )
-    
-    # Return best result
-    if result_local.success and result_local.fun &lt; result_de.fun:
-        return result_local.x
-    elif result_de.success:
-        return result_de.x
-    else:
-        return x0
+    return best_params if best_params is not None else np.array([2.5, 0.8, 1.0, -0.2, -0.05, 0.02])
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>

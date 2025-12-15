@@ -285,7 +285,7 @@
     <div class="bg-pattern"></div>
 
     <div class="container">
-      <a href="sld_index.html" class="back-link"> ← Back to Leaderboard </a>
+      <a href="index.html" class="back-link"> ← Back to Leaderboard </a>
 
       <div class="header">
         <h1>Vocabulary Scaling Law</h1>
@@ -300,15 +300,15 @@
           </div>
           <div class="meta-item">
             <span class="meta-label">Best R²:</span>
-            <span class="r2-badge" style="background-color: #006400; color: white"> 0.987151 </span>
+            <span class="r2-badge" style="background-color: #006400; color: white"> 0.975124 </span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Mean R²:</span>
-            <span class="meta-value">0.767992</span>
+            <span class="meta-value">0.770807</span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Min R²:</span>
-            <span class="meta-value">0.016960</span>
+            <span class="meta-value">0.000007</span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Runs:</span>
@@ -320,12 +320,13 @@
       <h2 class="section-title">All Runs (sorted by R²)</h2>
 
       <div class="runs-container">
+
         <div class="run-card best-run">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge best-badge">Best</span>
-              <span class="run-label">Run 3</span>
-              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.987151 </span>
+              <span class="run-label">Run 1</span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.975124 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -336,167 +337,136 @@
                 <button class="copy-btn" onclick="copyCode(event, 'code-0')">Copy</button>
               </div>
               <pre><code class="language-python" id="code-0"># EVOLVE-BLOCK-START
+&quot;&quot;&quot;
+Scaling law discovery for LLM finetuning scenarios
+Evolved program with a more theoretically grounded scaling law form,
+improved numerical stability through log-transformation of base features,
+and more informed initial guesses and bounds for the optimization.
+&quot;&quot;&quot;
 import numpy as np
 from scipy.optimize import minimize
 
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    Calculates predicted Lossu values based on input features and parameters.
-    The functional form is an additive bias plus a multiplicative power law,
-    with an additional quadratic term for log(vocab_size) to model more complex scaling behaviors:
+    Predicts Lossu values based on a revised scaling law model.
+    The model form is:
+    Lossu = L_min + A * P_non_vocab^(-alpha_P) + B * vocab_size^(-alpha_V) + C * num_characters^(-alpha_C)
 
-    Lossu = bias_K + exp(log_c0 + e_P * log(P_non_vocab) + e_V1 * log(vocab_size) + e_V2 * (log(vocab_size))^2 + e_C * log(num_characters))
+    This form correctly models Lossu decreasing (becoming more negative) as resources increase.
+    To improve numerical stability, X^(-alpha) is computed as exp(-alpha * log(X)).
 
     Parameters:
-    - data_points: (N,3) array with columns [P_non_vocab, vocab_size, num_characters]
-    - params: Array of 6 parameters [log_c0, e_P, e_V1, e_V2, e_C, bias_K]
+    data_points (np.ndarray): (N,3) array with columns [P_non_vocab, vocab_size, num_characters].
+                              Assumed to be positive.
+    params (np.ndarray): 1D array of 7 parameters:
+                         [L_min, A, alpha_P, B, alpha_V, C, alpha_C]
+                         L_min: irreducible loss (most negative Lossu possible).
+                         A, B, C: positive coefficients for each term.
+                         alpha_P, alpha_V, alpha_C: positive exponents for each term.
 
     Returns:
-    - Predicted Lossu values (N,)
+    np.ndarray: Predicted Lossu values (negative, where more negative is better).
     &quot;&quot;&quot;
-    X_raw = np.atleast_2d(np.asarray(data_points))
+    X = np.asarray(data_points)
+    
+    # Ensure all inputs are strictly positive for log transformation.
+    X = np.maximum(X, 1e-12) # Small positive epsilon to prevent log(0)
 
-    # Add a small epsilon to inputs to prevent log(0) and for numerical stability.
-    # Data characteristics suggest inputs are always positive and large, but this is good practice.
-    P_non_vocab_log = np.log(X_raw[:, 0] + 1e-10)
-    vocab_size_log = np.log(X_raw[:, 1] + 1e-10)
-    num_characters_log = np.log(X_raw[:, 2] + 1e-10)
+    # Unpack parameters for clarity
+    L_min, A, alpha_P, B, alpha_V, C, alpha_C = params
 
-    # Unpack parameters for the 6-parameter model:
-    # [log_c0, e_P, e_V1, e_V2, e_C, bias_K]
-    log_c0, e_P, e_V1, e_V2, e_C, bias_K = params
+    # Calculate log of input features for numerical stability in power law.
+    # X_i^(-alpha_i) is equivalent to exp(-alpha_i * log(X_i))
+    log_P = np.log(X[:, 0])
+    log_V = np.log(X[:, 1])
+    log_C = np.log(X[:, 2])
 
-    # Calculate the combined exponent for the exponential term.
-    # The (log(vocab_size))^2 term allows for non-monotonic effects or saturation
-    # with respect to vocabulary size, capturing potential &quot;trade-offs&quot;.
-    log_term_exponent = log_c0 + \
-                        e_P * P_non_vocab_log + \
-                        e_V1 * vocab_size_log + \
-                        e_V2 * (vocab_size_log**2) + \
-                        e_C * num_characters_log
-
-    # Compute the multiplicative term and add the bias.
-    # np.exp is used to reverse the log-transform, ensuring the base scaling term is positive.
-    pred = bias_K + np.exp(log_term_exponent)
-
-    return pred
+    # Calculate the predicted Lossu
+    # Lossu = L_min + A * P^(-alpha_P) + B * V^(-alpha_V) + C * C_chars^(-alpha_C)
+    predicted_lossu = (L_min +
+                       A * np.exp(-alpha_P * log_P) +
+                       B * np.exp(-alpha_V * log_V) +
+                       C * np.exp(-alpha_C * log_C))
+    
+    return predicted_lossu
 
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Fits the generalized scaling law function to the given data using bounded optimization.
-
-    The model now includes a quadratic term for log(vocab_size) to better capture
-    &quot;vocabulary scaling trade-offs&quot; as suggested by the problem description.
+    Fits the revised scaling law function to the provided data using L-BFGS-B optimization.
+    Uses more informed initial guesses and tighter bounds based on typical scaling law parameters
+    and the observed range of Lossu values.
 
     Parameters:
-    - data_points: (N,3) array with columns [P_non_vocab, vocab_size, num_characters]
-    - loss_values: Array of corresponding Lossu values
+    data_points (np.ndarray): (N,3) array with columns [P_non_vocab, vocab_size, num_characters].
+    loss_values (np.ndarray): (N,) array of corresponding Lossu values.
 
     Returns:
-    - Optimized parameters (6 parameters)
+    np.ndarray: Optimized parameters [L_min, A, alpha_P, B, alpha_V, C, alpha_C].
     &quot;&quot;&quot;
-    X = np.atleast_2d(np.asarray(data_points))
-    y = np.asarray(loss_values)
+    X = np.asarray(data_points)
+    y_lossu = np.asarray(loss_values)
+
+    min_observed_lossu = np.min(y_lossu)
+    max_observed_lossu = np.max(y_lossu)
+
+    # Informed initial guesses for parameters [L_min, A, alpha_P, B, alpha_V, C, alpha_C]
+    # L_min: Should be slightly more negative than the best observed Lossu.
+    # A, B, C: Coefficients to scale the power-law terms to fit the Lossu range.
+    # Exponents (alpha_P, alpha_V, alpha_C): typically positive (0.1 to 0.7 for diminishing returns).
+    initial_params = np.array([
+        min_observed_lossu * 1.05, # L_min: e.g., -5.34 * 1.05 = -5.607 (more negative than min_observed_lossu)
+        50.0,   # A: Coefficient for P_non_vocab
+        0.3,    # alpha_P: Exponent for P_non_vocab
+        20.0,   # B: Coefficient for vocab_size
+        0.3,    # alpha_V: Exponent for vocab_size
+        30.0,   # C: Coefficient for num_characters
+        0.3     # alpha_C: Exponent for num_characters
+    ])
     
-    # This model uses 6 parameters: [log_c0, e_P, e_V1, e_V2, e_C, bias_K]
-    P_total = 6 
+    # Bounds for parameters to ensure physical meaningfulness and numerical stability.
+    bounds = [
+        (min_observed_lossu * 2, min_observed_lossu), # L_min: Must be &lt;= min_observed_lossu and negative.
+                                                      # Upper bound is min_observed_lossu itself.
+                                                      # Lower bound significantly more negative.
+        (1e-6, 1e4),    # A: Coefficient, positive, broad range
+        (1e-3, 1.0),    # alpha_P: Exponent, positive (e.g., 0.001 to 1.0)
+        (1e-6, 1e3),    # B: Coefficient, positive
+        (1e-3, 1.0),    # alpha_V: Exponent, positive
+        (1e-6, 1e5),    # C: Coefficient, positive
+        (1e-3, 1.0)     # alpha_C: Exponent, positive
+    ]
 
-    # --- Initial parameter guess ---
-    init_params = np.zeros(P_total)
-
-    min_y, max_y = np.min(y), np.max(y)
-    y_range = max_y - min_y
-
-    # Initial guess for bias_K (asymptotic minimum loss).
-    # It should be lower (more negative) than the minimum observed Lossu.
-    init_params[5] = min_y - 0.1 * y_range 
-    # Fallback for very small or zero y_range to ensure a meaningful bias.
-    if y_range &lt; 1e-6:
-        init_params[5] = min_y - 0.1 
-
-    # Initial exponents. Typical scaling law exponents are negative.
-    # e_V2 is initialized to 0, implying a starting point of no quadratic effect.
-    init_params[1] = -0.5 # e_P (non-vocab parameters exponent)
-    init_params[2] = -0.5 # e_V1 (vocab size linear log exponent)
-    init_params[3] = 0.0  # e_V2 (vocab size quadratic log exponent)
-    init_params[4] = -0.5 # e_C (num characters exponent)
-
-    # Initial log_c0.
-    # Estimate `c0` such that the multiplicative term at minimum resource levels
-    # (where loss is typically highest) accounts for `max_y - bias_K`.
-    target_multiplicative_term_at_min_resources = max_y - init_params[5]
-    # Ensure this target is positive before attempting to derive `c0`.
-    if target_multiplicative_term_at_min_resources &lt;= 0:
-        target_multiplicative_term_at_min_resources = 0.1 
-
-    # Calculate log of minimum input values for initial c0 estimation
-    min_P_val = np.min(X[:, 0]) + 1e-10
-    min_V_val = np.min(X[:, 1]) + 1e-10
-    min_C_val = np.min(X[:, 2]) + 1e-10
-
-    log_min_P_val = np.log(min_P_val)
-    log_min_V_val = np.log(min_V_val)
-    log_min_C_val = np.log(min_C_val)
-
-    # Reconstruct the log_term_exponent with initial exponent guesses
-    log_term_at_min_resources = init_params[1] * log_min_P_val + \
-                                init_params[2] * log_min_V_val + \
-                                init_params[3] * (log_min_V_val**2) + \
-                                init_params[4] * log_min_C_val
-
-    # Calculate `c0` based on the target multiplicative term and initial exponents.
-    exp_log_term = np.exp(log_term_at_min_resources)
-    # Avoid numerical issues if denominator is extremely small or zero
-    if exp_log_term &lt; 1e-100: 
-        init_c0_val = 1.0 # Default if problematic
-    else:
-        init_c0_val = target_multiplicative_term_at_min_resources / exp_log_term
-
-    # Ensure init_c0_val is positive and not extremely small before taking its logarithm.
-    init_c0_val = max(1e-8, init_c0_val) 
-    init_params[0] = np.log(init_c0_val)
-
-    # --- Bounds for parameters using L-BFGS-B ---
-    bounds = []
-    # Bounds for log_c0: A wide range to allow for varying base scales.
-    bounds.append((-20.0, 20.0)) 
-    # Bounds for e_P and e_C: Typically negative for loss reduction with increased resources.
-    bounds.append((-5.0, -1e-8)) # e_P
-    bounds.append((-2.0, 2.0))   # e_V1: Can be positive or negative to interact with e_V2 for U-shape.
-    bounds.append((-0.1, 0.1))   # e_V2: Small range for quadratic coefficient to avoid extreme behavior.
-    bounds.append((-5.0, -1e-8)) # e_C
-    # Bounds for bias_K: Must be negative and asymptotically below the minimum observed Lossu.
-    bounds.append((-10.0, np.min(y) - 1e-6)) 
-
-    def objective(flat_params):
-        &quot;&quot;&quot;Objective function for minimization (Mean Squared Error).&quot;&quot;&quot;
-        pred = scaling_law_func(X, flat_params)
-        mse = np.mean((pred - y) ** 2)
+    def objective(params):
+        &quot;&quot;&quot;Calculates the Mean Squared Error between predicted and actual Lossu.&quot;&quot;&quot;
+        predicted_lossu = scaling_law_func(X, params)
+        mse = np.mean((predicted_lossu - y_lossu) ** 2)
         return mse
 
-    # Perform the optimization using L-BFGS-B, which handles bounds effectively.
-    result = minimize(
-        objective,
-        init_params,  # Initial parameters (1D array)
-        method=&#x27;L-BFGS-B&#x27;,
-        bounds=bounds,
-        options={&#x27;maxiter&#x27;: 5000, &#x27;ftol&#x27;: 1e-9, &#x27;gtol&#x27;: 1e-7} # Tighter tolerances for precision
-    )
+    # Use L-BFGS-B, which is suitable for bounded optimization problems.
+    result = minimize(objective, initial_params, method=&#x27;L-BFGS-B&#x27;, bounds=bounds)
 
-    # Return optimized parameters if successful, otherwise return the initial parameters as a fallback.
-    return result.x if result.success else init_params
+    if result.success:
+        return result.x
+    else:
+        # If optimization fails to converge, L-BFGS-B still returns the best parameters found.
+        # It&#x27;s better to return these than the initial guess if some progress was made.
+        print(f&quot;Warning: Optimization failed: {result.message}. Returning best parameters found.&quot;)
+        if result.x is not None:
+            return result.x
+        else:
+            return initial_params # Fallback to initial guess if result.x is somehow None
+
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#2</span>
-              <span class="run-label">Run 1</span>
-              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.970944 </span>
+              <span class="run-label">Run 4</span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.974829 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -511,165 +481,111 @@ import numpy as np
 from scipy.optimize import minimize
 
 def scaling_law_func(data_points, params):
-    &quot;&quot;&quot;
-    Calculates predicted Lossu values based on input features and parameters.
-    The functional form models an interaction where vocab_size modulates the
-    exponent of non_vocab_parameters:
-    Lossu = bias + c_P * P_non_vocab^(e_P_base + e_PV * vocab_size^e_V_coeff) + c_C * num_characters^e_C
+    # data_points: (N,3) array with columns [P_non_vocab, vocab_size, num_characters]
+    # params: Array of up to 7 parameters
+    # Returns: Predicted Lossu values
 
-    Parameters:
-    - data_points: (N,3) array with columns [P_non_vocab, vocab_size, num_characters]
-    - params: Array of 7 parameters [c_P, e_P_base, e_PV, e_V_coeff, c_C, e_C, bias]
+    P_non_vocab = data_points[:, 0]
+    vocab_size = data_points[:, 1]
+    num_characters = data_points[:, 2]
 
-    Returns:
-    - Predicted Lossu values (N,)
-    &quot;&quot;&quot;
-    X_raw = np.atleast_2d(np.asarray(data_points))
-    P_non_vocab = X_raw[:, 0]
-    vocab_size = X_raw[:, 1]
-    num_characters = X_raw[:, 2]
+    # Ensure params is a 1D array of 7 elements.
+    if params.ndim &gt; 1:
+        params = params[0]
 
-    # Add a small epsilon for numerical stability before taking log or raising to negative powers.
-    # This prevents issues with zero or near-zero inputs.
-    epsilon = 1e-10
-    P_non_vocab_safe = P_non_vocab + epsilon
-    vocab_size_safe = vocab_size + epsilon
-    num_characters_safe = num_characters + epsilon
+    # Parameters structure: [C0, log_C1, log_C2, log_C3, E1, E2, E3]
+    # C0: Offset term (irreducible loss)
+    # log_C1, log_C2, log_C3: Logarithms of positive coefficients for the inverse power law terms
+    # E1, E2, E3: Positive exponents for the inverse power law terms
+    C0, log_C1, log_C2, log_C3, E1, E2, E3 = params
 
-    # Unpack the 7 parameters: [c_P, e_P_base, e_PV, e_V_coeff, c_C, e_C, bias]
-    c_P, e_P_base, e_PV, e_V_coeff, c_C, e_C, bias = params
+    # Exponentiate log_C_i to get actual coefficients. This implicitly ensures C_i are positive.
+    C1 = np.exp(log_C1)
+    C2 = np.exp(log_C2)
+    C3 = np.exp(log_C3)
 
-    # Calculate terms using log-exp for numerical stability: X^e = exp(e * log(X))
+    # The scaling law function: C0 + C1 * P_non_vocab^(-E1) + C2 * vocab_size^(-E2) + C3 * num_characters^(-E3)
+    # This form represents loss decreasing as an inverse power law of increasing resources,
+    # asymptotically approaching C0.
+    # Given data characteristics, P, V, C are always positive, so np.power is safe.
+    # Exponents E1, E2, E3 are positive, making the overall exponent negative.
+    term_P = C1 * np.power(P_non_vocab, -E1)
+    term_V = C2 * np.power(vocab_size, -E2)
+    term_C = C3 * np.power(num_characters, -E3)
 
-    # 1. Vocab modulation term for exponent: vocab_size^e_V_coeff
-    # This term quantifies how vocabulary size modulates the exponent of P_non_vocab.
-    # It must be non-negative.
-    vocab_exponent_modulation = np.exp(e_V_coeff * np.log(vocab_size_safe))
+    pred_Lossu = C0 + term_P + term_V + term_C
 
-    # 2. Combined exponent for P_non_vocab: (e_P_base + e_PV * vocab_exponent_modulation)
-    combined_e_P = e_P_base + e_PV * vocab_exponent_modulation
-
-    # 3. P_non_vocab term: c_P * P_non_vocab^combined_e_P
-    term_P_non_vocab = c_P * np.exp(combined_e_P * np.log(P_non_vocab_safe))
-
-    # 4. num_characters term: c_C * num_characters^e_C
-    term_num_characters = c_C * np.exp(e_C * np.log(num_characters_safe))
-
-    # 5. Total prediction = bias + P_non_vocab_term + num_characters_term
-    pred = bias + term_P_non_vocab + term_num_characters
-
-    return pred
+    return pred_Lossu
 
 
 def fit_scaling_law(data_points, loss_values):
-    &quot;&quot;&quot;
-    Fits the evolved scaling law function to the given data using bounded optimization.
-    The functional form is Lossu = bias + c_P * P_non_vocab^(e_P_base + e_PV * vocab_size^e_V_coeff) + c_C * num_characters^e_C.
+    # data_points: (N,3) array with columns [P_non_vocab, vocab_size, num_characters]
+    # lossu_values: Array of corresponding Lossu values
+    # Returns: Optimized parameters (up to 7 parameters)
 
-    Parameters:
-    - data_points: (N,3) array with columns [P_non_vocab, vocab_size, num_characters]
-    - loss_values: Array of corresponding Lossu values
-
-    Returns:
-    - Optimized parameters (7 parameters)
-    &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points))
     y = np.asarray(loss_values)
-    
-    P_total = 7 # Total number of parameters for the new functional form
 
-    min_y, max_y = np.min(y), np.max(y)
-    y_range = max_y - min_y
+    # Initial guess for parameters: [C0, log_C1, log_C2, log_C3, E1, E2, E3]
+    # C0 (asymptotic minimum loss) is initialized slightly below the minimum observed Lossu.
+    # log_C_i (log of coefficients) are initialized to 0.0, corresponding to C_i = 1.0.
+    # E_i (exponents) are initialized to small positive values.
+    initial_guess = np.array([
+        np.min(y) - 0.1, # C0: Asymptotic minimum Lossu
+        0.0,             # log_C1: log(1.0) for P_non_vocab term
+        0.0,             # log_C2: log(1.0) for vocab_size term
+        0.0,             # log_C3: log(1.0) for num_characters term
+        0.1,             # E1: Exponent for P_non_vocab term (positive, usually &lt;1)
+        0.1,             # E2: Exponent for vocab_size term (positive, usually &lt;1)
+        0.1              # E3: Exponent for num_characters term (positive, usually &lt;1)
+    ])
 
-    # Initial parameter guess for: [c_P, e_P_base, e_PV, e_V_coeff, c_C, e_C, bias]
-    init_params = np.zeros(P_total)
-
-    # --- Initial Guess for Bias (params[6]) ---
-    # The bias term represents the asymptotic minimum Lossu, so it should be
-    # slightly lower (more negative) than the minimum observed Lossu.
-    init_params[6] = min_y - 0.05 * y_range
-    if y_range &lt; 1e-6: # Fallback for near-constant loss values
-        init_params[6] = min_y - 0.1
-
-    # --- Initial Guess for Exponents ---
-    # e_P_base (params[1]) and e_C (params[5]) are expected to be negative for typical scaling laws.
-    init_e_typical = -0.1
-    init_params[1] = init_e_typical # e_P_base (base exponent for P_non_vocab)
-    init_params[5] = init_e_typical # e_C (exponent for num_characters)
-
-    # e_PV (params[2]) and e_V_coeff (params[3]) define the interaction term.
-    # Start with neutral values (close to zero) to allow the optimizer to determine the direction
-    # and magnitude of the interaction, given the broadened bounds.
-    init_params[2] = 0.0 # e_PV (interaction coefficient for vocab_size modulation)
-    init_params[3] = 0.0 # e_V_coeff (exponent for vocab_size modulation factor)
-
-    # --- Initial Guess for Coefficients (params[0], params[4]) ---
-    # c_P and c_C should be positive.
-    target_total_contribution_from_terms = max_y - init_params[6]
-    if target_total_contribution_from_terms &lt;= 0:
-        target_total_contribution_from_terms = 0.1 # Ensure a positive target
-
-    # Heuristic: split the target contribution 50/50 between P and C terms initially.
-    contribution_per_term = target_total_contribution_from_terms * 0.5
-
-    # Estimate c_C (params[4]):
-    min_num_characters = np.min(X[:, 2]) + 1e-10
-    term_C_factor_at_min = np.exp(init_params[5] * np.log(min_num_characters))
-    init_params[4] = contribution_per_term / term_C_factor_at_min # c_C
-
-    # Estimate c_P (params[0]):
-    min_P_non_vocab = np.min(X[:, 0]) + 1e-10
-    min_vocab_size = np.min(X[:, 1]) + 1e-10 # Using min_vocab_size as it&#x27;s part of the interaction
-
-    # Calculate the combined exponent for P_non_vocab using initial guesses at min values.
-    # With init_params[2] and init_params[3] set to 0, the interaction term &#x27;e_PV * vocab_size^e_V_coeff&#x27;
-    # becomes 0 * vocab_size^0 = 0. So combined_e_P starts as e_P_base.
-    init_vocab_exponent_modulation = np.exp(init_params[3] * np.log(min_vocab_size)) # This will be ~1 if init_params[3] is 0
-    init_combined_e_P = init_params[1] + init_params[2] * init_vocab_exponent_modulation # This will be init_params[1]
-    
-    term_P_factor_at_min = np.exp(init_combined_e_P * np.log(min_P_non_vocab))
-    init_params[0] = contribution_per_term / term_P_factor_at_min # c_P
-
-    # --- Bounds for Parameters ---
-    # Parameters: [c_P, e_P_base, e_PV, e_V_coeff, c_C, e_C, bias]
+    # Bounds for parameters: [(min, max), ...] for each of the 7 parameters
+    # These bounds help guide the optimization to physically meaningful parameter values.
+    # C0: Asymptotic loss should be negative and strictly less than observed min Lossu.
+    # log_C_i: Allow C_i to range from very small (e.g., 1e-7) to very large (e.g., 1e13).
+    # E_i: Positive and typically less than 1 for diminishing returns.
     bounds = [
-        (1e-9, 1e8),    # c_P: Must be positive. Broad range for flexibility.
-        (-0.5, -0.005), # e_P_base: Negative, typical exponent range for scaling laws.
-        (-0.5, 0.5),    # e_PV: Broadened to allow both positive and negative values.
-        (-0.5, 0.5),    # e_V_coeff: Broadened to allow both positive and negative values.
-        (1e-9, 1e8),    # c_C: Must be positive. Broad range.
-        (-0.5, -0.005), # e_C: Negative, typical exponent range.
-        (-20.0, -0.001) # bias: Negative, theoretically represents the minimum achievable loss.
+        (-10.0, np.min(y) - 0.001),   # C0: Lower bound for asymptotic loss
+        (np.log(1e-7), np.log(1e13)), # log_C1: bounds for log(C1), allowing C1 to be in [1e-7, 1e13]
+        (np.log(1e-7), np.log(1e13)), # log_C2: bounds for log(C2)
+        (np.log(1e-7), np.log(1e13)), # log_C3: bounds for log(C3)
+        (0.001, 1.0),                 # E1: Exponent for P_non_vocab term
+        (0.001, 1.0),                 # E2: Exponent for vocab_size term
+        (0.001, 1.0)                  # E3: Exponent for num_characters term
     ]
 
-    def objective(flat_params):
-        &quot;&quot;&quot;Objective function for minimization (Mean Squared Error).&quot;&quot;&quot;
-        pred = scaling_law_func(X, flat_params)
+    def objective(params):
+        pred = scaling_law_func(X, params)
+        # Safeguard against non-finite predictions (NaN or Inf) during optimization.
+        # This is crucial for robustness, as intermediate parameter values might lead to numerical issues,
+        # preventing the optimizer from getting stuck.
+        if not np.all(np.isfinite(pred)):
+            return np.inf # Return a very high cost (infinity) if predictions are not finite
         mse = np.mean((pred - y) ** 2)
         return mse
 
-    # Use &#x27;L-BFGS-B&#x27; for bounded optimization, known for robustness.
-    result = minimize(
-        objective,
-        init_params,
-        method=&#x27;L-BFGS-B&#x27;,
-        bounds=bounds,
-        options={&#x27;maxiter&#x27;: 10000, &#x27;ftol&#x27;: 1e-10} # Increased max_iter and tighter tolerance for precision
-    )
+    # Use L-BFGS-B for bounded optimization, which is robust for this type of problem.
+    # Increased maxiter to allow more iterations for potentially better convergence, especially
+    # with wider bounds and a possibly complex objective landscape.
+    result = minimize(objective, initial_guess, method=&#x27;L-BFGS-B&#x27;, bounds=bounds, options={&#x27;maxiter&#x27;: 5000})
 
-    # Return optimized parameters if successful, otherwise the refined initial parameters.
-    return result.x if result.success else init_params
+    # Return optimized parameters if successful, otherwise the initial guess.
+    params_opt = result.x if result.success else initial_guess
+
+    # The system expects parameters to be returned in a (T, P) shape, where T=1 for a single target.
+    # So, reshape the 1D optimized parameters array to (1, num_params).
+    return params_opt[None, :]
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#3</span>
-              <span class="run-label">Run 5</span>
-              <span class="r2-badge" style="background-color: #228b22; color: white"> R² = 0.933802 </span>
+              <span class="run-label">Run 2</span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.954163 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -682,170 +598,164 @@ def fit_scaling_law(data_points, loss_values):
               <pre><code class="language-python" id="code-2"># EVOLVE-BLOCK-START
 &quot;&quot;&quot;
 Scaling law discovery for LLM finetuning scenarios.
+This evolved program introduces a refined scaling law function and an improved
+optimization algorithm to better model the relationship between LLM resources
+and unigram-normalized loss (Lossu).
 
-This evolved program refines the multiplicative power law model by introducing saturation terms
-for both `vocab_size` and `P_non_vocab`. This aims to better capture the &quot;vocabulary scaling trade-offs&quot;
-mentioned in the problem, explicitly addressing parameter and vocabulary dimensions where the benefits
-of increasing these resources might diminish or saturate. It uses 7 parameters, maximizing the allowed limit.
+The new scaling law function models Lossu as a sum of power laws applied to
+log-transformed input features, plus a bias term. This form is chosen for
+several reasons:
+1.  **Mathematical Accuracy:** Log-transforming inputs before applying power laws
+    often better captures relationships when features span many orders of magnitude,
+    a common characteristic of scaling laws in machine learning. This functional form
+    has demonstrated strong performance in previous evaluations (e.g., R2 of ~0.8).
+2.  **Parameter Efficiency:** It uses exactly 7 parameters, satisfying the constraint.
+    The parameters are: [c_P, c_V, c_C, e_P, e_V, e_C, bias].
+3.  **Numerical Stability:** Log transformations inherently stabilize calculations for
+    very large input values. The use of bounds in optimization further enhances this.
+    All input features are guaranteed to be &gt; 1, so `np.log(X)` is always positive and well-defined.
+4.  **Theoretical Stability:** This functional form is widely used in empirical
+    scaling law studies for its ability to model asymptotic behavior.
 
-The `scaling_law_func` models Lossu as:
-Lossu = bias + C_total * (P_non_vocab / (P_non_vocab + P_saturation))^e_P * (vocab_size / (vocab_size + V_saturation))^e_V * num_characters^e_C
-
-Key characteristics of this model and its optimization:
-1.  **Model Form:** A multiplicative power law for `num_characters`, combined with modified power laws
-    for `P_non_vocab` and `vocab_size` that include saturation parameters (`P_saturation`, `V_saturation`),
-    plus an additive `bias` term.
-    The `(X / (X + X_saturation))` term ensures that the effective contribution of a resource `X`
-    to loss reduction saturates as `X` becomes much larger than its respective `X_saturation`.
-    If `X_saturation` is very small, `X` has little effect. If `X_saturation` is very large,
-    the term approximates `(X / X_saturation)^e_X`, effectively reducing to a standard power law.
-    This form allows the model to capture diminishing returns for both parameters and vocabulary size.
-2.  **Parameter Efficiency:** Uses 7 parameters (`C_total, e_P, e_V, e_C, bias, V_saturation, P_saturation`),
-    which is the maximum allowed and efficiently uses the parameter budget to capture more complex dynamics.
-3.  **Numerical Stability:** Employs `np.log` and `np.exp` for robust computation of power laws
-    and products, especially with large input values, preventing underflow/overflow.
-    Care is taken to ensure arguments to `log` are positive by adding a small epsilon (`1e-10`).
-4.  **Optimization (`fit_scaling_law`):**
-    *   **L-BFGS-B:** Utilizes `scipy.optimize.minimize` with the &#x27;L-BFGS-B&#x27; method for bounded optimization.
-    *   **Initial Parameters:** Carefully chosen initial guesses:
-        *   `C_total`: A small positive value.
-        *   `Exponents (e_P, e_V, e_C)`: Negative values as increasing resources should decrease loss.
-        *   `Bias`: Initialized slightly below the minimum observed Lossu, representing the asymptotic
-            (irreducible) loss as resources become infinite.
-        *   `V_saturation`, `P_saturation`: Initialized to the median `vocab_size` and `P_non_vocab`
-            from the dataset, respectively, providing reasonable starting points within the range
-            where saturation effects might become noticeable.
-    *   **Parameter Bounds:** Tightly defined but sufficiently wide bounds to guide the optimizer
-        towards physically meaningful solutions:
-        *   `C_total`: Positive, wide range.
-        *   `Exponents`: Strictly negative to ensure loss decreases with increasing resources.
-        *   `Bias`: Limited between a value below `np.min(y)` and `0.0`.
-        *   `V_saturation`, `P_saturation`: Strictly positive, covering observed ranges and beyond.
-    *   **Tolerances:** Increased `maxiter` and tighter `ftol`/`gtol` for higher precision in fitting.
+The `fit_scaling_law` optimization algorithm is enhanced with:
+1.  **Informed Initialization:** Initial guesses for parameters are refined based on
+    the expected range of Lossu values and the typical behavior of power-law components
+    (e.g., `c_i` values are set to reflect the likely contribution of each term, and
+    `e_i` values are set to a more pronounced negative exponent).
+2.  **Parameter Bounds:** Strict bounds are applied to ensure parameters remain
+    physically meaningful (e.g., coefficients are positive, exponents are negative
+    for decreasing loss). The upper bounds for coefficients `c_i` are relaxed to `None`
+    to allow the optimizer more freedom if very large coefficients are needed to scale
+    very small `log(X)^e` terms.
+3.  **L-BFGS-B Method:** This method is well-suited for bound-constrained
+    non-linear optimization and generally performs robustly on such problems.
+4.  **Tuned Options:** `maxiter` is increased, and `ftol`, `gtol` are tightened to
+    encourage more thorough convergence and find a better local minimum.
 &quot;&quot;&quot;
 import numpy as np
 from scipy.optimize import minimize
 
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    Calculates predicted Lossu values based on input features and parameters.
-    The functional form is a product of power laws plus a bias, with saturation terms for P_non_vocab and vocab_size:
-    Lossu = bias + C_total * (P_non_vocab / (P_non_vocab + P_saturation))^e_P * (vocab_size / (vocab_size + V_saturation))^e_V * num_characters^e_C
+    Predicts Lossu values based on input features and scaling law parameters.
+    The model form is:
+    Lossu = c_P * (log(P_non_vocab))^e_P + c_V * (log(vocab_size))^e_V + c_C * (log(num_characters))^e_C + bias
 
-    Parameters:
-    - data_points: (N,3) array with columns [P_non_vocab, vocab_size, num_characters]
-    - params: Array of 7 parameters [C_total, e_P, e_V, e_C, bias, V_saturation, P_saturation]
+    Args:
+        data_points (np.ndarray): (N,3) array with columns [P_non_vocab, vocab_size, num_characters].
+                                  All feature values are expected to be &gt; 1 based on data characteristics.
+        params (np.ndarray): Array of 7 parameters: [c_P, c_V, c_C, e_P, e_V, e_C, bias].
 
     Returns:
-    - Predicted Lossu values (N,)
+        np.ndarray: Predicted Lossu values for each data point.
     &quot;&quot;&quot;
-    X_raw = np.atleast_2d(np.asarray(data_points))
+    X = np.atleast_2d(np.asarray(data_points)) # Ensure X is 2D, even for single data point
 
-    P_non_vocab = X_raw[:, 0]
-    vocab_size = X_raw[:, 1]
-    # num_characters is still a simple power law, so we take its log directly
-    num_characters_log = np.log(X_raw[:, 2] + 1e-10) 
+    # Apply log transformation to inputs.
+    # All input features are guaranteed to be &gt; 1, so np.log(X) will always be positive and well-defined.
+    log_X = np.log(X) # (N, 3)
 
-    C_total = params[0]
-    e_P, e_V, e_C = params[1:4] # Exponents for P_non_vocab saturation, vocab_size saturation, num_characters
-    bias = params[4]
-    V_saturation = params[5] # Saturation parameter for vocab_size
-    P_saturation = params[6] # New saturation parameter for P_non_vocab
+    # Unpack parameters: 3 coefficients, 3 exponents, 1 bias
+    c_P, c_V, c_C, e_P, e_V, e_C, bias = params
 
-    # Calculate P_non_vocab term with saturation logic
-    # P_non_vocab and P_saturation are positive, so ratio is between 0 and 1.
-    P_ratio_term = P_non_vocab / (P_non_vocab + P_saturation)
-    # Apply exponent e_P. Add epsilon to prevent log(0) if ratio is ever exactly 0.
-    P_term = np.exp(e_P * np.log(P_ratio_term + 1e-10))
-
-    # Calculate vocab_size term with saturation logic
-    # vocab_size and V_saturation are positive, so ratio is between 0 and 1.
-    V_ratio_term = vocab_size / (vocab_size + V_saturation)
-    # Apply exponent e_V. Add epsilon to prevent log(0).
-    V_term = np.exp(e_V * np.log(V_ratio_term + 1e-10))
-
-    # Calculate num_characters term (simple power law)
-    C_term = np.exp(e_C * num_characters_log)
-
-    # Combine all terms multiplicatively
-    product_term = P_term * V_term * C_term
-
-    # Predicted Lossu = bias + C_total * product_term
-    pred_lossu = bias + C_total * product_term
-
-    return pred_lossu
+    # Calculate each term. For loss to decrease (become more negative) as resources increase,
+    # coefficients (c_i) should be positive and exponents (e_i) should be negative.
+    # This makes each term positive and decreasing, so the sum decreases towards the negative bias.
+    # No need for epsilon with log_X values as they are guaranteed to be significantly &gt; 0.
+    term_P = c_P * (log_X[:, 0] ** e_P)
+    term_V = c_V * (log_X[:, 1] ** e_V)
+    term_C = c_C * (log_X[:, 2] ** e_C)
+    
+    pred = term_P + term_V + term_C + bias
+    
+    return pred
 
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Fits the scaling law function (product form with P_non_vocab and vocab_size saturation)
-    to the given data using bounded optimization.
+    Optimizes the parameters of the scaling law function to best fit the observed Lossu values.
 
-    Parameters:
-    - data_points: (N,3) array with columns [P_non_vocab, vocab_size, num_characters]
-    - loss_values: Array of corresponding Lossu values
+    Args:
+        data_points (np.ndarray): (N,3) array with columns [P_non_vocab, vocab_size, num_characters].
+        loss_values (np.ndarray): (N,) array of corresponding Lossu values.
 
     Returns:
-    - Optimized parameters (7 parameters)
+        np.ndarray: Optimized parameters (7 parameters) for the scaling_law_func.
     &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points))
     y = np.asarray(loss_values)
     
-    # Total number of parameters: [C_total, e_P, e_V, e_C, bias, V_saturation, P_saturation]
-    P_total = 7 
+    # Ensure y is 1D for consistent min/max calculation and objective function
+    y_flat = y.flatten()
 
-    # --- Initial parameter guess ---
-    init_params = np.zeros(P_total)
+    # Parameters to optimize: [c_P, c_V, c_C, e_P, e_V, e_C, bias]
 
-    init_params[0] = 1e-2 # C_total: Small positive coefficient
-    init_params[1:4] = -0.1 # e_P, e_V, e_C: Negative exponents for decreasing loss
-    init_params[4] = np.min(y) - 0.01 # bias: Slightly below min observed Lossu
-    init_params[5] = np.median(X[:, 1]) # V_saturation: Median vocab_size from data as an initial guess
-    init_params[6] = np.median(X[:, 0]) # P_saturation: Median P_non_vocab from data as an initial guess
+    # Initial guess for parameters:
+    # - Coefficients (c_P, c_V, c_C): Initialized to 5.0. This is a more informed guess than 1.0,
+    #   considering the range of Lossu (approx 4.8 units) and the expected output from
+    #   (log_X^e) terms (which can be small if &#x27;e&#x27; is sufficiently negative).
+    # - Exponents (e_P, e_V, e_C): Initialized to -0.5. This provides a more pronounced
+    #   decreasing trend than -0.1, which is common in scaling laws.
+    # - Bias: Represents the asymptotic minimum loss. Initialized slightly below the
+    #   minimum observed Lossu, as the other terms are positive and decrease towards zero.
+    initial_params = np.array([
+        5.0, 5.0, 5.0,               # c_P, c_V, c_C (positive coefficients)
+        -0.5, -0.5, -0.5,            # e_P, e_V, e_C (negative exponents)
+        np.min(y_flat) - 0.5         # bias (asymptotic minimum Lossu)
+    ])
 
-    # --- Bounds for parameters using L-BFGS-B ---
-    bounds = []
-    bounds.append((1e-10, 1e10)) # C_total: Positive, wide range for scaling factor
-    for _ in range(3): # e_P, e_V, e_C: Negative exponents for inverse scaling (loss decreases with resource)
-        bounds.append((-5.0, -1e-9)) # Exponents must be negative, avoiding zero
-    bounds.append((np.min(y) - 1.0, 0.0)) # bias: Should be less than or equal to 0 (unigram loss), allowing for asymptotic improvement
-    # V_saturation: Must be positive. Range covering and potentially exceeding observed vocab_sizes (4k to 96k).
-    bounds.append((1.0, 1e7))
-    # P_saturation: Must be positive. Range covering and potentially exceeding observed P_non_vocab (3.3e7 to 1.1e9).
-    bounds.append((1.0, 1e11)) # Upper bound allows P_saturation to be much larger than observed P if needed
+    # Parameter bounds for L-BFGS-B optimizer:
+    # - Coefficients (c_i): Constrained to be positive. The upper bound is set to `None`
+    #   to allow the optimizer full freedom, as very large coefficients might be needed
+    #   to scale terms with very negative exponents effectively.
+    # - Exponents (e_i): Constrained to be negative. A range of -5.0 to -1e-6 is chosen
+    #   as reasonable for empirical scaling law exponents.
+    # - Bias: Should be close to or below the minimum observed Lossu. The range
+    #   `min_observed_loss - 10.0` to `min_observed_loss + 0.1` provides flexibility
+    #   around the observed minimum.
+    min_observed_loss = np.min(y_flat)
+    bounds = [
+        (1e-6, None),                # c_P (must be positive, no upper bound)
+        (1e-6, None),                # c_V (must be positive)
+        (1e-6, None),                # c_C (must be positive)
+        (-5.0, -1e-6),               # e_P (must be negative, reasonable range for exponents)
+        (-5.0, -1e-6),               # e_V (must be negative)
+        (-5.0, -1e-6),               # e_C (must be negative)
+        (min_observed_loss - 10.0, min_observed_loss + 0.1) # bias (should be near or below min_observed_loss)
+    ]
 
     def objective(params):
-        &quot;&quot;&quot;Objective function for minimization (Mean Squared Error).&quot;&quot;&quot;
+        &quot;&quot;&quot;Calculates the Mean Squared Error (MSE) between predicted and actual Lossu.&quot;&quot;&quot;
+        # The scaling_law_func expects params as a 1D array of 7 elements
         pred = scaling_law_func(X, params)
         mse = np.mean((pred - y) ** 2)
         return mse
 
-    # Perform optimization using L-BFGS-B, which supports bounds.
-    result = minimize(
-        objective,
-        init_params,  # Initial parameters (1D array)
-        method=&#x27;L-BFGS-B&#x27;,
-        bounds=bounds,
-        options={
-            &#x27;maxiter&#x27;: 10000, # Increased max iterations for potentially better convergence
-            &#x27;ftol&#x27;: 1e-10,    # Tighter function tolerance for more precise fitting
-            &#x27;gtol&#x27;: 1e-7      # Tighter gradient tolerance
-        }
-    )
+    # Use L-BFGS-B, which is suitable for bound-constrained optimization
+    # and generally performs well on non-linear least squares problems.
+    # Increased maxiter and tightened tolerances to encourage more thorough convergence.
+    result = minimize(objective, initial_params, method=&#x27;L-BFGS-B&#x27;, bounds=bounds, 
+                      options={&#x27;maxiter&#x27;: 5000, &#x27;ftol&#x27;: 1e-10, &#x27;gtol&#x27;: 1e-8})
 
-    # Return optimized parameters if the optimization was successful, otherwise return initial parameters.
-    return result.x if result.success else init_params
+    if result.success:
+        optimized_params = result.x
+    else:
+        # If optimization fails, return the initial parameters and print a warning.
+        # This provides a fallback and indicates potential issues with convergence.
+        print(f&quot;Warning: Optimization failed. Message: {result.message}. Returning initial guess.&quot;)
+        optimized_params = initial_params
+
+    return optimized_params
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#4</span>
-              <span class="run-label">Run 4</span>
-              <span class="r2-badge" style="background-color: #228b22; color: white"> R² = 0.931103 </span>
+              <span class="run-label">Run 3</span>
+              <span class="r2-badge" style="background-color: #228B22; color: white"> R² = 0.949911 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -857,212 +767,139 @@ def fit_scaling_law(data_points, loss_values):
               </div>
               <pre><code class="language-python" id="code-3"># EVOLVE-BLOCK-START
 &quot;&quot;&quot;
-Scaling law discovery for LLM finetuning scenarios.
-This evolved program introduces a new scaling law function based on a multiplicative
-power-law model, which is often more theoretically aligned with observed scaling
-behaviors in machine learning, especially when multiple resource dimensions
-(like parameters, vocabulary size, and data) interact. The optimization strategy
-is also refined with more appropriate initial parameter guesses and *loosened, yet still
-theoretically sound, bounds for exponents* to allow greater flexibility in fitting.
-Additionally, a subtle but important bug in the Mean Squared Error (MSE) calculation
-within the `objective` function is fixed to ensure correct broadcasting.
+Scaling law discovery for LLM finetuning scenarios
+Evolved program with a refined scaling law function and an improved optimization algorithm.
 
-The `scaling_law_func` models Lossu as:
-Lossu = K + A * P_non_vocab^e_P * vocab_size^e_V * num_characters^e_C
-This form has 5 parameters: `[K, A, e_P, e_V, e_C]`, well within the 7-parameter limit.
-- `K`: Represents the irreducible or asymptotic minimum loss.
-- `A`: A global scaling coefficient.
-- `e_P, e_V, e_C`: Exponents for non-vocabulary parameters, vocabulary size, and number of characters, respectively.
+The scaling law function models Lossu as a sum of power laws applied to log-transformed
+input features, plus a bias term. This form is chosen for numerical stability with large
+input ranges, better capture of non-linear relationships, and common practice in scaling laws.
+It uses exactly 7 parameters, satisfying the constraint.
 
-This multiplicative form implies that the different resource dimensions interact synergistically to reduce loss,
-which is a common assumption in many scaling law formulations (e.g., related to total compute).
-Numerical stability is maintained by performing power calculations in log-space:
-`X^e = exp(e * log(X))`, with a small epsilon added to inputs to prevent `log(0)`.
-
-The `fit_scaling_law` function continues to use the L-BFGS-B algorithm, but with significant
-improvements tailored to the new model and data characteristics:
-
-1.  **New Functional Form**: Switched from an additive sum of power laws to a multiplicative power law,
-    reducing the parameter count from 7 to 5 and potentially better capturing interactions. (This change was introduced in the previous iteration and is maintained).
-2.  **Refined Initial Parameter Guesses**:
-    -   **K (irreducible loss)**: Initialized slightly below the minimum observed Lossu (`np.min(y) - 0.05`), providing a robust starting point for the asymptotic floor.
-    -   **A (scaling coefficient)**: The initial guess for `A` is now more precisely estimated. It&#x27;s calculated to bridge the gap between the expected irreducible loss (`K_init`) and the maximum observed loss (`np.max(y)`) given the maximum product of power terms from the initial exponent guesses. This ensures a more physically meaningful starting point for the optimization, allowing the model to better span the range of observed Lossu values.
-    -   **Exponents (e_P, e_V, e_C)**: Initialized to `-0.2`, a common magnitude for exponents in LLM scaling laws.
-3.  **Loosened and More Realistic Exponent Bounds**:
-    -   **K**: Bounds remain `[np.min(y) - 1.0, 0.0]`, allowing for a deep asymptotic minimum while respecting the unigram normalization.
-    -   **A**: Bounds set to `(1e-9, 1e5)`. `A` must be positive. This range is chosen to accommodate the required scaling given the potential range of the multiplicative term and target Lossu values.
-    -   **Exponents (e_P, e_V, e_C)**: Bounds are now `(-1.0, -1e-9)`. This significantly loosens the previous `(-0.5, -0.01)` restriction. It allows exponents to explore a wider range of negative values, which is common in scaling laws (e.g., up to -1.0), and ensures they are not exactly zero (which would imply no scaling effect). This change aims to allow the model to capture stronger scaling effects if present in the data, potentially improving fit.
-4.  **Robust Optimization Settings**: `maxiter`, `ftol`, and `gtol` are retained at high rigor (`10000`, `1e-10`, `1e-9`) to ensure convergence to a precise solution.
-5.  **MSE Calculation Fix**: Corrected the `objective` function&#x27;s MSE calculation to ensure proper broadcasting when subtracting `pred` (which is `(N,)`) from `y` (which is also `(N,)`), avoiding potential incorrect results from `(N,) - (N,1)` broadcasting.
-
-These changes are designed to address the previous model&#x27;s negative R2 score by providing a more suitable functional form, guiding the optimization towards a more accurate and stable region of the parameter space, and correcting a potential numerical issue, ultimately improving fitness and generalization.
+The optimization algorithm uses a more informed initialization, expanded parameter bounds,
+and increased iteration limits for the L-BFGS-B method, which is well-suited for bound-constrained
+non-linear optimization. It also includes robustness checks for numerical stability during fitting.
 &quot;&quot;&quot;
 import numpy as np
 from scipy.optimize import minimize
 
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    Calculates predicted Lossu values based on input features and parameters.
-    The functional form is a multiplicative power law plus a bias:
-    Lossu = K + A * P_non_vocab^e_P * vocab_size^e_V * num_characters^e_C
+    Predicts Lossu values based on input features and scaling law parameters.
+    The model form is:
+    Lossu = c_P * (log(P_non_vocab))^e_P + c_V * (log(vocab_size))^e_V + c_C * (log(num_characters))^e_C + bias
 
-    Parameters:
-    - data_points: (N,3) array with columns [P_non_vocab, vocab_size, num_characters]
-    - params: Array of 5 parameters [K, A, e_P, e_V, e_C]
+    Args:
+        data_points (np.ndarray): (N,3) array with columns [P_non_vocab, vocab_size, num_characters].
+                                  All feature values are expected to be &gt; 1.
+        params (np.ndarray): Array of 7 parameters: [c_P, c_V, c_C, e_P, e_V, e_C, bias].
 
     Returns:
-    - Predicted Lossu values (N,)
+        np.ndarray: Predicted Lossu values for each data point.
     &quot;&quot;&quot;
-    X_raw = np.atleast_2d(np.asarray(data_points))
+    X = np.atleast_2d(np.asarray(data_points)) # (N, 3)
+
+    # Apply natural logarithm transformation to inputs for numerical stability and better fitting.
+    # All input features are guaranteed to be &gt; 1 based on data characteristics,
+    # so np.log(X) will always be positive and well-defined.
+    log_X = np.log(X) # (N, 3)
+
+    # Unpack parameters: 3 coefficients, 3 exponents, 1 bias
+    c_P, c_V, c_C, e_P, e_V, e_C, bias = params
+
+    # Calculate each term. With c_i &gt; 0 and e_i &lt; 0, each term is positive and decreases
+    # (becomes smaller positive) as the corresponding log(resource) increases.
+    # This leads to Lossu decreasing (becoming more negative) towards the &#x27;bias&#x27; asymptote.
+    # Handle potential runtime warnings for power of zero if e.g. log_X becomes 0,
+    # though with inputs &gt; 1, log_X is always &gt; 0.
+    term_P = c_P * (log_X[:, 0] ** e_P)
+    term_V = c_V * (log_X[:, 1] ** e_V)
+    term_C = c_C * (log_X[:, 2] ** e_C)
     
-    # Ensure inputs are positive before taking log.
-    # Given data characteristics (minimum values are large), adding epsilon is primarily for theoretical robustness.
-    # It also helps prevent log(0) if any data point could theoretically be zero, though for this problem they are large.
-    P_non_vocab = X_raw[:, 0] + 1e-10
-    vocab_size = X_raw[:, 1] + 1e-10
-    num_characters = X_raw[:, 2] + 1e-10
-
-    params = np.asarray(params)
-
-    # Handle single or multiple parameter sets (T=1 for this problem)
-    if params.ndim == 1:
-        params = params[None, :]  # Reshape to (1, P_total)
-    T, P_total = params.shape
-
-    # P_total must be 5 for this specific model: [K, A, e_P, e_V, e_C]
-    if P_total != 5:
-        raise ValueError(f&quot;Expected 5 parameters but got {P_total}&quot;)
-
-    K = params[:, 0]       # Irreducible loss (bias)
-    A = params[:, 1]       # Overall scaling coefficient
-    e_P = params[:, 2]     # Exponent for P_non_vocab
-    e_V = params[:, 3]     # Exponent for vocab_size
-    e_C = params[:, 4]     # Exponent for num_characters
-
-    # Compute the multiplicative term: A * P^e_P * V^e_V * C^e_C
-    # Using log-exp for numerical stability: term = A * exp(e_P*log(P) + e_V*log(V) + e_C*log(C))
-    # Each log(X) term is (N, 1), each e is (1, T) due to broadcasting, sum to (N, T)
-    log_prod_term = (
-        e_P[None, :] * np.log(P_non_vocab[:, None]) +
-        e_V[None, :] * np.log(vocab_size[:, None]) +
-        e_C[None, :] * np.log(num_characters[:, None])
-    )
+    pred = term_P + term_V + term_C + bias
     
-    # K and A are (T,), log_prod_term is (N, T)
-    # The result A * exp(log_prod_term) will be (N, T) due to broadcasting
-    scaling_term = A[None, :] * np.exp(log_prod_term)
-    
-    # The final prediction is K + scaling_term. K is (T,), scaling_term is (N, T)
-    # Result is (N, T)
-    pred = K[None, :] + scaling_term
-
-    # Return predictions for the single parameter set (T=1)
-    return pred[:, 0]
+    return pred
 
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Fits the new multiplicative scaling law function to the given data using bounded optimization.
+    Optimizes the parameters of the scaling law function to best fit the observed Lossu values.
 
-    Parameters:
-    - data_points: (N,3) array with columns [P_non_vocab, vocab_size, num_characters]
-    - loss_values: Array of corresponding Lossu values
+    Args:
+        data_points (np.ndarray): (N,3) array with columns [P_non_vocab, vocab_size, num_characters].
+        loss_values (np.ndarray): (N,) array of corresponding Lossu values.
 
     Returns:
-    - Optimized parameters (5 parameters)
+        np.ndarray: Optimized parameters (7 parameters) for the scaling_law_func.
     &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points))
-    y = np.asarray(loss_values) # y is (N,)
-    # F is the number of features (3: non_vocab_parameters, vocab_size, num_characters)
-    # P_total is the number of model parameters (5: K, A, e_P, e_V, e_C)
-    P_total = 5
+    y = np.asarray(loss_values).flatten() # Ensure y is 1D
 
-    # --- Initial parameter guess ---
-    # params structure: [K, A, e_P, e_V, e_C]
-    init_params = np.zeros(P_total)
+    min_loss = np.min(y)
 
-    # K (irreducible loss): index 0
-    # Start slightly below the minimum observed Lossu to allow for asymptotic improvement.
-    K_init = np.min(y) - 0.05
-    init_params[0] = K_init
+    # Parameters: [c_P, c_V, c_C, e_P, e_V, e_C, bias]
 
-    # Exponents (e_P, e_V, e_C): indices 2, 3, 4
-    # Start with negative values, e.g., -0.2, typical for scaling laws.
-    e_init = -0.2
-    init_params[2:] = e_init
+    # Adjusted initial guess for parameters:
+    # - Coefficients (c_P, c_V, c_C): Start at a moderate positive value (e.g., 5.0)
+    # - Exponents (e_P, e_V, e_C): Start at a more negative value (e.g., -0.5)
+    # - Bias: Represents the asymptotic minimum loss. Initialize slightly below the minimum observed loss.
+    initial_params = np.array([
+        5.0, 5.0, 5.0,               # c_P, c_V, c_C
+        -0.5, -0.5, -0.5,            # e_P, e_V, e_C
+        min_loss - 1.0               # bias (heuristic based on observed loss range)
+    ])
 
-    # A (scaling coefficient): index 1
-    # Estimate A based on the observed loss range and the initial exponent guesses.
-    # Lossu_max = K_init + A_init * (P_min^e_init * V_min^e_init * C_min^e_init)
-    # So A_init = (Lossu_max - K_init) / (P_min^e_init * V_min^e_init * C_min^e_init)
-    # P_min, V_min, C_min are the minimum values of the resources, which yield the maximum term value
-    # because exponents are negative.
-    min_P_val = np.min(X[:,0]) + 1e-10
-    min_V_val = np.min(X[:,1]) + 1e-10
-    min_C_val = np.min(X[:,2]) + 1e-10
-    
-    max_power_term_at_init = (min_P_val**e_init) * (min_V_val**e_init) * (min_C_val**e_init)
-    
-    # Ensure denominator is not zero or extremely small to avoid division by zero/inf.
-    # Given the problem&#x27;s large resource values and negative exponents, max_power_term_at_init will be positive and non-zero.
-    if max_power_term_at_init &gt; 1e-15: # Safety check
-        A_init = (np.max(y) - K_init) / max_power_term_at_init
-        # Cap A_init within reasonable bounds if the estimation is extreme
-        init_params[1] = np.clip(A_init, 1e-9, 1e5)
-    else:
-        init_params[1] = 1e3 # Fallback to a default large positive value if calculation is problematic
+    # Expanded parameter bounds for L-BFGS-B optimizer to allow for wider search space:
+    # - Coefficients (c_i): Constrained to be positive. Expanded upper bound to allow larger values.
+    # - Exponents (e_i): Constrained to be negative. Expanded lower bound to allow steeper power laws.
+    #   Using -1e-6 instead of 0 to avoid numerical issues with `x**0` and ensure terms decrease.
+    # - Bias: Represents the asymptotic minimum loss. Expanded range to allow more flexibility.
+    bounds = [
+        (1e-6, 1e5),                 # c_P (must be positive, allowing larger scale)
+        (1e-6, 1e5),                 # c_V (must be positive, allowing larger scale)
+        (1e-6, 1e5),                 # c_C (must be positive, allowing larger scale)
+        (-20.0, -1e-6),              # e_P (must be negative, allowing steeper decay)
+        (-20.0, -1e-6),              # e_V (must be negative, allowing steeper decay)
+        (-20.0, -1e-6),              # e_C (must be negative, allowing steeper decay)
+        (min_loss - 50.0, min_loss + 0.5) # bias (wider range, allowing the asymptote to be slightly above min_loss)
+    ]
 
+    def objective(params):
+        # The scaling_law_func expects params as a 1D array of 7 elements
+        pred = scaling_law_func(X, params)
+        
+        # Robustness check: penalize NaN or Inf predictions heavily
+        # This helps the optimizer avoid regions that lead to numerical instability.
+        if np.any(np.isnan(pred)) or np.any(np.isinf(pred)):
+            return 1e10 # Return a very large error for invalid predictions
 
-    # --- Bounds for parameters using L-BFGS-B ---
-    bounds = []
-    # K (index 0): [np.min(y) - 1.0, 0.0]
-    # Lossu values range from approx -5.34 to -0.51.
-    # Allow K to be lower than min observed loss, and up to 0 (unigram loss).
-    bounds.append((np.min(y) - 1.0, 0.0))
-
-    # A (index 1): [1e-9, 1e5]
-    # A must be positive. Upper bound adjusted based on expected term magnitudes.
-    bounds.append((1e-9, 1e5))
-
-    # Exponents (indices 2, 3, 4): [-1.0, -1e-9] - Loosened bounds
-    # Exponents must be negative for loss to decrease with increasing resources.
-    # This range is common for scaling law exponents in LLMs, allowing for stronger scaling effects.
-    # Avoids values too close to zero (implying no effect) and excessively negative values that can cause instability.
-    for _ in range(3): # There are 3 exponents
-        bounds.append((-1.0, -1e-9))
-
-
-    def objective(flat_params):
-        &quot;&quot;&quot;Objective function for minimization (Mean Squared Error).&quot;&quot;&quot;
-        # params_for_func is (1, P_total) as expected by scaling_law_func
-        params_for_func = flat_params[None, :] 
-        pred = scaling_law_func(X, params_for_func) # pred is (N,)
-        mse = np.mean((pred - y) ** 2) # y is (N,). Direct subtraction is correct.
+        mse = np.mean((pred - y) ** 2)
         return mse
 
-    # Use &#x27;L-BFGS-B&#x27; which supports bounds, generally more robust for complex non-linear problems
-    result = minimize(
-        objective,
-        init_params.ravel(),  # Pass initial parameters as a flat array
-        method=&#x27;L-BFGS-B&#x27;,
-        bounds=bounds,
-        options={&#x27;maxiter&#x27;: 10000, &#x27;ftol&#x27;: 1e-10, &#x27;gtol&#x27;: 1e-9} # Tighter gtol for higher precision convergence
-    )
+    # Use L-BFGS-B, which is suitable for bound-constrained optimization
+    # and generally performs well on non-linear least squares problems.
+    # Increased maxiter and tightened tolerances for potentially better convergence.
+    result = minimize(objective, initial_params, method=&#x27;L-BFGS-B&#x27;, bounds=bounds, 
+                      options={&#x27;maxiter&#x27;: 5000, &#x27;ftol&#x27;: 1e-10, &#x27;gtol&#x27;: 1e-8})
 
-    # Return optimized parameters if successful, otherwise return initial parameters
-    # The result.x is already a 1D array of the optimized parameters.
-    return result.x if result.success else init_params
+    if result.success:
+        optimized_params = result.x
+    else:
+        # If optimization fails (e.g., did not converge), return the initial parameters
+        # and print a warning for debugging.
+        print(f&quot;Warning: Optimization failed. Message: {result.message}&quot;)
+        optimized_params = initial_params
+
+    return optimized_params
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#5</span>
-              <span class="run-label">Run 2</span>
-              <span class="r2-badge" style="background-color: #d2691e; color: white"> R² = 0.016960 </span>
+              <span class="run-label">Run 5</span>
+              <span class="r2-badge" style="background-color: #DC143C; color: white"> R² = 0.000007 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -1073,173 +910,204 @@ def fit_scaling_law(data_points, loss_values):
                 <button class="copy-btn" onclick="copyCode(event, 'code-4')">Copy</button>
               </div>
               <pre><code class="language-python" id="code-4"># EVOLVE-BLOCK-START
+&quot;&quot;&quot;
+Scaling law discovery for LLM finetuning scenarios.
+This evolved program aims to significantly improve fitness by addressing key numerical
+stability and optimization robustness issues present in the previous version.
+The primary improvements include:
+1.  **Fixed Feature Normalization:** Applied within `scaling_law_func` using global reference
+    constants (`P_REF`, `V_REF`, `C_REF`). This is crucial for handling input features
+    spanning vastly different magnitudes (e.g., 10^7 to 10^12), preventing numerical
+    instability during power law calculations and making parameter interpretation more consistent.
+2.  **Multi-Restart Optimization:** The `fit_scaling_law` function now employs an increased
+    number of optimization restarts (`n_restarts = 40`) with randomized initial guesses. This
+    strategy is vital for non-convex objective functions like scaling law fitting, helping
+    to escape local minima and find a more globally optimal solution.
+3.  **Refined Parameter Bounds and Initial Guesses:** Bounds for coefficients (A, B, C) and
+    exponents (alpha_P, alpha_V, alpha_C) are carefully set to ensure physical meaningfulness
+    and numerical stability for normalized inputs. Initial guesses are dynamically estimated
+    from observed loss values and randomized to thoroughly explore the parameter space.
+4.  **Theoretically Grounded Functional Form:** The core scaling law function retains the
+    additive inverse power law form (Lossu = -( A * (Feature/Ref)^(-alpha) + ... + L_min )),
+    which is a widely accepted and parameter-efficient model, effectively utilizing the
+    maximum allowed 7 parameters. This form captures diminishing returns as resources increase.
+&quot;&quot;&quot;
 import numpy as np
 from scipy.optimize import minimize
 
+# Define fixed reference scales for feature normalization.
+# These constants are chosen to roughly center the input features around 1 or a manageable range,
+# improving numerical stability for the power law calculations.
+# - P_non_vocab: Data ranges from 3.3e7 to 1.1e9. P_REF = 1e8 is a good central value.
+# - vocab_size: Data ranges from 4096 to 96256. V_REF = 1e4 is a good central value.
+# - num_characters: Data ranges from 1e8 to 5e12. C_REF = 1e12 is chosen to prevent
+#   the smallest normalized values from becoming extremely small (and thus their inverse
+#   power becoming extremely large), which can destabilize optimization. This brings
+#   num_characters into a range of ~1e-4 to 5.
+P_REF = 1e8
+V_REF = 1e4
+C_REF = 1e12 
+
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    Calculates predicted Lossu values based on input features and parameters.
-    The functional form is a sum of power laws plus a bias:
-    Lossu = bias + c_P * P_non_vocab^e_P + c_V * vocab_size^e_V + c_C * num_characters^e_C
+    Predicts Lossu values based on a scaling law model with fixed feature normalization.
+    The model form is:
+    Lossu = -( A * (P_non_vocab/P_REF)^(-alpha_P) + B * (vocab_size/V_REF)^(-alpha_V) + C * (num_characters/C_REF)^(-alpha_C) + L_min )
 
     Parameters:
-    - data_points: (N,3) array with columns [P_non_vocab, vocab_size, num_characters]
-    - params: Array of 7 parameters [c_P, c_V, c_C, e_P, e_V, e_C, bias]
+    data_points (np.ndarray): (N,3) array with columns [P_non_vocab, vocab_size, num_characters].
+                              Assumed to be positive.
+    params (np.ndarray): 1D array of 7 parameters:
+                         [A, alpha_P, B, alpha_V, C, alpha_C, L_min]
+                         A, B, C: positive coefficients for each term.
+                         alpha_P, alpha_V, alpha_C: positive exponents for each term.
+                         L_min: positive irreducible loss component (in the positive-loss space).
 
     Returns:
-    - Predicted Lossu values (N,)
+    np.ndarray: Predicted Lossu values (negative, where more negative is better).
     &quot;&quot;&quot;
-    X_raw = np.atleast_2d(np.asarray(data_points))
-    # Use np.maximum to ensure strictly positive values before taking log, adding robustness.
-    X_log = np.log(np.maximum(X_raw, 1e-10))
+    X = np.asarray(data_points)
+    
+    # Apply fixed normalization using predefined reference scales
+    # and ensure all normalized inputs are positive to prevent issues with fractional powers.
+    X_norm = np.copy(X).astype(float) # Ensure float type for division and powers
+    X_norm[:, 0] = np.maximum(X_norm[:, 0] / P_REF, 1e-12) # P_non_vocab
+    X_norm[:, 1] = np.maximum(X_norm[:, 1] / V_REF, 1e-12) # vocab_size
+    X_norm[:, 2] = np.maximum(X_norm[:, 2] / C_REF, 1e-12) # num_characters
 
-    N, F = X_log.shape  # F is 3 (non_vocab_parameters, vocab_size, num_characters)
-    params = np.asarray(params)
+    # Unpack parameters for clarity
+    A, alpha_P, B, alpha_V, C, alpha_C, L_min = params
 
-    # Handle single or multiple parameter sets (T=1 for this problem)
-    if params.ndim == 1:
-        params = params[None, :]  # Reshape to (1, P_total)
-    T, P_total = params.shape
-
-    # P_total = F (coeffs) + F (exponents) + 1 (bias) = 2*F + 1 = 7
-    if P_total != 2 * F + 1:
-        raise ValueError(f&quot;Expected {2*F+1} parameters but got {P_total}&quot;)
-
-    coeffs = params[:, :F]       # Coefficients for each feature (c_P, c_V, c_C)
-    exponents = params[:, F:2*F] # Exponents for each feature (e_P, e_V, e_C)
-    bias = params[:, -1]         # Overall bias (K)
-
-    # Compute each power law term: coeffs[i] * (X_raw[j, i] ** exponents[i])
-    # This is numerically implemented as coeffs * exp(exponents * log(X_raw)) for stability.
-    # The broadcasting ensures correct element-wise multiplication across data points (N),
-    # parameter sets (T, which is 1 here), and features (F).
-    # Clip the argument to np.exp to prevent potential overflow/underflow for very large/small inputs.
-    term_contributions_log = exponents[None, :, :] * X_log[:, None, :]
-    # Clipping exp argument to prevent issues like np.exp(710) -&gt; inf or np.exp(-710) -&gt; 0.0
-    term_contributions_exp = np.exp(np.fmax(np.fmin(term_contributions_log, 700), -700))
-    term_contributions = coeffs[None, :, :] * term_contributions_exp
-
-    # Sum contributions of each feature for each data point and add the bias
-    pred = term_contributions.sum(axis=2) + bias[None, :]
-
-    # Return predictions for the single parameter set (T=1) as a 1D array
-    return pred[:, 0] if T == 1 else pred
+    # Calculate the positive-valued loss components (Y)
+    # Each term represents a diminishing return as the corresponding factor increases.
+    predicted_Y = (A * (X_norm[:, 0] ** -alpha_P) +
+                   B * (X_norm[:, 1] ** -alpha_V) +
+                   C * (X_norm[:, 2] ** -alpha_C) +
+                   L_min)
+    
+    # Lossu measures improvement over unigram (negative = better),
+    # so we return the negative of the predicted positive-valued loss Y.
+    return -predicted_Y
 
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Fits the scaling law function to the given data using bounded optimization.
-    This version includes refined initial parameter guesses and expanded bounds
-    to better suit the large dynamic range of input features and the negative Lossu values.
-    It also specializes initial exponent guesses and bounds for the vastly different scale
-    of &#x27;num_characters&#x27;.
+    Fits the scaling law function to the provided data using L-BFGS-B optimization.
+    This version incorporates:
+    1. Fixed feature normalization (handled by `scaling_law_func` using global constants).
+    2. More extensive multiple restarts to better explore the parameter space and avoid local minima.
+    3. Refined initial parameter guesses and randomization ranges tailored for normalized inputs
+       and the varying impact of different features.
+    4. Adjusted parameter bounds for exponents to allow for a wider search.
 
     Parameters:
-    - data_points: (N,3) array with columns [P_non_vocab, vocab_size, num_characters]
-    - loss_values: Array of corresponding Lossu values
+    data_points (np.ndarray): (N,3) array with columns [P_non_vocab, vocab_size, num_characters].
+    loss_values (np.ndarray): (N,) array of corresponding Lossu values.
 
     Returns:
-    - Optimized parameters (7 parameters)
+    np.ndarray: Optimized parameters [A, alpha_P, B, alpha_V, C, alpha_C, L_min].
     &quot;&quot;&quot;
-    X = np.atleast_2d(np.asarray(data_points))
-    y = np.asarray(loss_values)
-    N, F = X.shape
-    P_total = 2 * F + 1  # Total parameters for scaling_law_func (7 for F=3)
+    X = np.asarray(data_points)
+    y_lossu = np.asarray(loss_values)
+    
+    # Convert Lossu (negative = better) to positive loss (Y) for easier interpretation of L_min
+    y_positive_loss = -y_lossu
 
-    # Ensure y is 2D for consistency with scaling_law_func&#x27;s output format
-    if y.ndim == 1:
-        y2d = y[:, None]
-    else:
-        y2d = y
-
-    # --- Initial parameter guess ---
-    # params = [c_P, c_V, c_C, e_P, e_V, e_C, bias]
-    init_params = np.zeros(P_total)
-
-    min_y, max_y = np.min(y), np.max(y)
-    y_range = max_y - min_y
-
-    # Initial guess for bias (K): index 6
-    # It should be slightly lower (more negative) than the minimum observed Lossu to act as an asymptote.
-    init_params[-1] = min_y - 0.1 * y_range 
-    # Fallback for degenerate cases where y_range is zero or tiny, ensure bias is meaningfully lower than min_y
-    if y_range &lt; 1e-6: 
-        init_params[-1] = min_y - 0.1 
-
-    # Initial exponents (e_P, e_V, e_C): indices 3, 4, 5
-    # P_non_vocab and vocab_size typically have similar exponent magnitudes.
-    # num_characters has a much larger range (up to 5e12), so its exponent might need to be less negative
-    # to prevent its term from vanishing too quickly and allow it to contribute meaningfully.
-    initial_exponents_guess = np.array([-0.5, -0.5, -0.1]) # P_non_vocab, vocab_size, num_characters
-    init_params[F:2*F] = initial_exponents_guess
-
-    # Initial coefficients (c_P, c_V, c_C): indices 0, 1, 2
-    # Estimate based on distributing the &#x27;y_range&#x27; across terms.
-    # The target total contribution from the power-law terms (at their maximum, i.e., min resource levels)
-    # should cover the observed range of Lossu values from &#x27;bias&#x27; up to &#x27;max_y&#x27;.
-    target_total_contribution_from_terms = max_y - init_params[-1]
-    if target_total_contribution_from_terms &lt;= 0:
-        # Fallback for degenerate cases, ensure a positive target for coefficients
-        target_total_contribution_from_terms = 0.1 
-
-    # Robust calculation of min_X_val for each feature, ensuring values are positive for exponentiation.
-    min_X_vals_robust = np.maximum(np.min(X, axis=0), 1e-10)
-
-    for i in range(F):
-        # Calculate the base contribution of this feature at its minimum value with the initial exponent
-        term_val_at_min_X = min_X_vals_robust[i] ** initial_exponents_guess[i]
-        
-        # We want each term c_i * (min_X_val^init_e) to contribute roughly
-        # (target_total_contribution_from_terms / F) to the total range.
-        # So, c_i = (target_total_contribution_from_terms / F) / (term_val_at_min_X)
-        init_params[i] = (target_total_contribution_from_terms / F) / term_val_at_min_X
-        # Ensure initial coefficient is positive
-        init_params[i] = np.maximum(init_params[i], 1e-8)
-
-
-    # --- Bounds for parameters using L-BFGS-B ---
-    bounds = []
-    # Coeffs (0, 1, 2): [1e-8, 1e10]
-    # Allow positive coefficients. The upper bound is significantly increased from 1e6 to 1e10
-    # to account for very small X^e terms needing large coefficients to contribute to the loss range.
-    for _ in range(F):
-        bounds.append((1e-8, 1e10)) 
-
-    # Exponents (3, 4, 5): Specific bounds for each feature type based on range characteristics.
-    # P_non_vocab and vocab_size can have steeper decays.
-    bounds.append((-5.0, -1e-8)) # e_P
-    bounds.append((-5.0, -1e-8)) # e_V
-    # num_characters: much larger scale, thus often a shallower exponent (less negative).
-    # Its lower bound is adjusted from -5.0 to -0.5 to match this expectation.
-    bounds.append((-0.5, -1e-8)) # e_C
-
-    # Bias (6): Refined bound.
-    # This ensures the bias is always lower than any observed Lossu value,
-    # consistent with its role as an asymptotic irreducible minimum.
-    bounds.append((-10.0, np.min(y) - 1e-3)) 
-
-    def objective(flat_params):
-        &quot;&quot;&quot;Objective function for minimization (Mean Squared Error).&quot;&quot;&quot;
-        # Reshape flat parameters to (T, P_total) for scaling_law_func (T=1 here)
-        params_reshaped = flat_params.reshape(y2d.shape[1], P_total)
-        pred = scaling_law_func(X, params_reshaped)
-        mse = np.mean((pred - y2d) ** 2)
+    min_observed_positive_loss = np.min(y_positive_loss)
+    max_observed_positive_loss = np.max(y_positive_loss)
+    
+    # Define parameter bounds to ensure physical meaningfulness and numerical stability.
+    # Coefficients (A, B, C) and L_min must be positive.
+    # Exponents (alpha_P, alpha_V, alpha_C) must be positive and typically not extremely large.
+    # L_min should be positive and strictly less than the minimum observed positive loss.
+    bounds = [
+        (1e-10, None),                  # A: Coefficient, positive.
+        (1e-9, 2.0),                    # alpha_P: Exponent, positive and up to 2.0 (common for scaling laws).
+        (1e-10, None),                  # B: Coefficient, positive.
+        (1e-9, 2.0),                    # alpha_V: Exponent, positive and up to 2.0.
+        (1e-10, None),                  # C: Coefficient, positive.
+        (1e-9, 2.0),                    # alpha_C: Exponent, positive and up to 2.0.
+        (1e-9, min_observed_positive_loss - 1e-6) # L_min: Must be positive and strictly less than min observed loss.
+    ]
+    # Ensure L_min upper bound is valid; if calculated upper bound is too tight or invalid, set a small default.
+    if bounds[6][1] &lt;= 1e-9:
+        bounds[6] = (1e-9, 0.1) 
+    
+    def objective(params):
+        &quot;&quot;&quot;Calculates the Mean Squared Error between predicted and actual Lossu.&quot;&quot;&quot;
+        predicted_lossu = scaling_law_func(X, params)
+        mse = np.mean((predicted_lossu - y_lossu) ** 2)
         return mse
 
-    # Use &#x27;L-BFGS-B&#x27; which supports bounds and is generally robust for non-linear optimization.
-    result = minimize(
-        objective,
-        init_params.ravel(),  # Pass initial parameters as a flat array
-        method=&#x27;L-BFGS-B&#x27;,
-        bounds=bounds,
-        options={&#x27;maxiter&#x27;: 7000, &#x27;ftol&#x27;: 1e-10, &#x27;gtol&#x27;: 1e-8} # Increased max iterations and tighter tolerances for precision
-    )
+    best_params = None
+    min_mse = np.inf
 
-    # Return optimized parameters if the optimization was successful; otherwise, return the initial parameters.
-    # The final output should be a 1D array of parameters.
-    # If optimization fails, the carefully constructed initial parameters (within bounds) are returned as fallback.
-    params_opt = result.x.reshape(y2d.shape[1], P_total) if result.success else init_params.reshape(y2d.shape[1], P_total)
-    return params_opt[0] if y2d.shape[1] == 1 else params_opt
+    n_restarts = 40 # Increased number of restarts for more thorough exploration of the parameter space.
+
+    # Base initial guess for parameters, adjusted for the feature normalization and their relative impact.
+    # L_min is initialized as a fraction of the minimum observed positive loss.
+    l_min_init_guess = min_observed_positive_loss * 0.1 if min_observed_positive_loss * 0.1 &gt; 1e-9 else 0.01
+    if l_min_init_guess &gt; bounds[6][1]: # Ensure the initial guess for L_min is within its upper bound
+        l_min_init_guess = bounds[6][1] / 2 
+    if l_min_init_guess &lt; bounds[6][0]: # Ensure the initial guess for L_min is within its lower bound
+        l_min_init_guess = bounds[6][0] * 2
+
+    # Estimated coefficients based on typical median normalized feature contributions (assuming alpha=0.5)
+    # and distributing the average loss. &#x27;C&#x27; is smaller as &#x27;num_characters&#x27; normalized factor is often larger.
+    base_initial_params = np.array([
+        2.5,    # A: Coefficient for P_non_vocab term (normalized)
+        0.5,    # alpha_P: Exponent
+        2.5,    # B: Coefficient for vocab_size term (normalized)
+        0.5,    # alpha_V: Exponent
+        0.25,   # C: Coefficient for num_characters term (normalized)
+        0.5,    # alpha_C: Exponent
+        l_min_init_guess # L_min: Irreducible loss component
+    ])
+
+    # Randomization ranges for coefficients A, B, C.
+    # Allowing a wider range for coefficients to capture diverse contributions,
+    # especially considering the wide range of normalized feature values.
+    coeff_rand_min_val = 1e-6 # Allows coefficients to be very small if a feature has minimal impact
+    coeff_rand_max_val = max_observed_positive_loss * 15 # Allows for larger coefficients if a feature dominates or normalized factor is small
+
+    for i in range(n_restarts):
+        # Generate randomized initial guesses for each parameter.
+        # Exponents are randomized across their full defined bounds.
+        # L_min is randomized within its valid range.
+        l_min_rand_upper = min(bounds[6][1], (min_observed_positive_loss + l_min_init_guess) / 2)
+        
+        rand_params = np.array([
+            np.random.uniform(max(bounds[0][0], coeff_rand_min_val), coeff_rand_max_val), # A
+            np.random.uniform(bounds[1][0], bounds[1][1]),                                # alpha_P (full range)
+            np.random.uniform(max(bounds[2][0], coeff_rand_min_val), coeff_rand_max_val), # B
+            np.random.uniform(bounds[3][0], bounds[3][1]),                                # alpha_V (full range)
+            np.random.uniform(max(bounds[4][0], coeff_rand_min_val), coeff_rand_max_val), # C
+            np.random.uniform(bounds[5][0], bounds[5][1]),                                # alpha_C (full range)
+            np.random.uniform(bounds[6][0], l_min_rand_upper)                             # L_min
+        ])
+        
+        # Perform optimization using L-BFGS-B, which is suitable for bounded problems.
+        result = minimize(objective, rand_params, method=&#x27;L-BFGS-B&#x27;, bounds=bounds)
+
+        if result.success:
+            current_mse = objective(result.x)
+            if current_mse &lt; min_mse:
+                min_mse = current_mse
+                best_params = result.x
+
+    if best_params is not None:
+        return best_params
+    else:
+        # Fallback: If all randomized restarts fail, attempt one final optimization with the fixed base initial guess.
+        print(&quot;Warning: All randomized optimization restarts failed. Attempting final optimization with base initial guess.&quot;)
+        result = minimize(objective, base_initial_params, method=&#x27;L-BFGS-B&#x27;, bounds=bounds)
+        if result.success:
+            return result.x
+        else:
+            # If even the base guess fails, return the base initial guess as a last resort.
+            print(f&quot;Warning: Final optimization with base guess failed: {result.message}. Returning base initial guess.&quot;)
+            return base_initial_params
+
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>

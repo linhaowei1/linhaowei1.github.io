@@ -285,7 +285,7 @@
     <div class="bg-pattern"></div>
 
     <div class="container">
-      <a href="sld_index.html" class="back-link"> ← Back to Leaderboard </a>
+      <a href="index.html" class="back-link"> ← Back to Leaderboard </a>
 
       <div class="header">
         <h1>Vocabulary Scaling Law</h1>
@@ -300,15 +300,15 @@
           </div>
           <div class="meta-item">
             <span class="meta-label">Best R²:</span>
-            <span class="r2-badge" style="background-color: #006400; color: white"> 0.972263 </span>
+            <span class="r2-badge" style="background-color: #006400; color: white"> 0.978871 </span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Mean R²:</span>
-            <span class="meta-value">0.957408</span>
+            <span class="meta-value">0.936261</span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Min R²:</span>
-            <span class="meta-value">0.949266</span>
+            <span class="meta-value">0.892967</span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Runs:</span>
@@ -320,12 +320,13 @@
       <h2 class="section-title">All Runs (sorted by R²)</h2>
 
       <div class="runs-container">
+
         <div class="run-card best-run">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge best-badge">Best</span>
-              <span class="run-label">Run 3</span>
-              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.972263 </span>
+              <span class="run-label">Run 5</span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.978871 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -337,222 +338,178 @@
               </div>
               <pre><code class="language-python" id="code-0"># EVOLVE-BLOCK-START
 &quot;&quot;&quot;
-Advanced scaling law for LLM vocabulary and parameter scaling
-Uses normalized log-space features, adaptive regularization, and intelligent initialization
+Enhanced scaling law with adaptive reference scales and improved regularization
+Achieves better generalization through data-informed normalization and
+sophisticated parameter-specific regularization strategies
+Uses 7-parameter additive model: L = a0 + a1*(P_nv)^a2 + a3*(V)^a4 + a5*(N_chars)^a6
 &quot;&quot;&quot;
 import numpy as np
 from scipy.optimize import minimize, differential_evolution
 
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    Log-space scaling law with 7 parameters using normalized features:
-    Loss = a + b*log_P_norm + c*log_V_norm + d*log_D_norm + 
-           e*log_P_norm*log_V_norm + f*log_V_norm^2 + g*log_D_norm^2
+    Additive power-law scaling law with 7 parameters
+    Model: L = a0 + a1*(P_nv)^a2 + a3*(V)^a4 + a5*(N_chars)^a6
     
-    Normalization improves numerical stability and parameter interpretability.
-    
-    params: [a, b, c, d, e, f, g] (7 parameters)
+    Adaptive normalization based on data statistics for better numerical behavior.
     &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
     params = np.asarray(params, dtype=np.float64)
     
-    # Extract features with safety bounds
-    P_nonvocab = np.maximum(X[:, 0], 1e-10)  # non-vocab parameters
-    V_vocab = np.maximum(X[:, 1], 1e-10)     # vocabulary size
-    D_chars = np.maximum(X[:, 2], 1e-10)     # number of characters
+    if X.shape[1] != 3:
+        raise ValueError(f&quot;Expected 3 features, got {X.shape[1]}&quot;)
     
-    # Compute log features
-    log_P = np.log(P_nonvocab)
-    log_V = np.log(V_vocab)
-    log_D = np.log(D_chars)
+    P_nv = X[:, 0]
+    V = X[:, 1]
+    N_chars = X[:, 2]
     
-    # Normalize log features to unit variance range for stability
-    # This prevents numerical issues from large feature ranges
-    log_P_norm = log_P / 20.0  # ~[-0.5, 1.5] typical range
-    log_V_norm = log_V / 11.0  # ~[-0.3, 1.0] typical range
-    log_D_norm = log_D / 27.0  # ~[-0.5, 2.0] typical range
+    if len(params) &lt; 7:
+        params = np.concatenate([params, np.zeros(7 - len(params))])
     
-    # Compute all terms with normalized features
-    term_a = params[0]                                    # intercept
-    term_b = params[1] * log_P_norm                       # parameter scaling
-    term_c = params[2] * log_V_norm                       # vocabulary scaling
-    term_d = params[3] * log_D_norm                       # data scaling
-    term_e = params[4] * log_P_norm * log_V_norm          # param-vocab interaction
-    term_f = params[5] * (log_V_norm ** 2)                # vocab quadratic
-    term_g = params[6] * (log_D_norm ** 2)                # data quadratic
+    a0, a1, a2, a3, a4, a5, a6 = params[:7]
     
-    pred = term_a + term_b + term_c + term_d + term_e + term_f + term_g
+    # Adaptive reference scales using geometric mean of data ranges
+    # More stable than fixed values across different data distributions
+    P_ref = np.exp(0.5 * (np.log(np.min(P_nv[P_nv &gt; 0]) + 1e-10) + 
+                           np.log(np.max(P_nv) + 1e-10)))
+    V_ref = np.exp(0.5 * (np.log(np.min(V[V &gt; 0]) + 1e-10) + 
+                           np.log(np.max(V) + 1e-10)))
+    N_ref = np.exp(0.5 * (np.log(np.min(N_chars[N_chars &gt; 0]) + 1e-10) + 
+                           np.log(np.max(N_chars) + 1e-10)))
     
-    return pred
+    # Normalize inputs
+    P_nv_norm = P_nv / P_ref
+    V_norm = V / V_ref
+    N_chars_norm = N_chars / N_ref
+    
+    # Tighter clipping based on typical exponent ranges
+    P_nv_norm = np.clip(P_nv_norm, 1e-4, 1e4)
+    V_norm = np.clip(V_norm, 1e-4, 1e4)
+    N_chars_norm = np.clip(N_chars_norm, 1e-4, 1e4)
+    
+    # Power law terms
+    term_params = a1 * np.power(P_nv_norm, a2)
+    term_vocab = a3 * np.power(V_norm, a4)
+    term_data = a5 * np.power(N_chars_norm, a6)
+    
+    return a0 + term_params + term_vocab + term_data
 
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Fit using adaptive log-linear model with intelligent initialization and refinement
+    Advanced three-phase hierarchical optimization with adaptive strategies
+    Phase 1: Global exploration with differential evolution
+    Phase 2: Local refinement from theory-informed initializations
+    Phase 3: Final convergence with tight tolerances and parameter-specific tuning
     &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
     y = np.asarray(loss_values, dtype=np.float64).ravel()
     
-    N = X.shape[0]
-    n_params = 7
-    
-    # Protect features for log computation
-    P_nonvocab = np.maximum(X[:, 0], 1e-10)
-    V_vocab = np.maximum(X[:, 1], 1e-10)
-    D_chars = np.maximum(X[:, 2], 1e-10)
-    
-    log_P = np.log(P_nonvocab)
-    log_V = np.log(V_vocab)
-    log_D = np.log(D_chars)
-    
-    # Normalize features for design matrix
-    log_P_norm = log_P / 20.0
-    log_V_norm = log_V / 11.0
-    log_D_norm = log_D / 27.0
-    
-    # Compute statistics for adaptive regularization
     y_mean = np.mean(y)
-    y_std = np.std(y)
-    y_range = np.max(y) - np.min(y)
+    y_std = np.std(y) + 1e-8
+    y_norm = (y - y_mean) / y_std
     
-    # Stage 1: Build linear design matrix with normalized features
-    design_matrix = np.column_stack([
-        np.ones(N),                  # a: intercept
-        log_P_norm,                  # b: normalized log(P)
-        log_V_norm,                  # c: normalized log(V)
-        log_D_norm,                  # d: normalized log(D)
-        log_P_norm * log_V_norm,     # e: interaction term
-        log_V_norm ** 2,             # f: log(V)^2 coefficient
-        log_D_norm ** 2              # g: log(D)^2 coefficient
-    ])
+    # Domain-informed bounds with tighter exponent constraints
+    bounds = [
+        (-2.0, 2.0),    # a0: intercept (baseline loss)
+        (-15.0, 15.0),  # a1: parameter coefficient
+        (-1.3, 1.3),    # a2: parameter exponent (tighter - usually -0.5 to 0)
+        (-15.0, 15.0),  # a3: vocab coefficient
+        (-1.0, 0.3),    # a4: vocab exponent (tighter - typically -0.4 to -0.1)
+        (-15.0, 15.0),  # a5: data coefficient
+        (-0.5, -0.01),  # a6: data exponent (much tighter - all negative)
+    ]
     
-    # Compute initial least squares solution
-    try:
-        params_init, residuals, rank, s = np.linalg.lstsq(design_matrix, y, rcond=None)
-        # Check for numerical issues
-        if np.any(np.isnan(params_init)) or np.any(np.isinf(params_init)):
-            params_init = np.zeros(n_params)
-    except:
-        params_init = np.zeros(n_params)
-    
-    # Compute initial residual for adaptive regularization
-    try:
-        pred_init = scaling_law_func(X, params_init)
-        residual_std = np.std(y - pred_init)
-    except:
-        residual_std = y_std
-    
-    # Adaptive regularization weight based on fit quality
-    reg_weight = 1e-8 * (residual_std / (y_std + 1e-10))
-    
-    # Stage 2: Define objective with adaptive regularization
     def objective(params):
+        &quot;&quot;&quot;Objective with parameter-specific regularization&quot;&quot;&quot;
         try:
             pred = scaling_law_func(X, params)
-            if np.any(np.isnan(pred)) or np.any(np.isinf(pred)):
+            
+            if not np.all(np.isfinite(pred)):
                 return 1e10
             
-            mse = np.mean((pred - y) ** 2)
+            pred_norm = (pred - y_mean) / y_std
+            mse = np.mean((pred_norm - y_norm) ** 2)
             
-            # Adaptive L2 regularization
-            reg = reg_weight * np.sum(params ** 2)
+            # Parameter-specific regularization (stronger on exponents than coefficients)
+            reg_coeff = 0.0005 * (params[1]**2 + params[3]**2 + params[5]**2)
+            reg_exp = 0.0020 * (params[2]**2 + params[4]**2 + params[6]**2)
+            reg_intercept = 0.0010 * params[0]**2
             
-            # Additional penalty for extreme parameter values
-            penalty = 1e-9 * np.sum(np.abs(params) ** 3)
+            return mse + reg_coeff + reg_exp + reg_intercept
             
-            return mse + reg + penalty
         except:
             return 1e10
     
-    # Adaptive bounds based on data characteristics
-    bounds = [
-        (y_mean - 2*y_range, y_mean + 2*y_range),  # a: intercept with wide range
-        (-15, 15),    # b: log(P) coefficient
-        (-15, 15),    # c: log(V) coefficient
-        (-15, 15),    # d: log(D) coefficient
-        (-15, 15),    # e: interaction coefficient
-        (-15, 15),    # f: log(V)^2 coefficient
-        (-15, 15)     # g: log(D)^2 coefficient
+    # Phase 1: Global exploration with differential evolution
+    result_de = differential_evolution(
+        objective, bounds, seed=42, maxiter=600, popsize=28,
+        atol=1e-11, tol=1e-11, mutation=(0.5, 1.5), recombination=0.8,
+        workers=1, updating=&#x27;deferred&#x27;, polish=False
+    )
+    
+    best_params = result_de.x
+    best_loss = result_de.fun
+    
+    # Phase 2: Local refinement from multiple theory-informed initializations
+    smart_inits = [
+        result_de.x,  # Best from DE
+        np.array([-0.2, -2.8, -0.55, -3.2, -0.28, -3.2, -0.22]),  # Refined Chinchilla
+        np.array([-0.8, -3.2, -0.75, -1.8, -0.15, -2.8, -0.28]),  # Data-heavy
+        np.array([-0.4, -1.8, -0.35, -3.8, -0.35, -3.8, -0.35]),  # Vocab-heavy
+        np.array([-0.6, -2.2, -0.65, -2.5, -0.22, -2.2, -0.18]),  # Balanced
+        np.array([-0.3, -2.0, -0.45, -2.8, -0.30, -3.5, -0.25]),  # Parameter-focused
+        np.array([-1.0, -1.5, -0.80, -1.2, -0.10, -2.0, -0.12]),  # Minimal scaling
     ]
     
-    best_params = params_init.copy()
-    best_loss = objective(best_params)
-    
-    # Stage 3: Local refinement from least-squares initialization
-    try:
-        result_local = minimize(
-            objective,
-            params_init,
-            method=&#x27;L-BFGS-B&#x27;,
-            bounds=bounds,
-            options={&#x27;maxiter&#x27;: 1500, &#x27;ftol&#x27;: 1e-10}
+    for init_params in smart_inits:
+        # Clip to bounds to ensure valid initialization
+        init_params = np.array([np.clip(p, b[0], b[1]) for p, b in zip(init_params, bounds)])
+        
+        result = minimize(
+            objective, init_params, method=&#x27;L-BFGS-B&#x27;, bounds=bounds,
+            options={&#x27;ftol&#x27;: 1e-13, &#x27;gtol&#x27;: 1e-12, &#x27;maxiter&#x27;: 1000, &#x27;maxls&#x27;: 120}
         )
-        if result_local.fun &lt; best_loss:
-            best_params = result_local.x
-            best_loss = result_local.fun
-    except:
-        pass
+        
+        if result.fun &lt; best_loss:
+            best_loss = result.fun
+            best_params = result.x
     
-    # Stage 4: Global search with differential evolution
-    try:
-        result_de = differential_evolution(
-            objective,
-            bounds,
-            seed=42,
-            maxiter=300,
-            popsize=20,
-            atol=1e-10,
-            tol=1e-10,
-            workers=1,
-            updating=&#x27;deferred&#x27;,
-            polish=True
-        )
-        if result_de.fun &lt; best_loss:
-            best_params = result_de.x
-            best_loss = result_de.fun
-    except:
-        pass
+    # Phase 3: Final ultra-tight refinement with adaptive tolerance
+    result_final = minimize(
+        objective, best_params, method=&#x27;L-BFGS-B&#x27;, bounds=bounds,
+        options={&#x27;ftol&#x27;: 1e-15, &#x27;gtol&#x27;: 1e-13, &#x27;maxiter&#x27;: 2000, &#x27;maxls&#x27;: 200}
+    )
     
-    # Stage 5: Final aggressive local refinement with tighter tolerance
-    try:
-        result_final = minimize(
-            objective,
-            best_params,
-            method=&#x27;L-BFGS-B&#x27;,
-            bounds=bounds,
-            options={&#x27;maxiter&#x27;: 1000, &#x27;ftol&#x27;: 1e-11}
-        )
-        if result_final.fun &lt; best_loss:
-            best_params = result_final.x
-            best_loss = result_final.fun
-    except:
-        pass
+    if result_final.fun &lt; best_loss:
+        best_params = result_final.x
     
-    # Stage 6: Try Nelder-Mead from best point for robustness
-    try:
-        result_nm = minimize(
-            objective,
-            best_params,
-            method=&#x27;Nelder-Mead&#x27;,
-            options={&#x27;maxiter&#x27;: 500, &#x27;xatol&#x27;: 1e-9, &#x27;fatol&#x27;: 1e-11}
-        )
-        if result_nm.fun &lt; best_loss:
-            best_params = result_nm.x
-    except:
-        pass
+    # Phase 3b: One more tight global polish around best solution
+    tight_bounds = [
+        (max(b[0], p - 0.25), min(b[1], p + 0.25))
+        for b, p in zip(bounds, best_params)
+    ]
+    
+    result_polish = differential_evolution(
+        objective, tight_bounds, seed=43, maxiter=200, popsize=15,
+        atol=1e-12, tol=1e-12, mutation=(0.5, 1.5), recombination=0.9,
+        workers=1, updating=&#x27;deferred&#x27;, polish=True
+    )
+    
+    if result_polish.fun &lt; best_loss:
+        best_params = result_polish.x
     
     return best_params
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#2</span>
-              <span class="run-label">Run 5</span>
-              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.965092 </span>
+              <span class="run-label">Run 1</span>
+              <span class="r2-badge" style="background-color: #228B22; color: white"> R² = 0.949983 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -564,182 +521,156 @@ def fit_scaling_law(data_points, loss_values):
               </div>
               <pre><code class="language-python" id="code-1"># EVOLVE-BLOCK-START
 &quot;&quot;&quot;
-Optimized scaling law for LLM vocabulary trade-offs
-Enhanced three-stage optimization with improved feature handling and tighter convergence
+Scaling law discovery for LLM vocabulary scaling
+Enhanced 7-parameter model with adaptive L2 regularization and refined multi-stage optimization
 &quot;&quot;&quot;
 import numpy as np
 from scipy.optimize import minimize, differential_evolution
 
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    Log-linear scaling law with vocabulary-parameter synergy:
-    Lossu = a0 + a1*log(P_nv) + a2*log(V) + a3*log(C) + a4*log(V)*log(P_nv) + a5*log(V)^2 + a6*log(C)^2
-    
-    Uses exactly 7 parameters capturing:
-    - Main effects of non-vocab parameters, vocabulary size, and data
-    - Vocabulary-parameter synergy interaction (key scaling trade-off)
-    - Vocabulary and data scaling non-linearities
+    Scaling law: Lossu = a + b*log(P) + c*log(V) + d*log(N) + e*log(V/P) + f*log(P/N) + g*log(P)*log(N)
+    where P = non_vocab_parameters, V = vocab_size, N = num_characters
+    Uses 7 parameters: 6 core features + 1 carefully regularized interaction
     &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
     params = np.asarray(params, dtype=np.float64)
     
-    # Safe feature extraction
+    # Extract features with numerical stability
     P_nv = np.maximum(X[:, 0], 1e-10)
     V = np.maximum(X[:, 1], 1e-10)
-    C = np.maximum(X[:, 2], 1e-10)
+    N = np.maximum(X[:, 2], 1e-10)
     
-    # Log-transformed features
+    # Log-space features for numerical stability
     log_P = np.log(P_nv)
     log_V = np.log(V)
-    log_C = np.log(C)
+    log_N = np.log(N)
     
-    # Unpack parameters
-    a0, a1, a2, a3, a4, a5, a6 = params
+    # Log-ratio features for relative scaling
+    log_V_per_P = log_V - log_P
+    log_P_per_N = log_P - log_N
     
-    # Compute prediction with synergy interaction
-    pred = (a0 + 
-            a1 * log_P + 
-            a2 * log_V + 
-            a3 * log_C + 
-            a4 * log_V * log_P + 
-            a5 * log_V * log_V + 
-            a6 * log_C * log_C)
+    # Parameter-data interaction (captures scaling behavior)
+    log_P_logN = log_P * log_N
+    
+    # Unpack 7 parameters
+    a = params[0]           # intercept
+    b = params[1]           # coefficient for log(P)
+    c = params[2]           # coefficient for log(V)
+    d = params[3]           # coefficient for log(N)
+    e = params[4]           # ratio effect: log(V/P)
+    f = params[5]           # efficiency effect: log(P/N)
+    g = params[6]           # interaction: log(P)*log(N)
+    
+    # Scaling law combining ratios and interaction
+    pred = (a + 
+            b * log_P + 
+            c * log_V + 
+            d * log_N + 
+            e * log_V_per_P + 
+            f * log_P_per_N + 
+            g * log_P_logN)
     
     return pred
 
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Enhanced three-stage optimization with centered features and aggressive convergence.
-    Combines global search, local refinement, and final polishing for best results.
+    Fit scaling law with enhanced adaptive regularization and refined optimization
     &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
-    y = np.asarray(loss_values, dtype=np.float64).flatten()
+    y = np.asarray(loss_values, dtype=np.float64)
     
-    # Compute normalization statistics
+    if y.ndim &gt; 1:
+        y = y.flatten()
+    
+    # Compute data statistics for adaptive regularization
+    y_std = np.std(y)
     y_mean = np.mean(y)
-    y_std = np.std(y) + 1e-10
-    y_norm = (y - y_mean) / y_std
-    
-    # Extract log features
-    log_P = np.log(np.maximum(X[:, 0], 1e-10))
-    log_V = np.log(np.maximum(X[:, 1], 1e-10))
-    log_C = np.log(np.maximum(X[:, 2], 1e-10))
-    
-    # Center features for improved numerical stability and correlation computation
-    log_P_mean = np.mean(log_P)
-    log_V_mean = np.mean(log_V)
-    log_C_mean = np.mean(log_C)
-    
-    log_P_c = log_P - log_P_mean
-    log_V_c = log_V - log_V_mean
-    log_C_c = log_C - log_C_mean
+    y_min = np.min(y)
+    y_max = np.max(y)
     
     def objective(params):
         try:
             pred = scaling_law_func(X, params)
-            pred_norm = (pred - y_mean) / y_std
-            residuals = pred_norm - y_norm
-            mse = np.mean(residuals ** 2)
-            # Fine-tuned L1 regularization for better generalization
-            reg = 0.0002 * np.sum(np.abs(params))
+            mse = np.mean((pred - y) ** 2)
+            
+            # Adaptive L2 regularization: scale with data variance
+            # Stronger penalty on interaction term to prevent overfitting
+            reg_base = 0.0007 * (y_std + 1e-6)
+            reg = reg_base * (np.sum(params[1:6] ** 2) + 2.5 * params[6] ** 2)
+            
             return mse + reg
         except:
             return 1e10
     
-    # Adaptive bounds based on physical constraints and feature ranges
+    # Data-driven bounds for better search space definition
     bounds = [
-        (-6.0, 6.0),     # a0: bias
-        (-4.0, 4.0),     # a1: log(P_nv) effect
-        (-4.0, 4.0),     # a2: log(V) effect
-        (-4.0, 4.0),     # a3: log(C) effect
-        (-1.5, 1.5),     # a4: V-P interaction (synergy)
-        (-1.5, 1.5),     # a5: vocab quadratic
-        (-1.0, 1.0),     # a6: data quadratic
+        (y_min - 0.6*y_std, y_max + 0.6*y_std),  # a (intercept) - tighter
+        (-2.1, 2.1),                              # b (log(P))
+        (-2.1, 2.1),                              # c (log(V))
+        (-2.1, 2.1),                              # d (log(N))
+        (-2.1, 2.1),                              # e (log-ratio V/P)
+        (-2.1, 2.1),                              # f (log-ratio P/N)
+        (-0.55, 0.55)                             # g (interaction, strongly constrained)
     ]
     
-    # Compute correlations using centered features for robust initialization
-    try:
-        corr_P = np.corrcoef(log_P_c, y_norm)[0, 1]
-        corr_V = np.corrcoef(log_V_c, y_norm)[0, 1]
-        corr_C = np.corrcoef(log_C_c, y_norm)[0, 1]
-    except:
-        corr_P = corr_V = corr_C = -0.35
-    
-    # Improved initialization with stronger correlation-based estimates
-    x0 = np.array([
-        y_mean / y_std,
-        np.clip(corr_P * 0.85, -1.2, 1.2),
-        np.clip(corr_V * 0.85, -1.2, 1.2),
-        np.clip(corr_C * 0.85, -1.2, 1.2),
-        0.08,
-        -0.18,
-        -0.09
-    ])
-    
-    # Stage 1: Global search with Differential Evolution (optimized parameters)
-    result_de = differential_evolution(
-        objective, 
-        bounds, 
+    # Stage 1: Global optimization with refined differential evolution
+    result_global = differential_evolution(
+        objective,
+        bounds,
         seed=42,
-        maxiter=520,
+        maxiter=410,
         popsize=21,
         atol=1e-11,
         tol=1e-11,
-        mutation=(0.58, 1.42),
-        recombination=0.77,
         workers=1,
         updating=&#x27;deferred&#x27;,
+        mutation=(0.5, 1.5),
         polish=False
     )
     
-    # Stage 2: L-BFGS-B refinement with tighter tolerances
+    params_global = result_global.x
+    
+    # Stage 2: Local refinement with L-BFGS-B
     result_local = minimize(
         objective,
-        result_de.x,
+        params_global,
         method=&#x27;L-BFGS-B&#x27;,
         bounds=bounds,
-        options={
-            &#x27;maxiter&#x27;: 1350,
-            &#x27;ftol&#x27;: 1e-13,
-            &#x27;gtol&#x27;: 1e-12,
-            &#x27;maxcor&#x27;: 26
-        }
+        options={&#x27;maxiter&#x27;: 1300, &#x27;ftol&#x27;: 1e-15, &#x27;gtol&#x27;: 1e-12, &#x27;maxcor&#x27;: 20}
     )
     
-    # Stage 3: Final polish with Powell method for robust multi-parameter refinement
-    best_x = result_local.x if result_local.fun &lt; result_de.fun else result_de.x
-    result_final = minimize(
+    params_local = result_local.x
+    
+    # Stage 3: Fine-tuning with Nelder-Mead for polishing
+    result_fine = minimize(
         objective,
-        best_x,
-        method=&#x27;Powell&#x27;,
-        options={
-            &#x27;maxiter&#x27;: 400,
-            &#x27;xtol&#x27;: 1e-12,
-            &#x27;ftol&#x27;: 1e-12
-        }
+        params_local,
+        method=&#x27;Nelder-Mead&#x27;,
+        options={&#x27;maxiter&#x27;: 650, &#x27;xatol&#x27;: 1e-11, &#x27;fatol&#x27;: 1e-15, &#x27;adaptive&#x27;: True}
     )
     
-    # Return best result among all stages
+    # Return best result from all stages
     candidates = [
-        (result_de.fun, result_de.x),
+        (result_global.fun, result_global.x),
         (result_local.fun, result_local.x),
-        (result_final.fun, result_final.x)
+        (result_fine.fun, result_fine.x)
     ]
-    best_fun, best_params = min(candidates, key=lambda x: x[0])
+    params_opt = min(candidates, key=lambda x: x[0])[1]
     
-    return best_params
+    return params_opt
+
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#3</span>
-              <span class="run-label">Run 1</span>
-              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.950638 </span>
+              <span class="run-label">Run 3</span>
+              <span class="r2-badge" style="background-color: #228B22; color: white"> R² = 0.934849 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -751,169 +682,158 @@ def fit_scaling_law(data_points, loss_values):
               </div>
               <pre><code class="language-python" id="code-2"># EVOLVE-BLOCK-START
 &quot;&quot;&quot;
-Evolved scaling law for LLM vocabulary and parameter scaling
-Simplified log-linear model with vocabulary-parameter-data interactions
-Optimized for both accuracy and numerical stability
+Optimized scaling law for vocabulary-parameter-compute scaling
+Returns to proven quadratic model with aggressive multi-stage optimization
+Focus: Mathematical accuracy, parameter efficiency, and numerical stability
 &quot;&quot;&quot;
 import numpy as np
 from scipy.optimize import minimize, differential_evolution
 
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    Simplified scaling law with 7 parameters using log-linear interactions
+    Scaling law with 7 parameters:
+    loss = a + b*log(P_nv) + c*log(V) + d*log(D)
+         + e*log(P_nv)*log(V) + f*log(V)^2 + g*log(D)^2
     
-    Form: Lossu = a0 + a1*log(P) + a2*log(V) + a3*log(C) 
-                  + a4*log(P)*log(V) + a5*log(V)*log(C) + a6*log(P)*log(C)
-    
-    where P=non_vocab_params, V=vocab_size, C=num_characters
-    
-    This model captures:
-    - Base loss (a0)
-    - Individual feature scaling (a1, a2, a3)
-    - Cross-feature interactions (a4, a5, a6)
-    
-    Parameters: [a0, a1, a2, a3, a4, a5, a6] (7 parameters)
+    Captures:
+    - Base scaling: linear log terms for each factor
+    - Trade-off: parameter-vocabulary interaction
+    - Diminishing returns: quadratic terms for vocabulary and data
     &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
-    N_samples, F = X.shape
     params = np.asarray(params, dtype=np.float64).flatten()
     
-    # Ensure we have exactly 7 parameters
     if len(params) &lt; 7:
-        params = np.pad(params, (0, 7 - len(params)), mode=&#x27;constant&#x27;, constant_values=0.0)
-    elif len(params) &gt; 7:
-        params = params[:7]
+        params = np.concatenate([params, np.zeros(7 - len(params))])
     
-    # Extract features
-    P_nonvocab = X[:, 0]  # non-vocabulary parameters
-    V_vocab = X[:, 1]     # vocabulary size
-    N_chars = X[:, 2]     # number of characters
+    P_nv = X[:, 0]
+    V = X[:, 1]
+    D = X[:, 2]
     
-    # Ensure positive values for log transformation
-    eps = 1e-10
-    P_nonvocab = np.maximum(P_nonvocab, eps)
-    V_vocab = np.maximum(V_vocab, eps)
-    N_chars = np.maximum(N_chars, eps)
+    # Safe clamping to prevent log errors
+    P_nv = np.clip(P_nv, 1e6, 1e12)
+    V = np.clip(V, 100, 1e6)
+    D = np.clip(D, 1e6, 1e14)
     
-    # Log-transform features
-    log_P = np.log(P_nonvocab)
-    log_V = np.log(V_vocab)
-    log_C = np.log(N_chars)
+    a, b, c, d, e, f, g = params[:7]
     
-    # Unpack parameters
-    a0, a1, a2, a3, a4, a5, a6 = params[:7]
+    log_P = np.log(P_nv)
+    log_V = np.log(V)
+    log_D = np.log(D)
     
-    # Main scaling law: linear combination of log features and their interactions
-    pred = (a0 + 
-            a1 * log_P + 
-            a2 * log_V + 
-            a3 * log_C +
-            a4 * log_P * log_V +
-            a5 * log_V * log_C +
-            a6 * log_P * log_C)
+    loss = (a + 
+            b * log_P + 
+            c * log_V + 
+            d * log_D +
+            e * log_P * log_V +
+            f * (log_V ** 2) +
+            g * (log_D ** 2))
     
-    return pred
+    return loss
 
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Fit scaling law parameters using robust hybrid optimization approach:
-    1. Linear regression initialization on log-transformed features
-    2. Global search with differential evolution
-    3. Local refinement with L-BFGS-B
+    Multi-stage fitting with robust initialization and aggressive refinement.
+    Uses both global and local optimization with tight convergence criteria.
     &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
     y = np.asarray(loss_values, dtype=np.float64).flatten()
     
-    N_samples, F = X.shape
+    P_nv = np.clip(X[:, 0], 1e6, 1e12)
+    V = np.clip(X[:, 1], 100, 1e6)
+    D = np.clip(X[:, 2], 1e6, 1e14)
     
-    # Extract and log-transform features
-    eps = 1e-10
-    P_nonvocab = np.maximum(X[:, 0], eps)
-    V_vocab = np.maximum(X[:, 1], eps)
-    N_chars = np.maximum(X[:, 2], eps)
+    log_P = np.log(P_nv)
+    log_V = np.log(V)
+    log_D = np.log(D)
     
-    log_P = np.log(P_nonvocab)
-    log_V = np.log(V_vocab)
-    log_C = np.log(N_chars)
-    
-    # Linear regression initialization on log-transformed features
-    def init_linear_fit():
-        &quot;&quot;&quot;Fit linear model to get initial parameter estimates&quot;&quot;&quot;
-        A = np.column_stack([
-            np.ones(N_samples),
-            log_P,
-            log_V,
-            log_C,
-            log_P * log_V,
-            log_V * log_C,
-            log_P * log_C
-        ])
-        
-        try:
-            # Least squares solution
-            coeffs, _, _, _ = np.linalg.lstsq(A, y, rcond=None)
-            return coeffs
-        except:
-            # Fallback: simple initialization
-            return np.array([np.mean(y), -0.5, -0.3, -0.2, 0.05, 0.05, 0.05])
-    
-    init_params = init_linear_fit()
+    # Normalize for numerical stability
+    y_mean = np.mean(y)
+    y_std = np.std(y) + 1e-8
+    y_norm = (y - y_mean) / y_std
     
     def objective(params):
-        &quot;&quot;&quot;MSE objective function&quot;&quot;&quot;
+        &quot;&quot;&quot;MSE with minimal regularization&quot;&quot;&quot;
         try:
             pred = scaling_law_func(X, params)
-            # Check for numerical issues
-            if np.any(np.isnan(pred)) or np.any(np.isinf(pred)):
+            pred_norm = (pred - y_mean) / y_std
+            
+            if not np.all(np.isfinite(pred_norm)):
                 return 1e10
-            mse = np.mean((pred - y) ** 2)
-            return mse if np.isfinite(mse) else 1e10
+            
+            mse = np.mean((pred_norm - y_norm) ** 2)
+            reg = 1e-5 * np.sum(params ** 2)
+            return mse + reg
         except:
             return 1e10
     
-    # Parameter bounds based on domain knowledge
+    # Stage 1: Robust linear regression initialization
+    try:
+        A = np.column_stack([
+            np.ones_like(log_P),
+            log_P,
+            log_V,
+            log_D,
+            log_P * log_V,
+            log_V ** 2,
+            log_D ** 2
+        ])
+        coeffs = np.linalg.lstsq(A, y_norm, rcond=1e-10)[0]
+        init_params = np.array(coeffs[:7])
+        
+        if not np.all(np.isfinite(init_params)):
+            init_params = np.array([-2.0, -0.3, -0.2, 0.3, -0.05, -0.01, -0.001])
+    except:
+        init_params = np.array([-2.0, -0.3, -0.2, 0.3, -0.05, -0.01, -0.001])
+    
     bounds = [
-        (-10.0, 10.0),    # a0: bias term
-        (-2.0, 0.5),      # a1: log(P) coefficient
-        (-2.0, 0.5),      # a2: log(V) coefficient
-        (-2.0, 0.5),      # a3: log(C) coefficient
-        (-1.0, 1.0),      # a4: log(P)*log(V) interaction
-        (-1.0, 1.0),      # a5: log(V)*log(C) interaction
-        (-1.0, 1.0),      # a6: log(P)*log(C) interaction
+        (-10, 10),      # a: bias
+        (-2, 2),        # b: log(P_nv)
+        (-2, 2),        # c: log(V)
+        (-2, 2),        # d: log(D)
+        (-1, 1),        # e: P_nv-V interaction
+        (-0.5, 0.5),    # f: log(V)^2
+        (-0.5, 0.5)     # g: log(D)^2
     ]
     
-    # Global optimization with differential evolution
     best_params = init_params
     best_loss = objective(init_params)
     
+    # Stage 2: Global optimization with differential evolution
     try:
-        result_global = differential_evolution(
+        result_de = differential_evolution(
             objective,
             bounds,
+            maxiter=320,
+            popsize=21,
             seed=42,
-            maxiter=400,
-            popsize=20,
-            atol=1e-7,
-            tol=1e-7,
+            atol=1e-8,
+            tol=1e-8,
             workers=1,
             updating=&#x27;deferred&#x27;,
-            polish=True
+            polish=True,
+            init=&#x27;sobol&#x27;
         )
-        if result_global.fun &lt; best_loss:
-            best_params = result_global.x
-            best_loss = result_global.fun
+        if result_de.fun &lt; best_loss:
+            best_params = result_de.x
+            best_loss = result_de.fun
     except:
         pass
     
-    # Local refinement with L-BFGS-B
+    # Stage 3: Local refinement with aggressive convergence
     try:
         result_local = minimize(
             objective,
             best_params,
             method=&#x27;L-BFGS-B&#x27;,
             bounds=bounds,
-            options={&#x27;maxiter&#x27;: 1000, &#x27;ftol&#x27;: 1e-9, &#x27;gtol&#x27;: 1e-8}
+            options={
+                &#x27;ftol&#x27;: 1e-11,
+                &#x27;gtol&#x27;: 1e-8,
+                &#x27;maxiter&#x27;: 2200,
+                &#x27;maxcor&#x27;: 50
+            }
         )
         if result_local.fun &lt; best_loss:
             best_params = result_local.x
@@ -921,19 +841,40 @@ def fit_scaling_law(data_points, loss_values):
     except:
         pass
     
-    return best_params
-
+    # Stage 4: Secondary refinement from initialization if not converged well
+    if best_loss &gt; objective(init_params) * 0.94:
+        try:
+            result_init = minimize(
+                objective,
+                init_params,
+                method=&#x27;L-BFGS-B&#x27;,
+                bounds=bounds,
+                options={
+                    &#x27;ftol&#x27;: 1e-11,
+                    &#x27;gtol&#x27;: 1e-8,
+                    &#x27;maxiter&#x27;: 2200,
+                    &#x27;maxcor&#x27;: 50
+                }
+            )
+            if result_init.fun &lt; best_loss:
+                best_params = result_init.x
+        except:
+            pass
+    
+    if len(best_params) &lt; 7:
+        best_params = np.concatenate([best_params, np.zeros(7 - len(best_params))])
+    
+    return best_params[:7]
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#4</span>
               <span class="run-label">Run 2</span>
-              <span class="r2-badge" style="background-color: #228b22; color: white"> R² = 0.949779 </span>
+              <span class="r2-badge" style="background-color: #228B22; color: white"> R² = 0.924633 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -945,165 +886,192 @@ def fit_scaling_law(data_points, loss_values):
               </div>
               <pre><code class="language-python" id="code-3"># EVOLVE-BLOCK-START
 &quot;&quot;&quot;
-Advanced scaling law for LLM vocabulary and parameter trade-offs
-Refined optimization with tighter bounds and multi-path convergence strategy
+Scaling law discovery for LLM vocabulary trade-offs
+Enhanced log-linear model with improved feature interactions and efficient optimization
+Focuses on capturing vocabulary scaling trade-offs with simplified robust fitting
 &quot;&quot;&quot;
 import numpy as np
 from scipy.optimize import minimize, differential_evolution
 
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    Scaling law: Loss = α + β₁·(P_nv)^(-a) + β₂·(D)^(-b) + β₃·log(V)·(V^(-d))
+    Enhanced scaling law: Loss = a + b*log(P_nv) + c*log(V) + d*log(C) + 
+                                 e*log(V/P_nv) + f*log(C)^2 + g*log(V)*log(C)
     
-    params: [α, β₁, β₂, β₃, a, b, d] (7 parameters)
+    This 7-parameter model improves upon previous formulations:
+    1. Baseline loss term (a)
+    2. Parameter scaling benefit (b*log(P_nv)) - negative (more params help)
+    3. Vocabulary cost (c*log(V)) - positive (larger vocab hurts)
+    4. Data scaling benefit (d*log(C)) - negative (more data helps)
+    5. Vocabulary-parameter efficiency ratio (e*log(V/P_nv)) - captures trade-off directly
+    6. Non-linear data saturation (f*log(C)^2) - captures diminishing returns
+    7. Data-vocabulary interaction (g*log(V)*log(C)) - captures how data mitigates vocab cost
+    
+    Log-space computation for numerical stability across 8+ orders of magnitude.
+    Max 7 parameters: [a, b, c, d, e, f, g]
     &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
+    params = np.asarray(params, dtype=np.float64).ravel()
+    
     if X.shape[1] != 3:
         raise ValueError(f&quot;Expected 3 features, got {X.shape[1]}&quot;)
     
-    P_nv, V, D = X[:, 0], X[:, 1], X[:, 2]
+    # Extract features with safe bounds
+    P_nv = np.maximum(X[:, 0], 1e5)
+    V = np.maximum(X[:, 1], 10.0)
+    C = np.maximum(X[:, 2], 1e5)
     
-    params = np.asarray(params, dtype=np.float64)
+    # Log-space transformations
+    log_P = np.log(P_nv)
+    log_V = np.log(V)
+    log_C = np.log(C)
+    
+    # Ensure exactly 7 parameters
     if len(params) &lt; 7:
-        params = np.pad(params, (0, 7 - len(params)))
+        params = np.pad(params, (0, 7 - len(params)), mode=&#x27;constant&#x27;, constant_values=0.0)
+    else:
+        params = params[:7]
     
-    alpha, beta1, beta2, beta3, a, b, d = params[:7]
+    a, b, c, d, e, f, g = params
     
-    # Clip exponents for stability
-    a = np.clip(a, 0.05, 2.5)
-    b = np.clip(b, 0.05, 2.5)
-    d = np.clip(d, -0.5, 1.0)
+    # Enhanced model with direct efficiency ratio and data-vocabulary interaction
+    pred = (a + 
+            b * log_P + 
+            c * log_V + 
+            d * log_C + 
+            e * (log_V - log_P) +
+            f * (log_C ** 2) +
+            g * log_V * log_C)
     
-    # Safe bases
-    P_nv_safe = np.maximum(P_nv, 1e5)
-    D_safe = np.maximum(D, 1e5)
-    V_safe = np.maximum(V, 5)
-    
-    # Scaling terms
-    term1 = beta1 * np.power(P_nv_safe, -a)
-    term2 = beta2 * np.power(D_safe, -b)
-    term3 = beta3 * np.log(V_safe) * np.power(V_safe, -np.abs(d))
-    
-    return alpha + term1 + term2 + term3
+    return pred
 
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Fit scaling law with refined multi-stage optimization:
-    Tighter bounds + smarter initialization + aggressive local refinement
+    Efficient two-stage optimization with smart initialization
+    1. Intelligent global exploration with differential_evolution
+    2. Rapid local convergence with L-BFGS-B
+    
+    Simplified for faster convergence while maintaining accuracy.
     &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
     y = np.asarray(loss_values, dtype=np.float64).ravel()
     
+    if X.shape[1] != 3:
+        raise ValueError(f&quot;Expected 3 features, got {X.shape[1]}&quot;)
+    
+    # Normalize for numerical stability
+    y_mean = np.mean(y)
+    y_std = np.std(y) + 1e-8
+    y_norm = (y - y_mean) / y_std
+    
+    # Extract log features for initialization
+    P_nv = np.maximum(X[:, 0], 1e5)
+    V = np.maximum(X[:, 1], 10.0)
+    C = np.maximum(X[:, 2], 1e5)
+    
+    log_P = np.log(P_nv)
+    log_V = np.log(V)
+    log_C = np.log(C)
+    
     def objective(params):
+        &quot;&quot;&quot;Normalized MSE with minimal regularization&quot;&quot;&quot;
         try:
             pred = scaling_law_func(X, params)
-            if not np.all(np.isfinite(pred)):
+            if np.any(np.isnan(pred)) or np.any(np.isinf(pred)):
                 return 1e10
-            mse = np.mean((pred - y) ** 2)
-            return mse if np.isfinite(mse) else 1e10
+            
+            pred_norm = (pred - y_mean) / y_std
+            mse = np.mean((pred_norm - y_norm) ** 2)
+            
+            # Minimal regularization only on highest-order terms
+            reg = 1e-6 * (np.abs(params[5]) + np.abs(params[6]))
+            return mse + reg
         except:
             return 1e10
     
-    # Data statistics for smarter initialization
-    y_min, y_max, y_mean, y_std = np.min(y), np.max(y), np.mean(y), np.std(y)
-    y_range = y_max - y_min
-    
-    # Tighter, more informed bounds
     bounds = [
-        (y_mean - 2.5*y_range, y_mean + 2.5*y_range),  # α: intercept
-        (-250, 250),                                     # β₁: parameter effect
-        (-250, 250),                                     # β₂: data effect
-        (-150, 150),                                     # β₃: vocab effect
-        (0.05, 2.5),                                     # a: parameter exponent
-        (0.05, 2.5),                                     # b: data exponent
-        (-0.5, 1.0),                                     # d: vocab exponent
+        (-10.0, 10.0),      # a: baseline
+        (-2.0, 0.5),        # b: log(P) coefficient
+        (-2.0, 0.5),        # c: log(V) coefficient
+        (-2.0, 0.5),        # d: log(C) coefficient
+        (-2.0, 2.0),        # e: log(V/P) efficiency ratio
+        (-1.0, 1.0),        # f: log(C)^2 saturation
+        (-1.0, 1.0),        # g: data-vocabulary interaction
     ]
     
-    # Smarter initialization with refined β estimates
+    # Smart initialization from data correlations
+    corr_P = np.corrcoef(log_P, y)[0, 1] if np.std(log_P) &gt; 1e-6 else 0
+    corr_V = np.corrcoef(log_V, y)[0, 1] if np.std(log_V) &gt; 1e-6 else 0
+    corr_C = np.corrcoef(log_C, y)[0, 1] if np.std(log_C) &gt; 1e-6 else 0
+    
     init_params = np.array([
-        y_mean,
-        -65.0,
-        -65.0,
-        2.5,
-        0.5,
-        0.5,
-        0.15,
+        y_mean,                           # a
+        -0.3 * np.sign(corr_P) if corr_P != 0 else -0.2,  # b
+        -0.2 * np.sign(corr_V) if corr_V != 0 else -0.1,  # c
+        -0.3 * np.sign(corr_C) if corr_C != 0 else -0.2,  # d
+        0.1,                              # e: efficiency ratio
+        0.05,                             # f: saturation
+        -0.02                             # g: interaction
     ])
     
-    # Global optimization with differential evolution
-    result_de = differential_evolution(
+    best_params = None
+    best_loss = np.inf
+    
+    # Stage 1: Quick global search
+    result_global = differential_evolution(
         objective,
         bounds,
         seed=42,
-        maxiter=700,
-        popsize=20,
-        tol=1e-10,
-        atol=1e-12,
-        mutation=(0.5, 1.5),
-        recombination=0.8,
-        polish=False,
+        maxiter=400,
+        popsize=24,
+        atol=1e-8,
+        tol=1e-8,
         workers=1,
+        updating=&#x27;deferred&#x27;,
+        polish=True,
+        mutation=(0.5, 1.5),
+        recombination=0.7
     )
     
-    best_params = result_de.x.copy()
-    best_loss = result_de.fun
+    best_params = result_global.x.copy()
+    best_loss = result_global.fun
     
-    # Multi-path local refinement (from Inspiration 2 approach)
-    # Path 1: From DE solution
-    result1 = minimize(
+    # Stage 2: Fast local refinement
+    result_local = minimize(
         objective,
         best_params,
         method=&#x27;L-BFGS-B&#x27;,
         bounds=bounds,
-        options={&#x27;maxiter&#x27;: 2500, &#x27;ftol&#x27;: 1e-14, &#x27;gtol&#x27;: 1e-11}
+        options={
+            &#x27;maxiter&#x27;: 800,
+            &#x27;ftol&#x27;: 1e-10,
+            &#x27;gtol&#x27;: 1e-8,
+            &#x27;maxcor&#x27;: 40
+        }
     )
     
-    if result1.fun &lt; best_loss:
-        best_params = result1.x.copy()
-        best_loss = result1.fun
+    if result_local.success and result_local.fun &lt; best_loss:
+        best_params = result_local.x
     
-    # Path 2: From initial guess
-    result2 = minimize(
-        objective,
-        init_params,
-        method=&#x27;L-BFGS-B&#x27;,
-        bounds=bounds,
-        options={&#x27;maxiter&#x27;: 2500, &#x27;ftol&#x27;: 1e-14, &#x27;gtol&#x27;: 1e-11}
-    )
+    # Ensure exactly 7 parameters
+    if len(best_params) &lt; 7:
+        best_params = np.pad(best_params, (0, 7 - len(best_params)), mode=&#x27;constant&#x27;)
+    else:
+        best_params = best_params[:7]
     
-    if result2.fun &lt; best_loss:
-        best_params = result2.x.copy()
-        best_loss = result2.fun
-    
-    # Path 3: From perturbed DE solution
-    perturbed = best_params + np.random.RandomState(123).normal(0, 0.1, 7)
-    for i in range(7):
-        perturbed[i] = np.clip(perturbed[i], bounds[i][0], bounds[i][1])
-    
-    result3 = minimize(
-        objective,
-        perturbed,
-        method=&#x27;L-BFGS-B&#x27;,
-        bounds=bounds,
-        options={&#x27;maxiter&#x27;: 2500, &#x27;ftol&#x27;: 1e-14, &#x27;gtol&#x27;: 1e-11}
-    )
-    
-    if result3.fun &lt; best_loss:
-        best_params = result3.x.copy()
-    
-    return np.asarray(best_params[:7], dtype=np.float64)
+    return best_params
+
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#5</span>
               <span class="run-label">Run 4</span>
-              <span class="r2-badge" style="background-color: #228b22; color: white"> R² = 0.949266 </span>
+              <span class="r2-badge" style="background-color: #32CD32; color: black"> R² = 0.892967 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -1115,140 +1083,152 @@ def fit_scaling_law(data_points, loss_values):
               </div>
               <pre><code class="language-python" id="code-4"># EVOLVE-BLOCK-START
 &quot;&quot;&quot;
-Scaling law for LLM vocabulary and parameter trade-offs
-Optimized centered log features with robust dual-method fitting
+Improved scaling law discovery for LLM vocabulary-aware training
+Uses a physics-informed model with vocabulary-aware embedding scaling
 &quot;&quot;&quot;
 import numpy as np
-from scipy.optimize import minimize
+from scipy.optimize import minimize, differential_evolution
 
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    Scaling law with centered log features and interaction terms
-    params: [a, b, c, d, e, f, g] (7 parameters)
+    Scaling law with vocabulary-aware embedding cost model.
+    
+    Model: Loss = a + b*P_nv^α + c*log(V)*D^β + d*log(D)*log(N)^γ
+    where:
+    - P_nv: non-vocabulary parameters
+    - V: vocabulary size
+    - D: embedding dimension (derived from vocab_size and params)
+    - N: number of characters
+    
+    params: [a, b, α, c, β, d, γ] - 7 parameters
     &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
+    params = np.asarray(params, dtype=np.float64).flatten()
     
-    if X.shape[1] != 3:
-        raise ValueError(f&quot;Expected 3 features, got {X.shape[1]}&quot;)
-    
-    # Extract and log-transform features
-    P = np.maximum(X[:, 0], 1e-10)
-    V = np.maximum(X[:, 1], 1e-10)
-    C = np.maximum(X[:, 2], 1e-10)
-    
-    log_P = np.log(P)
-    log_V = np.log(V)
-    log_C = np.log(C)
-    
-    params = np.asarray(params, dtype=np.float64)
     if len(params) &lt; 7:
-        params = np.concatenate([params, np.zeros(7 - len(params))])
+        params = np.pad(params, (0, 7 - len(params)), &#x27;constant&#x27;, constant_values=0)
     
-    a, b, c, d, e, f, g = params[:7]
+    P_nv = X[:, 0]      # non-vocabulary parameters
+    V = X[:, 1]         # vocabulary size
+    N = X[:, 2]         # number of characters
     
-    # Center features for numerical stability
-    log_P_c = log_P - np.mean(log_P)
-    log_V_c = log_V - np.mean(log_V)
-    log_C_c = log_C - np.mean(log_C)
+    # Estimate embedding dimension from non-vocab parameters and vocab size
+    # Assume typical architecture: D ≈ sqrt(P_nv / (num_layers * hidden_multiplier))
+    # For simplicity, use embedding dimension proxy
+    D = np.maximum(np.sqrt(P_nv / 100), 8)  # bounded embedding dimension estimate
     
-    # Main effects and all interaction terms
-    pred = a + b * log_P_c + c * log_V_c + d * log_C_c
-    pred += e * log_P_c * log_V_c + f * log_P_c * log_C_c + g * log_V_c * log_C_c
+    a, b, alpha, c, beta, d, gamma = params[0], params[1], params[2], params[3], params[4], params[5], params[6]
+    
+    # Avoid log of zero/negative values
+    V_safe = np.maximum(V, 1)
+    N_safe = np.maximum(N, 1)
+    D_safe = np.maximum(D, 1)
+    P_nv_safe = np.maximum(P_nv, 1)
+    
+    try:
+        # Main scaling law with vocabulary awareness
+        term1 = a
+        term2 = b * np.power(P_nv_safe, alpha)
+        term3 = c * np.log(V_safe) * np.power(D_safe, beta)
+        term4 = d * np.log(D_safe) * np.power(np.log(N_safe), gamma)
+        
+        pred = term1 + term2 + term3 + term4
+        
+        # Clamp to reasonable range to avoid numerical issues
+        pred = np.clip(pred, -10, 2)
+        
+    except (RuntimeWarning, FloatingPointError):
+        pred = np.full_like(P_nv, a)
     
     return pred
 
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Fit scaling law with efficient dual-stage optimization
+    Fit scaling law using differential evolution for global optimization.
+    Provides better convergence than BFGS for this non-convex problem.
     &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points, dtype=np.float64))
-    y = np.asarray(loss_values, dtype=np.float64)
+    y = np.asarray(loss_values, dtype=np.float64).flatten()
     
-    if X.shape[1] != 3 or len(y) != len(X):
-        raise ValueError(&quot;Invalid input dimensions&quot;)
+    N = len(y)
     
-    # Log-transform features
-    P = np.maximum(X[:, 0], 1e-10)
-    V = np.maximum(X[:, 1], 1e-10)
-    C = np.maximum(X[:, 2], 1e-10)
+    # Normalize inputs for better numerical stability
+    P_nv = X[:, 0]
+    V = X[:, 1]
+    N_chars = X[:, 2]
     
-    log_P = np.log(P)
-    log_V = np.log(V)
-    log_C = np.log(C)
-    
-    # Center features
-    log_P_m = np.mean(log_P)
-    log_V_m = np.mean(log_V)
-    log_C_m = np.mean(log_C)
-    
-    log_P_c = log_P - log_P_m
-    log_V_c = log_V - log_V_m
-    log_C_c = log_C - log_C_m
-    
-    # Design matrix for least squares
-    X_feat = np.column_stack([
-        np.ones(len(X)),
-        log_P_c, log_V_c, log_C_c,
-        log_P_c * log_V_c, log_P_c * log_C_c, log_V_c * log_C_c
-    ])
-    
-    # Initialize with least squares
-    try:
-        init_params = np.linalg.lstsq(X_feat, y, rcond=None)[0]
-    except:
-        init_params = np.array([np.mean(y), -0.15, -0.15, -0.15, 0.005, 0.005, 0.005])
-    
-    init_params = np.clip(init_params, -5, 5)
+    P_nv_log_mean = np.mean(np.log(np.maximum(P_nv, 1)))
+    V_log_mean = np.mean(np.log(np.maximum(V, 1)))
+    N_log_mean = np.mean(np.log(np.maximum(N_chars, 1)))
     
     def objective(params):
+        &quot;&quot;&quot;MSE loss function.&quot;&quot;&quot;
         try:
             pred = scaling_law_func(X, params)
-            residuals = pred - y
-            mse = np.mean(residuals ** 2)
-            reg = 0.005 * np.sum(params ** 2)
-            return mse + reg
+            mse = np.mean((pred - y) ** 2)
+            if not np.isfinite(mse) or mse &gt; 1e10:
+                return 1e10
+            return mse
         except:
             return 1e10
     
-    best_result = None
-    best_loss = float(&#x27;inf&#x27;)
+    # Bounds for 7 parameters
+    # a: bias term, typically near loss values (-5 to 0)
+    # b: coefficient for P_nv term (0.001 to 10)
+    # α: exponent for P_nv (-0.5 to 0.5)
+    # c: coefficient for vocab term (0.001 to 10)
+    # β: exponent for embedding dim (-0.5 to 0.5)
+    # d: coefficient for interaction term (-10 to 10)
+    # γ: exponent for characters (-0.5 to 0.5)
     
-    # Stage 1: L-BFGS-B (primary, very reliable for this problem)
-    try:
-        bounds = [(-5, 5)] * 7
-        result = minimize(objective, init_params, method=&#x27;L-BFGS-B&#x27;,
-                         bounds=bounds, options={&#x27;maxiter&#x27;: 2500, &#x27;ftol&#x27;: 1e-9, &#x27;gtol&#x27;: 1e-7})
-        if result.fun &lt; best_loss:
-            best_loss = result.fun
-            best_result = result.x
-    except:
-        pass
+    bounds = [
+        (-5, 0),        # a
+        (1e-6, 10),     # b
+        (-0.5, 0.5),    # alpha
+        (1e-6, 10),     # c
+        (-0.5, 0.5),    # beta
+        (-10, 10),      # d
+        (-0.5, 0.5),    # gamma
+    ]
     
-    # Stage 2: SLSQP refinement (polish the solution)
-    if best_result is not None:
-        try:
-            bounds = [(-5, 5)] * 7
-            result = minimize(objective, best_result, method=&#x27;SLSQP&#x27;,
-                             bounds=bounds, options={&#x27;maxiter&#x27;: 1500, &#x27;ftol&#x27;: 1e-10})
-            if result.fun &lt; best_loss:
-                best_loss = result.fun
-                best_result = result.x
-        except:
-            pass
+    # Use differential evolution for global optimization
+    result_de = differential_evolution(
+        objective,
+        bounds,
+        maxiter=300,
+        popsize=20,
+        seed=42,
+        atol=1e-8,
+        tol=1e-8,
+        workers=1,
+        polish=True
+    )
     
-    # Stage 3: Nelder-Mead escape (derivative-free backup)
-    if best_result is not None:
-        try:
-            result = minimize(objective, best_result, method=&#x27;Nelder-Mead&#x27;,
-                             options={&#x27;maxiter&#x27;: 3000, &#x27;xatol&#x27;: 1e-8, &#x27;fatol&#x27;: 1e-9, &#x27;adaptive&#x27;: True})
-            if result.fun &lt; best_loss:
-                best_loss = result.fun
-                best_result = result.x
-        except:
-            pass
+    params_de = result_de.x
     
-    return np.clip(best_result if best_result is not None else init_params, -5, 5)
+    # Refine with local optimization
+    result_local = minimize(
+        objective,
+        params_de,
+        method=&#x27;L-BFGS-B&#x27;,
+        bounds=bounds,
+        options={&#x27;maxiter&#x27;: 500, &#x27;ftol&#x27;: 1e-10}
+    )
+    
+    if result_local.success and result_local.fun &lt; result_de.fun:
+        params_opt = result_local.x
+    else:
+        params_opt = params_de
+    
+    # Ensure we return exactly 7 parameters
+    params_opt = np.asarray(params_opt).flatten()
+    if len(params_opt) &lt; 7:
+        params_opt = np.pad(params_opt, (0, 7 - len(params_opt)), &#x27;constant&#x27;, constant_values=0)
+    else:
+        params_opt = params_opt[:7]
+    
+    return params_opt
 
 # EVOLVE-BLOCK-END</code></pre>
             </div>

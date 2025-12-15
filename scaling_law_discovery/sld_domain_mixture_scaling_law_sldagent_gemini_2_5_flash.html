@@ -285,7 +285,7 @@
     <div class="bg-pattern"></div>
 
     <div class="container">
-      <a href="sld_index.html" class="back-link"> ← Back to Leaderboard </a>
+      <a href="index.html" class="back-link"> ← Back to Leaderboard </a>
 
       <div class="header">
         <h1>Domain Mixture Scaling Law</h1>
@@ -300,15 +300,15 @@
           </div>
           <div class="meta-item">
             <span class="meta-label">Best R²:</span>
-            <span class="r2-badge" style="background-color: #006400; color: white"> 0.990460 </span>
+            <span class="r2-badge" style="background-color: #006400; color: white"> 0.998312 </span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Mean R²:</span>
-            <span class="meta-value">0.990417</span>
+            <span class="meta-value">0.998186</span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Min R²:</span>
-            <span class="meta-value">0.990382</span>
+            <span class="meta-value">0.998153</span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Runs:</span>
@@ -320,12 +320,13 @@
       <h2 class="section-title">All Runs (sorted by R²)</h2>
 
       <div class="runs-container">
+
         <div class="run-card best-run">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge best-badge">Best</span>
               <span class="run-label">Run 2</span>
-              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.990460 </span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.998312 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -338,185 +339,187 @@
               <pre><code class="language-python" id="code-0"># EVOLVE-BLOCK-START
 &quot;&quot;&quot;
 Scaling law discovery for LLM finetuning scenarios.
-This version refines the scaling law function and optimization to
-accurately model multi-domain loss with a strict parameter limit and
-multi-output predictions. It aims for mathematical accuracy across
-different model sizes by fitting a unified parameter set to all data.
+This evolved program introduces a new functional form for the scaling law and
+enhances the optimization strategy to improve accuracy and robustness.
 
-The model structure `L_j = Bias_j + sum_{i=1 to F} (c_{ji} * X_i^e_i)`
-is designed for expressiveness within the 35-parameter budget. It allows
-for non-linear contributions from each input domain proportion (X_i^e_i),
-cross-domain influences (c_ji), and baseline losses (Bias_j).
+Key Improvements:
+1.  **Scaling Law Functional Form:** The `scaling_law_func` now models each output
+    domain&#x27;s loss (L_j) based on the sum of power-law contributions from all input
+    domain proportions (x_k), where the exponent (e_j) is specific to the *output*
+    domain j, rather than specific to the input domain k.
+    New form: `L_j = b_j + sum_{k=1 to F} (c_jk * x_k^e_j)`
+    -   `b_j`: Bias for output domain j.
+    -   `c_jk`: Coefficient for influence of input domain k on output domain j.
+    -   `e_j`: Exponent for output domain j, applied to all input proportions affecting L_j.
+    This maintains the 35-parameter limit (F biases + F*F coefficients + F exponents = 5 + 25 + 5 = 35).
+    This structure allows each output domain to exhibit its own scaling behavior with respect
+    to the mixture proportions, which might better capture cross-domain generalization effects.
 
-The `fit_scaling_law` optimization algorithm employs a robust strategy:
-1.  **Informed Initialization**:
-    -   `init_biases` are set to the average observed loss for each output domain, providing a strong baseline.
-    -   `init_exponents` start at 1.0, treating the initial state as a linear combination for the LSTSQ step.
-    -   `init_coeffs` are determined using a Least Squares (lstsq) solution. This provides an analytically
-        derived, optimal starting point for coefficients given the initial exponents and biases, which is
-        crucial for rapid convergence and reaching better minima in the subsequent non-linear optimization.
-2.  **Perturbation**: A small random perturbation is added to the informed initial parameters. This helps
-    the optimizer escape shallow local minima around the initial guess and explore the immediate vicinity
-    for a potentially better starting point for the non-linear search, without deviating too far from the
-    analytically derived initial values.
-3.  **Bounded Optimization**: The L-BFGS-B algorithm is used, which is efficient and handles parameter bounds
-    effectively. Robust bounds are applied to exponents (non-negative for stability), coefficients (broad range
-    for diverse influences), and biases (within realistic loss ranges) to ensure numerical stability and
-    guide the search to meaningful solutions, preventing unphysical parameter values.
+2.  **Optimization Robustness:** The `fit_scaling_law` function now employs:
+    -   **Multiple Random Initializations:** In addition to a deterministic initial guess,
+        it performs `N_TRIALS` (increased to 30) optimizations from randomly generated
+        initial parameters within their defined bounds. This helps to explore the
+        non-convex parameter space more thoroughly and mitigate getting stuck in local minima.
+    -   **Refined Exponent Initialization Range:** For the random initializations,
+        the exponents are initialized within a narrower, more common range (0.0 to 2.0)
+        to guide the search towards plausible scaling behaviors, while the broader
+        L-BFGS-B bounds (0.0 to 5.0) still allow the optimizer to explore further if beneficial.
 &quot;&quot;&quot;
 import numpy as np
 from scipy.optimize import minimize
 
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    Predicts multi-domain loss values based on domain proportions.
+    Predicts multi-domain loss values based on domain proportions using a generalized power law.
 
-    The model form is: L_j = Bias_j + sum_{i=1 to F} (c_{ji} * X_i^e_i)
-    where:
-    - L_j is the predicted loss for output domain j.
-    - X_i is the proportion of input domain i.
-    - e_i are shared exponents for each input proportion (X_i).
-    - c_{ji} are coefficients influencing output domain j from input proportion i.
-    - Bias_j is the bias term for output domain j.
+    The model for each domain&#x27;s loss L_j is:
+    L_j = b_j + sum_{k=1 to F} (c_jk * x_k^e_j)
 
-    Parameters:
-    - data_points: (N, F) array with domain proportions for F domains.
-                   F=5 in this problem.
-    - params: 1D array of parameters (total 35 for F=5).
-              Structure: [exponents (F), coeffs (F*F), biases (F)]
+    Where:
+    - F is the number of domains (5).
+    - x_k is the proportion of domain k.
+    - b_j is the bias term for output domain j.
+    - c_jk is the coefficient representing the influence of input proportion x_k on output loss L_j.
+    - e_j is the exponent for output domain j, shared across all input proportions affecting L_j.
+
+    Total parameters: F (biases) + F*F (coefficients) + F (exponents) = 5 + 25 + 5 = 35.
+
+    Args:
+        data_points (np.ndarray): (N, F) array with domain proportions for F domains.
+        params (np.ndarray): 1D array of 35 parameters.
 
     Returns:
-    - Predicted multi-domain loss values (N, F).
+        np.ndarray: Predicted multi-domain loss values (N, F).
     &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points)) # (N, F)
-    N, F = X.shape # F=5 (5 domains)
+    N, F = X.shape # F = 5 (number of domains)
 
-    # Parameter extraction based on fixed structure
-    # Total params = F (exponents) + F*F (coefficients) + F (biases)
-    # For F=5: 5 + 25 + 5 = 35 parameters
+    # Unpack parameters: [b_1..b_F, c_11..c_FF, e_1..e_F]
+    # The parameters are ordered as: F biases, F*F coefficients, F exponents
+    biases = params[:F] # (F,) - bias for each output domain L_j
+    coeffs_flat = params[F : F + F*F] # (F*F,) - flattened coefficients
+    coeffs = coeffs_flat.reshape(F, F) # (F, F) - c_jk where c_jk is coeffs[j, k]
+                                       # coeffs[j, k] means the influence of input domain k on output domain j
+    # In this model, exponents are specific to the output domain j, so e_j
+    exponents = params[F + F*F : F + F*F + F] # (F,) - exponent for each output domain L_j
 
-    exponents = params[0:F] # Shape (F,)
-    coeffs_flat = params[F : F + F*F]
-    coeffs = coeffs_flat.reshape(F, F) # Shape (F_output, F_input)
-    biases = params[F + F*F : F + F*F + F] # Shape (F,)
+    predicted_losses = np.zeros_like(X, dtype=float) # (N, F)
 
-    # Calculate the power terms for each input dimension: X_ni ^ e_i
-    # np.power correctly handles 0^positive_exp = 0 and 0^0 = 1, ensuring stability.
-    # Exponents are bounded to be non-negative during fitting.
-    X_powered = np.power(X, exponents[None, :]) # Element-wise power, shape (N, F)
+    # Calculate predictions for each output domain L_j
+    for j in range(F):
+        # Get the exponent specific to this output domain j
+        ej = exponents[j]
 
-    # Calculate predicted losses:
-    # predicted_losses[n, j] = Bias_j + sum_i (coeffs[j, i] * X_powered[n, i])
-    # This is efficiently computed via matrix multiplication: (N, F) @ (F, F).T + (1, F)
-    predicted_losses = np.dot(X_powered, coeffs.T) + biases[None, :]
+        # Calculate X_k^ej for all input domains k and all data points N
+        # np.where handles 0^e = 0, which is desired for proportions where 0 means absence.
+        # The bounds ensure exponents are non-negative, so 0^0 = 1 behavior is avoided for X=0.
+        X_powered_by_ej = np.where(X &gt; 0, np.power(X, ej), 0.0) # (N, F)
+
+        # Multiply by coefficients c_jk for this specific output domain j
+        # coeffs[j, :] gives the (F,) array of coefficients [c_j1, c_j2, ..., c_jF]
+        # [None, :] broadcasts it to (1, F) for element-wise multiplication with (N, F)
+        contributions_for_j = X_powered_by_ej * coeffs[j, :][None, :] # (N, F)
+
+        # Sum contributions from all input domains k for each data point
+        sum_contributions_for_j = np.sum(contributions_for_j, axis=1) # (N,)
+
+        # Add bias for this output domain j
+        predicted_losses[:, j] = biases[j] + sum_contributions_for_j
 
     return predicted_losses
 
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Fits the scaling_law_func parameters to the given data.
+    Optimizes the parameters for the scaling_law_func using L-BFGS-B with multiple initializations.
 
-    Parameters:
-    - data_points: (N, F) array with domain proportions.
-    - loss_values: (N, F) array of corresponding multi-domain losses.
+    Args:
+        data_points (np.ndarray): (N, F) array with domain proportions for F domains.
+        loss_values (np.ndarray): Corresponding multi-domain losses (N, F).
 
     Returns:
-    - Optimized parameters (1D array, up to 35 parameters).
+        np.ndarray: Optimized parameters (1D array of 35 parameters).
     &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points)) # (N, F)
     y = np.asarray(loss_values) # (N, F)
-    N, F = X.shape # F=5 (5 domains)
+    N, F = X.shape # F = 5 (number of domains)
 
-    P_total = F + F*F + F # Total parameters: 5 + 25 + 5 = 35
+    # Number of parameters for the multi-output model: F biases + F*F coefficients + F exponents
+    num_params = F + F*F + F # 5 + 25 + 5 = 35
 
-    # --- Initial parameter guess ---
-    # 1. Exponents: Start with 1.0 for a linear-like initial approximation,
-    #    which simplifies the initial LSTSQ for coefficients.
-    init_exponents = np.ones(F) * 1.0
-    
-    # 2. Biases: Initialize with the average loss for each output domain.
-    #    This provides a strong, data-driven baseline for the loss values.
-    init_biases = np.mean(y, axis=0) # Shape (F,)
+    # Bounds for parameters to ensure numerical stability and reasonable values
+    # Biases: Loss values are typically positive. Range [0, 5] covers 1.8-4.2 well.
+    bias_bounds = [(0.0, 5.0)] * F
+    # Coefficients: Can be positive or negative, allowing for various interaction types. Range [-10, 10].
+    coeff_bounds = [(-10.0, 10.0)] * (F*F)
+    # Exponents: Must be non-negative. Common scaling law exponents are often between 0 and 2.
+    # Allowing up to 5 provides flexibility for the optimizer, but initial random search will be tighter.
+    exponent_bounds_optimizer = [(0.0, 5.0)] * F
 
-    # 3. Coefficients: Use Least Squares to find an informed initial guess.
-    #    We approximate the problem as linear for coefficients, given initial exponents and biases.
-    #    The `X` values are powered by the initial exponents (currently 1.0, so X_powered is X itself).
-    X_powered_for_init_coeffs = np.power(X, init_exponents[None, :])
-    
-    # The target for LSTSQ is the actual loss minus the initial bias terms.
-    target_for_coeffs = y - init_biases[None, :]
-    
-    try:
-        # Solve multi-output linear regression: X_powered @ C_transpose = target
-        # C_transpose will be (F_input, F_output). We need to transpose to get (F_output, F_input)
-        C_transpose_init = np.linalg.lstsq(X_powered_for_init_coeffs, target_for_coeffs, rcond=None)[0]
-        init_coeffs = C_transpose_init.T.flatten() # Flatten for concatenation
-    except np.linalg.LinAlgError:
-        # Fallback to random initialization if LSTSQ fails (e.g., singular matrix, highly unlikely for this data)
-        # This provides robustness in case of numerical issues with LSTSQ, although less informed.
-        init_coeffs = np.random.uniform(low=-0.5, high=0.5, size=F * F)
+    # Combined bounds for the L-BFGS-B optimizer
+    bounds = bias_bounds + coeff_bounds + exponent_bounds_optimizer
 
-    # Concatenate all initial parameter components
-    initial_params = np.concatenate([init_exponents, init_coeffs, init_biases])
-    
-    # Add a small random perturbation for robustness, encouraging exploration
-    # around the informed initial guess. A scale of 0.01 provides sufficient
-    # exploration while staying close to the analytical starting point.
-    perturbation_scale = 0.01 
-    initial_params += np.random.normal(loc=0, scale=perturbation_scale, size=P_total)
-
-    # --- Define objective function for minimization ---
-    def objective(flat_params):
-        pred = scaling_law_func(X, flat_params)
-        mse = np.mean((pred - y) ** 2) # Mean Squared Error (MSE) as the objective
+    def objective(params_flat):
+        &quot;&quot;&quot;Calculates the Mean Squared Error between predictions and actual loss values.&quot;&quot;&quot;
+        pred = scaling_law_func(X, params_flat) # (N, F)
+        mse = np.mean((pred - y) ** 2)
         return mse
 
-    # --- Define parameter bounds for L-BFGS-B optimizer ---
-    bounds = []
-    # Exponents (F parameters): Non-negative to ensure numerical stability (0^negative is undefined).
-    # Upper bound of 5.0 allows for significant non-linearity while preventing overly steep functions.
-    for _ in range(F):
-        bounds.append((0.0, 5.0))
+    best_mse = np.inf
+    best_params = None
 
-    # Coefficients (F*F parameters): Broad range to allow for both positive
-    # and negative influences from input proportions on output losses, which
-    # can span a range of values to fit cross-entropy losses (1.8-4.2).
-    for _ in range(F * F):
-        bounds.append((-10.0, 10.0))
+    # --- Deterministic initial guess ---
+    # Biases: Mean loss for each domain is a good starting point.
+    init_biases_det = np.mean(y, axis=0) # (F,)
+    # Coefficients: Initialize to zeros. The optimizer will find the interactions.
+    init_coeffs_det = np.zeros((F, F)) # (F, F)
+    # Exponents: Initialize to 1.0 (linear scaling) for all output domains.
+    init_exponents_det = np.ones(F) * 1.0 # (F,)
 
-    # Biases (F parameters): Constrained to typical observed loss ranges (1.0-5.0)
-    # to maintain numerical stability and ensure realistic predicted loss values.
-    # The actual loss values are between 1.8-4.2, so this range is appropriate.
-    for _ in range(F):
-        bounds.append((1.0, 5.0))
+    # Combine initial parameters into a single 1D array
+    initial_params_det = np.concatenate([init_biases_det, init_coeffs_det.ravel(), init_exponents_det]) # (num_params,)
 
-    # Ensure initial_params are clamped within bounds. This is crucial for
-    # bounded optimization algorithms like L-BFGS-B, which require the
-    # starting point to be within the feasible region, especially after random perturbation.
-    initial_params_clamped = np.array([np.clip(initial_params[i], bounds[i][0], bounds[i][1]) for i in range(P_total)])
+    # 1. Run optimization with the deterministic initial guess
+    result_det = minimize(objective, initial_params_det, method=&#x27;L-BFGS-B&#x27;, bounds=bounds)
+    if result_det.success and result_det.fun &lt; best_mse:
+        best_mse = result_det.fun
+        best_params = result_det.x
 
-    # --- Optimization ---
-    # L-BFGS-B is chosen for its efficiency and ability to handle parameter bounds
-    # and is suitable for moderately sized non-linear optimization problems.
-    result = minimize(objective, initial_params_clamped, method=&#x27;L-BFGS-B&#x27;, bounds=bounds)
-    
-    # Return optimized parameters. If the minimization fails for some reason
-    # (e.g., convergence not achieved), fall back to the clamped initial parameters.
-    params_opt = result.x if result.success else initial_params_clamped
+    # --- Multiple Random Initializations ---
+    N_TRIALS = 30 # Number of random initializations to try for better global optimum search
 
-    return params_opt
+    # Tighter random initialization bounds for exponents (more typical range)
+    exponent_random_init_range = (0.0, 2.0)
+
+    for _ in range(N_TRIALS):
+        # Generate random initial parameters within their respective bounds
+        random_biases = np.random.uniform(bias_bounds[0][0], bias_bounds[0][1], F)
+        random_coeffs = np.random.uniform(coeff_bounds[0][0], coeff_bounds[0][1], F*F)
+        random_exponents = np.random.uniform(exponent_random_init_range[0], exponent_random_init_range[1], F)
+        
+        random_initial_params = np.concatenate([random_biases, random_coeffs, random_exponents])
+
+        result_rand = minimize(objective, random_initial_params, method=&#x27;L-BFGS-B&#x27;, bounds=bounds)
+        if result_rand.success and result_rand.fun &lt; best_mse:
+            best_mse = result_rand.fun
+            best_params = result_rand.x
+            
+    # Fallback: if no successful optimization was found, return the deterministic initial guess.
+    # This scenario should be rare with good bounds and initial guesses.
+    if best_params is None:
+        return initial_params_det
+
+    return best_params
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#2</span>
-              <span class="run-label">Run 1</span>
-              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.990428 </span>
+              <span class="run-label">Run 3</span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.998155 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -529,236 +532,125 @@ def fit_scaling_law(data_points, loss_values):
               <pre><code class="language-python" id="code-1"># EVOLVE-BLOCK-START
 &quot;&quot;&quot;
 Scaling law discovery for LLM finetuning scenarios
-This version evolves the scaling law function and optimization to
-better model multi-domain loss with a strict parameter limit and
-multi-output predictions, focusing on mathematical accuracy across
-different model sizes implicitly through a unified parameter set.
-
-Improvements in this version build upon the multi-start optimization strategy:
-1.  **Increased Multi-start Restarts (30):** The number of optimization restarts is
-    increased from 20 to 30. This allows the optimizer to explore an even wider
-    range of initial parameter configurations, further improving the chances
-    of finding a better global minimum for the non-convex objective function.
-2.  **Expanded Initial Parameter Ranges:**
-    -   `init_exponents`: The random sampling range for exponents is slightly
-        widened from (0.5, 2.0) to (0.3, 2.5). This allows the model to capture
-        an even broader spectrum of non-linear scaling behaviors, from highly
-        sub-linear (exponent &lt; 1) to super-linear (exponent &gt; 1).
-    -   `init_coeffs`: The random sampling range for coefficients is slightly
-        widened from (-1.0, 1.0) to (-1.5, 1.5). This allows for larger initial
-        contributions (positive or negative) from input proportions, potentially
-        reaching optimal values more efficiently.
-    -   `init_biases`: The Gaussian noise added to the mean loss for biases is
-        increased (`scale=0.15` from `scale=0.1`). This further diversifies the
-        starting points for bias terms across restarts, helping to break symmetry
-        and explore different local optima more thoroughly.
-3.  **Explicit Initial Parameter Clipping:** Initialized parameters are explicitly
-    clipped to the defined `bounds` before being passed to the optimizer. This
-    ensures that every optimization run starts from a valid point within the
-    specified parameter constraints, enhancing stability and efficiency.
-4.  **Tighter Optimizer Tolerances &amp; Increased Iterations:** Explicit `options` are
-    passed to the `minimize` function (`maxiter=2000`, `ftol=1e-8`, `gtol=1e-6`).
-    This increases the maximum number of iterations for each run and tightens
-    the convergence criteria for function value (`ftol`) and gradient norm (`gtol`),
-    potentially leading to more precise fits at the cost of slightly longer
-    optimization times per run.
-5.  **Robust Best Parameter Selection:** The best parameters are selected based on
-    the absolute lowest objective function value (MSE) found across all restarts,
-    *regardless* of whether the `minimize` function itself reported `success=True`.
-    This ensures that even if an optimization run did not formally &quot;converge&quot; but
-    found a lower error, that solution is still considered. A check for `np.isfinite`
-    is added to `objective` to guard against invalid loss values.
-6.  **Refined Fallback Mechanism:** The fallback logic for when all multi-start
-    optimizations fail (extremely rare) now generates a robust default initial
-    guess, clips it, and attempts one final minimization run using these parameters
-    and the tighter tolerances.
-
-The core `scaling_law_func` model form remains unchanged as it effectively
-utilizes the 35-parameter budget with its generalized additive power-law structure,
-offering a good balance of expressiveness, interpretability, and numerical stability.
+Evolved program with a more sophisticated multi-output power law form that respects parameter limits.
+Improvements focus on refined parameter initialization and tighter bounds for enhanced optimization stability and realism.
 &quot;&quot;&quot;
 import numpy as np
 from scipy.optimize import minimize
 
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    Predicts multi-domain loss values based on domain proportions.
+    Predicts multi-domain loss values based on domain proportions using a generalized power law.
 
-    The model form is: L_j = Bias_j + sum_{i=1 to F} (c_{ji} * X_i^e_i)
-    where:
-    - L_j is the predicted loss for output domain j.
-    - X_i is the proportion of input domain i.
-    - e_i are shared exponents for each input proportion (across all output domains).
-    - c_{ji} are coefficients for how input proportion i influences output domain j.
-    - Bias_j is the bias term for output domain j.
+    The model for each domain&#x27;s loss L_j is:
+    L_j = b_j + sum_{k=1 to F} (c_jk * x_k^e_k)
 
-    Parameters:
-    - data_points: (N, F) array with domain proportions for F domains.
-                   F=5 in this problem. N is the number of data samples.
-    - params: 1D array of parameters (total 35 for F=5).
-              Structure: [exponents (F), coeffs (F*F), biases (F)]
+    Where:
+    - F is the number of domains (5).
+    - x_k is the proportion of domain k.
+    - b_j is the bias term for output domain j.
+    - c_jk is the coefficient representing the influence of input proportion x_k on output loss L_j.
+    - e_k is the exponent for input proportion x_k, shared across all output losses L_j.
+
+    Total parameters: F (biases) + F*F (coefficients) + F (exponents) = 5 + 25 + 5 = 35.
+
+    Args:
+        data_points (np.ndarray): (N, F) array with domain proportions for F domains.
+        params (np.ndarray): 1D array of 35 parameters.
 
     Returns:
-    - Predicted multi-domain loss values (N, F).
+        np.ndarray: Predicted multi-domain loss values (N, F).
     &quot;&quot;&quot;
-    X = np.atleast_2d(np.asarray(data_points)) # Ensure X is 2D, (N, F)
-    N, F = X.shape # F=5 (5 domains)
+    X = np.atleast_2d(np.asarray(data_points)) # (N, F)
+    N, F = X.shape # F = 5
 
-    # Parameter extraction based on fixed structure
-    # Total params = F (exponents) + F*F (coefficients) + F (biases)
-    # For F=5: 5 + 25 + 5 = 35 parameters
+    # Unpack parameters: [b_1..b_F, c_11..c_FF, e_1..e_F]
+    biases = params[:F] # (F,) - bias for each output domain L_j
+    coeffs_flat = params[F : F + F*F] # (F*F,)
+    coeffs = coeffs_flat.reshape(F, F) # (F, F) - c_jk where c_jk is coeffs[j, k]
+    exponents = params[F + F*F : F + F*F + F] # (F,) - exponent for each input proportion x_k
 
-    # Exponents for each input proportion X_i. Shape (F,)
-    exponents = params[0:F]
-    
-    # Coefficients for F outputs (rows) from F inputs (columns).
-    # Reshape from flat (F*F,) to (F_output, F_input)
-    coeffs_flat = params[F : F + F*F]
-    coeffs = coeffs_flat.reshape(F, F) # Shape (F, F), coeffs[j,i] corresponds to output j influenced by input i
+    # Calculate X_k^e_k for each input dimension k.
+    # np.where handles 0^e = 0, which is desired for proportions where 0 means absence.
+    # This avoids issues with negative exponents and correctly handles 0^positive_exponent.
+    X_power_exponents = np.where(X &gt; 0, np.power(X, exponents[None, :]), 0.0) # (N, F)
 
-    # Bias terms for each output domain L_j. Shape (F,)
-    biases = params[F + F*F : F + F*F + F]
+    # Calculate sum_k (c_jk * X_k^e_k) for each L_j.
+    # This is equivalent to (N, F) @ (F, F).T -&gt; (N, F)
+    # The j-th column of the result is L_j.
+    pred_no_bias = X_power_exponents @ coeffs.T # (N, F)
 
-    # Calculate the power terms for each input dimension: X_ni ^ e_i
-    # `exponents[None, :]` broadcasts exponents across N samples.
-    # np.power handles `0^0=1` and `0^positive=0` correctly.
-    # Non-negative bounds for exponents prevent `0^negative` (infinity).
-    X_powered = np.power(X, exponents[None, :]) # Element-wise power, shape (N, F)
+    # Add biases to each output domain&#x27;s prediction.
+    pred = pred_no_bias + biases[None, :] # (N, F) + (1, F) -&gt; (N, F)
 
-    # Calculate predicted losses:
-    # predicted_losses[n, j] = Bias_j + sum_i (coeffs[j, i] * X_powered[n, i])
-    # This is efficiently calculated using matrix multiplication:
-    # (N, F) @ (F, F).T + (1, F) -&gt; (N, F)
-    predicted_losses = np.dot(X_powered, coeffs.T) + biases[None, :]
-
-    return predicted_losses
+    return pred
 
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Fits the scaling_law_func parameters to the given data using multi-start optimization.
+    Optimizes the parameters for the scaling_law_func using L-BFGS-B.
 
-    Parameters:
-    - data_points: (N, F) array with domain proportions.
-    - loss_values: (N, F) array of corresponding multi-domain losses.
+    Args:
+        data_points (np.ndarray): (N, F) array with domain proportions for F domains.
+        loss_values (np.ndarray): Corresponding multi-domain losses (N, F).
 
     Returns:
-    - Optimized parameters (1D array, up to 35 parameters).
+        np.ndarray: Optimized parameters (1D array of 35 parameters).
     &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points)) # (N, F)
     y = np.asarray(loss_values) # (N, F)
-    N, F = X.shape # F=5 (5 domains)
+    N, F = X.shape # F = 5
 
-    # Total number of parameters as defined by scaling_law_func
-    P_total = F + F*F + F # 5 + 25 + 5 = 35
+    # Number of parameters for the multi-output model
+    num_params = F + F*F + F # 5 + 25 + 5 = 35
 
-    # --- Define objective function for minimization ---
-    def objective(flat_params):
-        # Calculate predicted losses using the current parameters
-        pred = scaling_law_func(X, flat_params) # (N, F)
-        # Compute Mean Squared Error (MSE) between predictions and actual loss values
+    # --- Improved Initial Guess for Parameters ---
+    # Biases: Mean loss for each domain is a good starting point.
+    init_biases = np.mean(y, axis=0) # (F,)
+    # Coefficients: Initialize diagonal elements to 1.0 (self-influence), others to 0 (no cross-influence).
+    # This provides a more informed starting point than all zeros.
+    init_coeffs = np.eye(F) * 1.0 # (F, F)
+    init_coeffs_flat = init_coeffs.ravel() # (F*F,)
+    # Exponents: Initialize to 0.5 (sublinear scaling), which is common in many scaling laws.
+    init_exponents = np.full(F, 0.5) # (F,)
+
+    # Combine initial parameters into a single 1D array
+    initial_params = np.concatenate([init_biases, init_coeffs_flat, init_exponents]) # (num_params,)
+
+    # --- Improved Bounds for Parameters to Enhance Stability and Realism ---
+    # Biases: Tighter range based on observed loss values (1.8-4.2).
+    bias_bounds = [(1.5, 4.5)] * F
+    # Coefficients: Tighter range, assuming influences are not extremely large.
+    coeff_bounds = [(-2.0, 2.0)] * (F*F)
+    # Exponents: Non-zero positive lower bound (e.g., 0.1) and a reasonable upper bound (e.g., 2.0)
+    # for typical scaling law behavior, avoiding excessively steep or flat curves.
+    exponent_bounds = [(0.1, 2.0)] * F
+
+    bounds = bias_bounds + coeff_bounds + exponent_bounds
+
+    def objective(params_flat):
+        &quot;&quot;&quot;Calculates the Mean Squared Error between predictions and actual loss values.&quot;&quot;&quot;
+        pred = scaling_law_func(X, params_flat) # (N, F)
         mse = np.mean((pred - y) ** 2)
-        # Return a very large value if MSE is not finite (e.g., due to NaNs or Infs)
-        if not np.isfinite(mse):
-            return np.inf
         return mse
 
-    # --- Define parameter bounds for L-BFGS-B optimizer ---
-    # These bounds are crucial for numerical stability and preventing unrealistic parameter values.
-    bounds = []
-    # Exponents (F parameters):
-    # Constrained to be non-negative (to avoid 0^negative issues) and reasonable upper limit.
-    for _ in range(F):
-        bounds.append((0.0, 5.0)) # Exponents between 0 and 5
+    # Use &#x27;L-BFGS-B&#x27; for optimization as it supports parameter bounds and is efficient for this type of problem.
+    result = minimize(objective, initial_params, method=&#x27;L-BFGS-B&#x27;, bounds=bounds)
 
-    # Coefficients (F*F parameters):
-    # A wider range allows for both positive and negative contributions from input proportions.
-    for _ in range(F * F):
-        bounds.append((-10.0, 10.0)) # Coefficients between -10 and 10
+    # Return optimized parameters if successful, otherwise return the initial parameters.
+    params_opt = result.x if result.success else initial_params
 
-    # Biases (F parameters):
-    # Constrained to be within or near the observed loss range (1.8-4.2)
-    # to maintain numerical stability and realistic loss predictions.
-    for _ in range(F):
-        bounds.append((1.0, 5.0)) # Biases within a reasonable loss range for CE loss
-
-    # --- Multi-start Optimization ---
-    num_restarts = 30 # Increased restarts for better exploration
-    best_params_overall = None
-    min_mse_overall = np.inf
-
-    for _ in range(num_restarts):
-        # Generate initial parameter guess for this restart
-        # Exponents: Randomly sample from a slightly wider range.
-        init_exponents = np.random.uniform(0.3, 2.5, F)
-        
-        # Coefficients: Initialize with small random values from a slightly wider range.
-        init_coeffs = np.random.uniform(low=-1.5, high=1.5, size=F * F)
-        
-        # Biases: Initialize around the average loss for each output domain, with increased noise.
-        init_biases = np.mean(y, axis=0) + np.random.normal(loc=0, scale=0.15, size=F)
-
-        # Concatenate all initial parameter components
-        initial_params = np.concatenate([init_exponents, init_coeffs, init_biases])
-        
-        # Clip initial parameters to ensure they are within the defined bounds.
-        # This helps L-BFGS-B start within a valid region and avoid boundary issues.
-        initial_params_clipped = np.array([np.clip(val, b[0], b[1]) for val, b in zip(initial_params, bounds)])
-
-        # Perform optimization using L-BFGS-B, with explicit options for thoroughness.
-        result = minimize(
-            objective, 
-            initial_params_clipped, 
-            method=&#x27;L-BFGS-B&#x27;, 
-            bounds=bounds,
-            options={&#x27;maxiter&#x27;: 2000, &#x27;ftol&#x27;: 1e-8, &#x27;gtol&#x27;: 1e-6} # Increased maxiter, tightened tolerances
-        )
-        
-        # Always check result.fun to find the true minimum MSE, regardless of result.success.
-        # It&#x27;s possible for an optimization to &quot;fail&quot; to converge (e.g., hit maxiter)
-        # but still yield a lower objective value than other &quot;successful&quot; runs.
-        if np.isfinite(result.fun) and result.fun &lt; min_mse_overall:
-            min_mse_overall = result.fun
-            best_params_overall = result.x
-
-    # Fallback: If no valid minimum was found across all restarts (highly unlikely with these settings).
-    if best_params_overall is None:
-        # Generate a robust, default initial guess within bounds
-        init_exponents_default = np.ones(F) * 1.0 # Default exponent (linear-ish behavior)
-        init_coeffs_default = np.zeros(F * F) # Zero coefficients (no cross-influence)
-        init_biases_default = np.mean(y, axis=0) # Mean observed loss for biases
-        
-        default_params = np.concatenate([init_exponents_default, init_coeffs_default, init_biases_default])
-        
-        # Clip this default to ensure it&#x27;s strictly within the defined bounds
-        initial_params_fallback_clipped = np.array([np.clip(val, b[0], b[1]) for val, b in zip(default_params, bounds)])
-        
-        # As a last resort, attempt one final minimization with this default
-        result_fallback = minimize(
-            objective, 
-            initial_params_fallback_clipped, # Use the clipped default as starting point
-            method=&#x27;L-BFGS-B&#x27;, 
-            bounds=bounds,
-            options={&#x27;maxiter&#x27;: 2000, &#x27;ftol&#x27;: 1e-8, &#x27;gtol&#x27;: 1e-6}
-        )
-        if np.isfinite(result_fallback.fun) and result_fallback.fun &lt; min_mse_overall:
-            best_params_overall = result_fallback.x
-        else: # If even the fallback fails to find a better solution, return the initial clipped default
-            best_params_overall = initial_params_fallback_clipped
-
-
-    return best_params_overall
+    return params_opt
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#3</span>
-              <span class="run-label">Run 4</span>
-              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.990416 </span>
+              <span class="run-label">Run 1</span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.998154 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -770,222 +662,167 @@ def fit_scaling_law(data_points, loss_values):
               </div>
               <pre><code class="language-python" id="code-2"># EVOLVE-BLOCK-START
 &quot;&quot;&quot;
-Scaling law discovery for LLM finetuning scenarios
-This version evolves the scaling law function and optimization to
-better model multi-domain loss with a strict parameter limit and
-multi-output predictions, focusing on mathematical accuracy across
-different model sizes implicitly through a unified parameter set.
+Scaling law discovery for LLM finetuning scenarios.
+This evolved program refines the optimization strategy by introducing a subtly perturbed
+initial guess for the coefficients in the `fit_scaling_law` function. The `scaling_law_func`
+remains robust, modeling each domain&#x27;s loss as a base loss plus a sum of power-law terms,
+where each input proportion x_k is raised to a shared exponent e_k, and its influence
+on each output loss L_j is governed by a coefficient c_jk. This structure efficiently
+uses 35 parameters (5 biases, 25 coefficients, 5 exponents), adhering to the parameter limit.
 
-Improvements focus on enhancing the robustness and global search capability
-of the optimization process by implementing a hybrid initialization strategy
-with multiple restarts, and fine-tuning optimization parameters. The
-scaling law function itself remains robust in handling zero proportions.
+The `fit_scaling_law` function enhances the L-BFGS-B optimization by initializing
+coefficients with very small, non-zero values. Specifically, diagonal coefficients
+(representing a domain&#x27;s self-influence on its own loss) are given a tiny negative bias
+(-1e-3), while off-diagonal coefficients (cross-domain influence) are given a tiny positive
+bias (1e-3). This subtle perturbation from an all-zero start aims to break initial symmetry
+and potentially guide the optimizer toward a slightly better local minimum by reflecting
+the general intuition that increasing a domain&#x27;s proportion tends to reduce its own loss,
+while other domains might have a minor, slightly adverse, or neutral effect.
+Parameter bounds are kept tight to ensure numerical stability and physical realism for loss values.
+
+The model generalizes across different model sizes without explicit input, relying on a robust
+fit that captures the underlying relationship between domain mixture proportions and losses
+across the entire dataset.
 &quot;&quot;&quot;
 import numpy as np
 from scipy.optimize import minimize
 
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    Predicts multi-domain loss values based on domain proportions.
+    Predicts multi-domain loss values based on domain proportions using a generalized power law.
 
-    The model form is a generalized linear model with power-law terms:
-    L_j = Bias_j + sum_{i=1 to F} (c_{ji} * X_i^e_i)
-    where:
-    - L_j is the predicted loss for output domain j.
-    - X_i is the proportion of input domain i.
-    - e_i are shared exponents for each input proportion X_i (total F exponents).
-    - c_{ji} are coefficients, linking input proportion i to output loss j (total F*F coefficients).
-    - Bias_j is the bias term specific to output domain j (total F biases).
+    The model for each domain&#x27;s loss L_j is:
+    L_j = b_j + sum_{k=1 to F} (c_jk * x_k^e_k)
 
-    This structure accounts for domain interactions and non-linear effects using a total of
-    F (exponents) + F*F (coefficients) + F (biases) parameters.
-    For F=5 domains, this is 5 + (5*5) + 5 = 35 parameters, strictly adhering to the limit.
+    Where:
+    - F is the number of domains (5).
+    - x_k is the proportion of domain k.
+    - b_j is the bias term for output domain j.
+    - c_jk is the coefficient representing the influence of input proportion x_k on output loss L_j.
+    - e_k is the exponent for input proportion x_k, shared across all output losses L_j.
 
-    Parameters:
-    - data_points: (N, F) array with domain proportions for F domains.
-                   N is the number of data points, F=5 in this problem.
-    - params: 1D array of parameters (total 35 for F=5).
-              Structure: [exponents (F), coeffs (F*F, flattened), biases (F)]
+    This formulation allows for a base loss for each domain, cross-domain interactions,
+    and non-linear scaling of proportions, all within the 35-parameter limit.
+
+    Total parameters: F (biases) + F*F (coefficients) + F (exponents) = 5 + 25 + 5 = 35.
+
+    Args:
+        data_points (np.ndarray): (N, F) array with domain proportions for F domains.
+        params (np.ndarray): 1D array of 35 parameters.
 
     Returns:
-    - Predicted multi-domain loss values (N, F). Each row corresponds to a data point,
-      and each column corresponds to the predicted loss for one of the F output domains.
+        np.ndarray: Predicted multi-domain loss values (N, F).
     &quot;&quot;&quot;
-    X = np.atleast_2d(np.asarray(data_points)) # Ensure X is a 2D array (N, F)
-    N, F = X.shape # N: number of samples, F: number of domains (5)
+    X = np.atleast_2d(np.asarray(data_points)) # (N, F)
+    N, F = X.shape # F = 5
 
-    # --- Parameter extraction from the flat &#x27;params&#x27; array ---
-    # The total number of parameters is fixed at 35 for F=5 as per problem constraints.
-    # Parameters are ordered as: F exponents, F*F coefficients (flattened), F biases.
+    # Unpack parameters: [b_1..b_F, c_11..c_FF, e_1..e_F]
+    biases = params[:F] # (F,) - bias for each output domain L_j
+    coeffs_flat = params[F : F + F*F] # (F*F,)
+    coeffs = coeffs_flat.reshape(F, F) # (F, F) - c_jk where c_jk is coeffs[j, k]
+    exponents = params[F + F*F : F + F*F + F] # (F,) - exponent for each input proportion x_k
 
-    # 1. Exponents for each input proportion X_i. Shape (F,)
-    # These exponents apply globally to each input domain&#x27;s proportion.
-    exponents = params[0:F]
-    
-    # 2. Coefficients for each output domain (rows) from each input domain (columns).
-    # The F*F coefficients are flattened in &#x27;params&#x27;, so they need reshaping.
-    # coeffs[j, i] represents the influence of input X_i on output L_j.
-    coeffs_flat = params[F : F + F*F]
-    coeffs = coeffs_flat.reshape(F, F) # Shape (F_output, F_input)
+    # Calculate X_k^e_k for each input dimension k.
+    # np.where handles 0^e = 0, which is crucial for proportions where 0 means absence.
+    # This avoids issues with negative exponents and ensures 0^0 is treated as 0 for proportions.
+    # The bounds on exponents (0.0, 3.0) further enhance numerical stability.
+    X_power_exponents = np.where(X &gt; 0, np.power(X, exponents[None, :]), 0.0) # (N, F)
 
-    # 3. Bias terms for each output domain L_j. Shape (F,)
-    biases = params[F + F*F : F + F*F + F]
+    # Calculate sum_k (c_jk * X_k^e_k) for each L_j.
+    # This is efficiently done via matrix multiplication: (N, F) @ (F, F).T -&gt; (N, F)
+    # The j-th column of the result represents the contribution of proportions to L_j.
+    pred_no_bias = X_power_exponents @ coeffs.T # (N, F)
 
-    # --- Calculation of predicted losses ---
-    # Robust handling for X_i = 0: If a proportion is 0, its transformed contribution should be 0.
-    # This prevents np.power(0,0)=1 from inappropriately adding a constant term when a domain is absent.
-    # Initialize X_powered with zeros, then fill in values for non-zero proportions.
-    X_powered = np.zeros_like(X, dtype=float)
-    non_zero_mask = X &gt; 0 # Boolean mask for elements where X is strictly greater than 0.
-    
-    # Apply power only to strictly positive proportions.
-    # `np.where(non_zero_mask)[1]` correctly gets the column indices for each True element,
-    # mapping each non-zero X[r,c] to its corresponding exponent exponents[c].
-    X_powered[non_zero_mask] = np.power(X[non_zero_mask], exponents[np.where(non_zero_mask)[1]])
+    # Add biases to each output domain&#x27;s prediction.
+    pred = pred_no_bias + biases[None, :] # (N, F) + (1, F) -&gt; (N, F)
 
-    # Calculate the weighted sum of powered input proportions for each output domain
-    # This involves a matrix multiplication: (N, F) @ (F, F).T
-    # The transpose of coeffs (coeffs.T) is used to align input features (F) with coefficients
-    predicted_losses = np.dot(X_powered, coeffs.T)
-
-    # Step 3: Add bias terms
-    # biases[None, :] reshapes biases to (1, F) for broadcasting across N samples.
-    predicted_losses = predicted_losses + biases[None, :]
-
-    return predicted_losses
+    return pred
 
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Fits the scaling_law_func parameters to the given data using L-BFGS-B optimization.
-    Employs multiple random restarts and a hybrid initialization strategy to improve
-    the chances of finding a global optimum for the non-convex optimization problem.
+    Optimizes the parameters for the scaling_law_func using L-BFGS-B,
+    with refined parameter bounds and a slightly perturbed initial guess for coefficients.
 
-    Parameters:
-    - data_points: (N, F) array with domain proportions.
-                   N is the number of data points, F=5 domains.
-    - loss_values: (N, F) array of corresponding multi-domain losses.
+    Args:
+        data_points (np.ndarray): (N, F) array with domain proportions for F domains.
+        loss_values (np.ndarray): Corresponding multi-domain losses (N, F).
 
     Returns:
-    - Optimized parameters (1D array, up to 35 parameters).
-      Returns the best optimized parameters found across restarts, or a robust
-      default initial guess if all optimizations are unsuccessful.
+        np.ndarray: Optimized parameters (1D array of 35 parameters).
     &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points)) # (N, F)
     y = np.asarray(loss_values) # (N, F)
-    N, F = X.shape # F=5 (5 domains)
+    N, F = X.shape # F = 5
 
-    # Total number of parameters (F exponents + F*F coefficients + F biases = 35 for F=5)
-    P_total = F + F*F + F
+    num_params = F + F*F + F
 
-    # --- Objective function for minimization (defined once) ---
-    def objective(flat_params):
-        # Calculate predicted losses using the current set of parameters
-        pred = scaling_law_func(X, flat_params) # (N, F)
-        # Compute Mean Squared Error (MSE) between predictions and actual loss values.
+    # Initial guess for parameters to aid optimization
+    # Biases: Mean loss for each domain is a good starting point for the constant offset.
+    init_biases = np.mean(y, axis=0) # (F,)
+
+    # Coefficients: Slightly perturbed initial guess.
+    # Diagonal elements (self-influence) are initialized to a very small negative value.
+    # Off-diagonal elements (cross-influence) are initialized to a very small positive value.
+    # This subtle perturbation from zero aims to guide the optimizer towards a potentially better
+    # local minimum by breaking initial symmetry and reflecting basic intuitions
+    # (more of a domain -&gt; less loss for that domain; more of another domain -&gt; slightly more loss).
+    init_coeffs = np.full((F, F), 1e-3) # Start all at tiny positive
+    np.fill_diagonal(init_coeffs, -1e-3) # Self-influence gets tiny negative
+    init_coeffs_flat = init_coeffs.ravel() # (F*F,)
+
+    # Exponents: Initialize to 0.7, a common value for scaling laws that often exhibit
+    # diminishing returns. This provides a more informed starting point than 1.0 (linear).
+    init_exponents = np.ones(F) * 0.7 # (F,)
+
+    # Combine initial parameters into a single 1D array for the optimizer
+    initial_params = np.concatenate([init_biases, init_coeffs_flat, init_exponents]) # (num_params,)
+
+    # Define bounds for parameters to ensure numerical stability and reasonable values.
+    # These bounds prevent the optimizer from exploring physically unrealistic regions,
+    # improve convergence speed, and enhance robustness.
+
+    # Biases: Loss values are typically positive and within the range 1.8-4.2.
+    # Tighter bounds (1.5, 4.5) are used, reflecting the observed data range more closely.
+    bias_bounds = [(1.5, 4.5)] * F
+    # Coefficients: Can be positive or negative. A tighter range (-5.0, 5.0) encourages
+    # finding more localized solutions and improves stability for the given loss range.
+    coeff_bounds = [(-5.0, 5.0)] * (F*F)
+    # Exponents: Must be non-negative. A tighter range (0.0, 3.0) allows for flexibility
+    # (sublinear, linear, superlinear effects) while restricting extreme values.
+    exponent_bounds = [(0.0, 3.0)] * F
+
+    # Combine all bounds
+    bounds = bias_bounds + coeff_bounds + exponent_bounds
+
+    def objective(params_flat):
+        &quot;&quot;&quot;
+        Calculates the Mean Squared Error (MSE) between predictions and actual loss values.
+        This is the function that the optimizer will minimize.
+        &quot;&quot;&quot;
+        pred = scaling_law_func(X, params_flat) # (N, F)
         mse = np.mean((pred - y) ** 2)
         return mse
 
-    # --- Parameter bounds for L-BFGS-B optimizer ---
-    # Bounds are crucial for numerical stability and ensuring physically meaningful parameters.
-    bounds = []
+    # Use &#x27;L-BFGS-B&#x27; for optimization as it efficiently handles parameter bounds.
+    # This method is suitable for problems with a moderate number of parameters and bounds.
+    result = minimize(objective, initial_params, method=&#x27;L-BFGS-B&#x27;, bounds=bounds)
 
-    # 1. Exponents (F parameters):
-    # Non-negative (0.0) to handle 0^exponent robustly (0^0=1, 0^positive=0, avoids 0^negative=inf).
-    # An upper bound (e.g., 5.0) prevents excessively steep power functions, aiding stability
-    # and reflecting typical scaling law exponents.
-    for _ in range(F):
-        bounds.append((0.0, 5.0)) # Exponents often fall in this range (e.g., 0.5, 1, 2)
+    # Return optimized parameters if the optimization was successful,
+    # otherwise, return the initial parameters as a fallback to prevent errors.
+    params_opt = result.x if result.success else initial_params
 
-    # 2. Coefficients (F*F parameters):
-    # A wider range allows for both positive and negative contributions,
-    # capturing various interactions between domain proportions and losses effectively.
-    for _ in range(F * F):
-        bounds.append((-10.0, 10.0)) # Coefficients can be positive or negative, adjusting influence
-
-    # 3. Biases (F parameters):
-    # Constrained to be within a realistic range for loss values (1.8-4.2 is given in data characteristics).
-    # This prevents unphysical negative loss predictions or extreme baseline values.
-    # A slightly wider bound (e.g., 1.0 to 5.0) gives optimizer some wiggle room.
-    for _ in range(F):
-        bounds.append((1.0, 5.0)) # Losses are positive and typically within this range.
-
-    best_mse = np.inf
-    best_params_opt = None
-    
-    num_restarts = 20 # Increased number of random restarts for better global search
-
-    min_loss_y = np.min(y) # Used for more informed random bias initialization
-    max_loss_y = np.max(y)
-
-    for i in range(num_restarts):
-        # --- Initial parameter guess for each restart (hybrid strategy) ---
-        if i == 0: # First restart uses a more conservative, stable starting point
-            init_exponents = np.ones(F) * 1.0 # Start exponents at 1.0 (linear relationship assumption)
-            init_coeffs = np.random.uniform(low=-0.1, high=0.1, size=F * F) # Tighter range for coefficients
-            init_biases = np.mean(y, axis=0) # Mean loss per domain as a stable baseline
-            perturbation_scale = 0.01 # Small perturbation to introduce slight variations
-        else: # Subsequent restarts use wider random ranges for broader exploration
-            # Exponents: Random values in a typical scaling range, allowing for sub-linear (e.g., 0.1)
-            # to super-linear (e.g., 3.0) relationships.
-            init_exponents = np.random.uniform(low=0.1, high=3.0, size=F) 
-            # Coefficients: Wider range to explore stronger positive or negative influences.
-            init_coeffs = np.random.uniform(low=-2.0, high=2.0, size=F * F)
-            # Biases: Random within a slightly extended range of observed losses for exploration.
-            init_biases = np.random.uniform(low=min_loss_y * 0.9, high=max_loss_y * 1.1, size=F)
-            perturbation_scale = 0.05 # Larger perturbation for more diverse starting points
-
-        # Concatenate all initial parameter components into a single flat array
-        initial_params = np.concatenate([init_exponents, init_coeffs, init_biases])
-        
-        # Add a small random perturbation to avoid multiple runs starting from identical points
-        initial_params += np.random.normal(loc=0, scale=perturbation_scale, size=P_total)
-
-        # Clip initial parameters to ensure they are strictly within their defined bounds
-        # This is important for L-BFGS-B, which expects the initial point to be feasible.
-        initial_params_clipped = np.array([
-            np.clip(initial_params[k], bounds[k][0], bounds[k][1]) for k in range(P_total)
-        ])
-
-        # --- Optimization using L-BFGS-B ---
-        # &#x27;L-BFGS-B&#x27; is a quasi-Newton method that efficiently handles bounds on parameters.
-        # Added &#x27;maxiter&#x27; and &#x27;ftol&#x27; for better convergence control, allowing more iterations
-        # and requiring a tighter tolerance for the objective function change.
-        result = minimize(objective, initial_params_clipped, method=&#x27;L-BFGS-B&#x27;, bounds=bounds,
-                          options={&#x27;maxiter&#x27;: 2000, &#x27;ftol&#x27;: 1e-9}) 
-        
-        # Keep track of the best result found across all restarts
-        if result.success and result.fun &lt; best_mse:
-            best_mse = result.fun
-            best_params_opt = result.x
-            
-    # Return the optimized parameters. If no successful optimization was found (unlikely
-    # with multiple restarts and robust initializations), return a robust default initial guess.
-    if best_params_opt is None:
-        # Fallback to a sensible initial guess if no optimization succeeded
-        default_exponents = np.ones(F) * 1.0
-        default_coeffs = np.zeros(F * F) # Assume zero influence as default for coefficients
-        default_biases = np.mean(y, axis=0) # Mean loss as a robust default for biases
-        best_params_opt = np.concatenate([default_exponents, default_coeffs, default_biases])
-        # Ensure fallback parameters are also within bounds before returning
-        for j, (lower, upper) in enumerate(bounds):
-            if lower is not None:
-                best_params_opt[j] = max(best_params_opt[j], lower)
-            if upper is not None:
-                best_params_opt[j] = min(best_params_opt[j], upper)
-
-    return best_params_opt
+    return params_opt
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#4</span>
-              <span class="run-label">Run 3</span>
-              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.990398 </span>
+              <span class="run-label">Run 4</span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.998154 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -997,200 +834,144 @@ def fit_scaling_law(data_points, loss_values):
               </div>
               <pre><code class="language-python" id="code-3"># EVOLVE-BLOCK-START
 &quot;&quot;&quot;
-Scaling law discovery for LLM finetuning scenarios.
-
-This program implements a multi-output scaling law function and an optimization
-algorithm to model the relationship between domain mixture proportions and
-multi-domain loss values. It is designed to be mathematically accurate,
-parameter-efficient, and robust, operating within a strict parameter limit.
-The model implicitly accounts for varying model sizes by learning a unified
-set of parameters across all provided data points, regardless of model size.
+Scaling law discovery for LLM finetuning scenarios
+Evolved program with a sophisticated multi-output power law form, respecting parameter limits.
+This version refines the optimization process by using a slightly perturbed initialization
+for coefficients and exponents, while retaining the proven effectiveness of the broader parameter bounds
+and lack of explicit L2 regularization from the highest-performing previous attempt.
+The goal is to achieve high accuracy and robustness in parameter fitting.
 &quot;&quot;&quot;
 import numpy as np
 from scipy.optimize import minimize
 
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    Predicts multi-domain loss values based on domain proportions using a
-    generalized power-law model.
+    Predicts multi-domain loss values based on domain proportions using a generalized power law.
 
-    The model form for each output domain j is:
-    L_j = Bias_j + sum_{i=1 to F} (c_{ji} * X_i^e_i)
+    The model for each domain&#x27;s loss L_j is:
+    L_j = b_j + sum_{k=1 to F} (c_jk * x_k^e_k)
 
-    where:
-    - L_j: Predicted loss for output domain j.
-    - X_i: Proportion of input domain i.
-    - e_i: Shared exponent for the proportion of input domain i. These exponents
-           capture the non-linear impact of each domain&#x27;s proportion.
-    - c_{ji}: Coefficient representing the influence of input domain i&#x27;s
-              powered proportion (X_i^e_i) on the output loss for domain j.
-              This allows for cross-domain interactions.
-    - Bias_j: An additive bias term specific to output domain j, representing
-              a baseline loss.
+    Where:
+    - F is the number of domains (5).
+    - x_k is the proportion of domain k.
+    - b_j is the bias term for output domain j.
+    - c_jk is the coefficient representing the influence of input proportion x_k on output loss L_j.
+    - e_k is the exponent for input proportion x_k, shared across all output losses L_j.
 
-    The total number of parameters is fixed at 35 for F=5 domains:
-    F (exponents) + F*F (coefficients) + F (biases) = 5 + 25 + 5 = 35.
+    Total parameters: F (biases) + F*F (coefficients) + F (exponents) = 5 + 25 + 5 = 35.
 
-    Parameters:
-    - data_points: (N, F) array where N is the number of data samples and F=5
-                   is the number of domain proportions. Each row sums to 1.0.
-    - params: 1D array of 35 parameters, structured as:
-              [e_1, ..., e_F, c_11, ..., c_FF, Bias_1, ..., Bias_F].
+    Args:
+        data_points (np.ndarray): (N, F) array with domain proportions for F domains.
+        params (np.ndarray): 1D array of 35 parameters.
 
     Returns:
-    - predicted_losses: (N, F) array of predicted multi-domain loss values.
+        np.ndarray: Predicted multi-domain loss values (N, F).
     &quot;&quot;&quot;
-    X = np.atleast_2d(np.asarray(data_points)) # Ensure X is a 2D array (N, F)
-    N, F = X.shape                             # F=5 (5 domains)
+    X = np.atleast_2d(np.asarray(data_points)) # (N, F)
+    N, F = X.shape # F = 5
 
-    # Parameter extraction based on the predefined structure
-    # 1. Exponents for each input proportion X_i. Shape (F,)
-    exponents = params[0:F]
-    
-    # 2. Coefficients for F outputs from F inputs. Shape (F, F)
-    #    coeffs[j, i] means the coefficient for output domain j from input domain i.
-    coeffs_flat = params[F : F + F*F]
-    coeffs = coeffs_flat.reshape(F, F) # Reshape from flat to (F_output, F_input)
+    # Unpack parameters: [b_1..b_F, c_11..c_FF, e_1..e_F]
+    biases = params[:F] # (F,) - bias for each output domain L_j
+    coeffs_flat = params[F : F + F*F] # (F*F,)
+    coeffs = coeffs_flat.reshape(F, F) # (F, F) - c_jk where c_jk is coeffs[j, k]
+    exponents = params[F + F*F : F + F*F + F] # (F,) - exponent for each input proportion x_k
 
-    # 3. Bias terms for each output domain L_j. Shape (F,)
-    biases = params[F + F*F : F + F*F + F]
+    # Calculate X_k^e_k for each input dimension k.
+    # np.where handles 0^e = 0, which is desired for proportions where 0 means absence.
+    # This avoids issues with negative exponents and 0^0 which numpy defaults to 1.0.
+    X_power_exponents = np.where(X &gt; 0, np.power(X, exponents[None, :]), 0.0) # (N, F)
 
-    # Calculate the powered terms: X_ni ^ e_i.
-    # np.power(0, 0) is conventionally 1.0. However, for domain proportions (X_i),
-    # if a proportion X_i is 0 (meaning the domain is absent), its contribution
-    # should ideally be 0, regardless of the exponent e_i (assuming e_i &gt;= 0).
-    # This explicit handling ensures semantic correctness: 0^e = 0 for absent domains.
-    X_powered = np.power(X, exponents[None, :]) # Element-wise power, shape (N, F)
-    X_powered[X == 0] = 0.0 # Override 0^0=1.0 to 0.0, and keeps 0^e=0 for e&gt;0.
-    
-    # Calculate predicted losses using matrix multiplication:
-    # predicted_losses[n, j] = Bias_j + sum_i (coeffs[j, i] * X_powered[n, i])
-    # This is equivalent to: (N, F) @ (F, F).T + (1, F) broadcast
-    predicted_losses = np.dot(X_powered, coeffs.T) + biases[None, :]
+    # Calculate sum_k (c_jk * X_k^e_k) for each L_j.
+    # This is equivalent to (N, F) @ (F, F).T -&gt; (N, F)
+    pred_no_bias = X_power_exponents @ coeffs.T # (N, F)
 
-    return predicted_losses
+    # Add biases to each output domain&#x27;s prediction.
+    pred = pred_no_bias + biases[None, :] # (N, F) + (1, F) -&gt; (N, F)
+
+    return pred
 
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Fits the parameters of the `scaling_law_func` to the given data using
-    bounded L-BFGS-B optimization with multiple random restarts to improve
-    robustness against local minima and parameter initialization sensitivity.
+    Optimizes the parameters for the scaling_law_func using L-BFGS-B.
 
-    Parameters:
-    - data_points: (N, F) array with domain proportions.
-    - loss_values: (N, F) array of corresponding multi-domain losses.
+    Args:
+        data_points (np.ndarray): (N, F) array with domain proportions for F domains.
+        loss_values (np.ndarray): Corresponding multi-domain losses (N, F).
 
     Returns:
-    - Optimized parameters (1D array of 35 parameters).
+        np.ndarray: Optimized parameters (1D array of 35 parameters).
     &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points)) # (N, F)
-    y = np.asarray(loss_values)                # (N, F)
-    N_samples, F = X.shape                     # F=5 (5 domains)
+    y = np.asarray(loss_values) # (N, F)
+    N, F = X.shape # F = 5
 
-    P_total = F + F*F + F # Total number of parameters (35 for F=5)
+    num_params = F + F*F + F # 5 + 25 + 5 = 35
 
-    # --- Parameter bounds for L-BFGS-B optimizer ---
-    # Bounds help constrain parameters to physically meaningful ranges,
-    # improving optimization stability and preventing unrealistic values.
-    bounds = []
-    # Exponents (F parameters): Must be non-negative for X^e to be well-defined
-    # and to ensure 0^e behavior is consistent. An upper bound prevents extreme
-    # non-linearities and helps bound the search space.
-    for _ in range(F):
-        bounds.append((0.0, 5.0)) # Exponents often fall between 0 and 5.
+    # Set a seed for reproducibility of random initializations where used.
+    np.random.seed(42)
 
-    # Coefficients (F*F parameters): Allow for both positive and negative
-    # contributions. The range is chosen to be wide enough to encompass
-    # typical loss scales (1.8-4.2) given proportions [0,1].
-    for _ in range(F * F):
-        bounds.append((-10.0, 10.0))
+    # Initial guess for parameters
+    # Biases: Mean loss for each domain is a robust starting point.
+    init_biases = np.mean(y, axis=0) # (F,)
+    
+    # Coefficients: Initialize with a slightly wider range of small random values.
+    # This helps the optimizer explore a broader initial landscape.
+    init_coeffs_flat = np.random.uniform(-0.05, 0.05, F*F) # (F*F,)
+    
+    # Exponents: Initialize with a slight random perturbation around 1.0.
+    # This provides a more varied starting point for power law exponents,
+    # allowing for exploration of both sub-linear and super-linear scaling.
+    init_exponents = np.random.uniform(0.8, 1.2, F) # (F,)
 
-    # Biases (F parameters): Constrained to be within or near the observed
-    # loss range (1.8-4.2) to maintain numerical stability and ensure
-    # realistic baseline predictions.
-    for _ in range(F):
-        bounds.append((1.0, 5.0)) # Reflects the typical loss range of 1.8-4.2.
+    # Combine initial parameters into a single 1D array
+    initial_params = np.concatenate([init_biases, init_coeffs_flat, init_exponents]) # (num_params,)
 
-    # Objective function for minimization
-    def objective(flat_params):
-        &quot;&quot;&quot;Calculates the Mean Squared Error (MSE) of predictions.&quot;&quot;&quot;
-        pred = scaling_law_func(X, flat_params) # (N, F)
-        mse = np.mean((pred - y) ** 2)          # Compute MSE across all outputs and samples
+    # Bounds for parameters to ensure numerical stability and reasonable values.
+    # These bounds are chosen to be relatively permissive, allowing the optimizer
+    # sufficient freedom to find optimal values.
+    # Biases: Loss values are positive (1.8-4.2). A range of [0.0, 5.0] is generous.
+    bias_bounds = [(0.0, 5.0)] * F
+    
+    # Coefficients: Can be positive or negative, reflecting various interaction types.
+    # A wider range [-10.0, 10.0] gives flexibility for strong influences.
+    coeff_bounds = [(-10.0, 10.0)] * (F*F)
+    
+    # Exponents: Must be non-negative. Allowing up to 5.0 covers typical power law
+    # behaviors and provides flexibility.
+    exponent_bounds = [(0.0, 5.0)] * F
+
+    bounds = bias_bounds + coeff_bounds + exponent_bounds
+
+    def objective(params_flat):
+        &quot;&quot;&quot;
+        Calculates the Mean Squared Error between predictions and actual loss values.
+        L2 regularization is omitted as previous successful attempts suggest it might
+        not be necessary or could be detrimental for this specific dataset and model.
+        &quot;&quot;&quot;
+        pred = scaling_law_func(X, params_flat) # (N, F)
+        mse = np.mean((pred - y) ** 2)
         return mse
 
-    best_params = None
-    min_mse = np.inf
-    num_restarts = 20 # Increased number of restarts for better exploration of the parameter space
+    # Use &#x27;L-BFGS-B&#x27; for optimization as it supports parameter bounds.
+    # Default options for &#x27;maxiter&#x27;, &#x27;ftol&#x27;, &#x27;gtol&#x27; are often robust and sufficient.
+    result = minimize(objective, initial_params, method=&#x27;L-BFGS-B&#x27;, bounds=bounds)
 
-    # Pre-compute lower and upper bounds as arrays for efficient clipping
-    lower_bounds = np.array([b[0] for b in bounds])
-    upper_bounds = np.array([b[1] for b in bounds])
+    # Return optimized parameters if the optimization was successful,
+    # otherwise return the initial parameters as a fallback to ensure stability.
+    params_opt = result.x if result.success else initial_params
 
-    for i in range(num_restarts):
-        # --- Generate diverse initial parameter guesses for each restart ---
-        # Exponents: Start around 1.0 (linear-like) with a uniform perturbation.
-        # This range (0.5 to 1.5) ensures they respect the [0,5] bound.
-        init_exponents = np.ones(F) * 1.0 + np.random.uniform(-0.5, 0.5, F)
-        
-        # Coefficients: More structured initialization to reflect expected behavior.
-        # Self-influence (diagonal c_jj) often positive, cross-influence (off-diagonal c_ji) smaller.
-        init_coeffs_matrix = np.zeros((F, F))
-        for j in range(F): # For each output domain j
-            # Initialize diagonal coefficients (c_jj) to be positive, suggesting self-contribution.
-            init_coeffs_matrix[j, j] = np.random.uniform(low=0.1, high=0.5)
-            # Initialize off-diagonal coefficients (c_ji for i!=j) closer to zero,
-            # allowing for both positive and negative cross-domain effects.
-            for k in range(F):
-                if k != j:
-                    init_coeffs_matrix[j, k] = np.random.uniform(low=-0.5, high=0.5)
-        init_coeffs = init_coeffs_matrix.flatten()
-        
-        # Biases: Perturbed mean of observed losses for each output domain, providing a data-driven baseline.
-        init_biases = np.mean(y, axis=0) + np.random.uniform(-0.5, 0.5, F)
-
-        # Concatenate all initial parameter components into a single flat array
-        initial_params = np.concatenate([init_exponents, init_coeffs, init_biases])
-        
-        # Clip initial parameters to ensure they are within the defined bounds.
-        # This is critical for L-BFGS-B, which expects to start within bounds to ensure proper convergence.
-        initial_params = np.clip(initial_params, lower_bounds, upper_bounds)
-
-        # --- Perform optimization ---
-        result = minimize(objective, initial_params, method=&#x27;L-BFGS-B&#x27;, bounds=bounds)
-        
-        # Keep track of the best parameters found across all restarts
-        if result.success and result.fun &lt; min_mse:
-            min_mse = result.fun
-            best_params = result.x
-
-    # Fallback mechanism: If no successful optimization was found (e.g., all restarts failed).
-    # This ensures a set of parameters is always returned, even if the optimization struggles.
-    if best_params is None:
-        # Provide a conservative, stable initial guess as a fallback.
-        fallback_exponents = np.ones(F) * 1.0
-        fallback_coeffs_matrix = np.zeros((F, F))
-        for j in range(F):
-            fallback_coeffs_matrix[j, j] = 0.2 # Small positive self-influence for fallback
-        fallback_coeffs = fallback_coeffs_matrix.flatten()
-        fallback_biases = np.mean(y, axis=0)
-        
-        best_params = np.concatenate([fallback_exponents, fallback_coeffs, fallback_biases])
-        # Ensure fallback parameters also conform to defined bounds
-        best_params = np.clip(best_params, lower_bounds, upper_bounds)
-
-    return best_params
+    return params_opt
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#5</span>
               <span class="run-label">Run 5</span>
-              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.990382 </span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.998153 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -1203,194 +984,135 @@ def fit_scaling_law(data_points, loss_values):
               <pre><code class="language-python" id="code-4"># EVOLVE-BLOCK-START
 &quot;&quot;&quot;
 Scaling law discovery for LLM finetuning scenarios
-This version evolves the scaling law function and optimization to
-better model multi-domain loss with a strict parameter limit and
-multi-output predictions, focusing on mathematical accuracy across
-different model sizes implicitly through a unified parameter set.
-
-The core model: L_j = Bias_j + sum_{i=1 to F} (c_{ji} * X_i^e_i)
-where:
-- L_j is the predicted loss for output domain j.
-- X_i is the proportion of input domain i.
-- e_i are shared exponents for each input proportion (F parameters).
-- c_{ji} are coefficients for output domain j from input proportion i (F*F parameters).
-- Bias_j is the bias term for output domain j (F parameters).
-Total parameters for F=5: 5 (exponents) + 25 (coefficients) + 5 (biases) = 35.
+Evolved program focusing on refined optimization parameters for the L-BFGS-B algorithm,
+while retaining the highly effective multi-output power law model and robust initialization/bounds
+identified in previous top-performing solutions. The model form, with its 35 parameters,
+addresses the complex interplay of domain proportions on multi-domain losses.
+The primary evolution is to switch the objective function from Mean Squared Error to Sum of Squared Errors
+and adjust the convergence tolerances accordingly, aiming for potentially more precise optimization.
 &quot;&quot;&quot;
 import numpy as np
 from scipy.optimize import minimize
 
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    Predicts multi-domain loss values based on domain proportions.
+    Predicts multi-domain loss values based on domain proportions using a generalized power law.
 
-    Parameters:
-    - data_points: (N, F) array with domain proportions for F=5 domains.
-                   N is the number of data points.
-    - params: 1D array of 35 parameters, structured as:
-              [exponents (F), coeffs (F*F), biases (F)]
+    The model for each domain&#x27;s loss L_j is:
+    L_j = b_j + sum_{k=1 to F} (c_jk * x_k^e_k)
+
+    Where:
+    - F is the number of domains (5).
+    - x_k is the proportion of domain k.
+    - b_j is the bias term for output domain j.
+    - c_jk is the coefficient representing the influence of input proportion x_k on output loss L_j.
+    - e_k is the exponent for input proportion x_k, shared across all output losses L_j.
+
+    Total parameters: F (biases) + F*F (coefficients) + F (exponents) = 5 + 25 + 5 = 35.
+
+    Args:
+        data_points (np.ndarray): (N, F) array with domain proportions for F domains.
+        params (np.ndarray): 1D array of 35 parameters.
 
     Returns:
-    - Predicted multi-domain loss values (N, F).
+        np.ndarray: Predicted multi-domain loss values (N, F).
     &quot;&quot;&quot;
-    # Ensure data_points is a 2D numpy array of float type for numerical stability.
-    X = np.atleast_2d(np.asarray(data_points, dtype=np.float64)) # Shape (N, F)
-    N, F = X.shape # F=5 (5 domains)
+    X = np.atleast_2d(np.asarray(data_points)) # (N, F)
+    N, F = X.shape # F = 5
 
-    # --- Parameter extraction ---
-    # The total number of parameters is fixed at 35 for F=5, structured as:
-    # F exponents + F*F coefficients + F biases.
+    # Unpack parameters: [b_1..b_F, c_11..c_FF, e_1..e_F]
+    biases = params[:F] # (F,) - bias for each output domain L_j
+    coeffs_flat = params[F : F + F*F] # (F*F,)
+    coeffs = coeffs_flat.reshape(F, F) # (F, F) - c_jk where c_jk is coeffs[j, k]
+    exponents = params[F + F*F : F + F*F + F] # (F,) - exponent for each input proportion x_k
 
-    # 1. Exponents for each input proportion X_i. Shape (F,)
-    # These exponents are shared across all output loss dimensions, meaning each input
-    # domain&#x27;s scaling behavior (how it contributes when raised to a power) is consistent,
-    # regardless of which output loss is being predicted.
-    exponents = params[0:F]
-    
-    # 2. Coefficients for F outputs (rows) from F inputs (columns).
-    # These coefficients (c_ji) represent the specific influence of input domain &#x27;i&#x27; on
-    # output domain &#x27;j&#x27;. They capture cross-domain interactions.
-    # Reshape from flat (F*F,) to (F_output, F_input).
-    coeffs_flat = params[F : F + F*F]
-    coeffs = coeffs_flat.reshape(F, F) # Shape (F, F), coeffs[j,i] corresponds to output j from input i
+    # Calculate X_k^e_k for each input dimension k.
+    # np.where handles 0^e = 0, which is desired for proportions where 0 means absence.
+    # This avoids issues with negative exponents and 0^0.
+    # The `exponents` are bounded to be non-negative during optimization,
+    # so 0^negative_exponent is not a concern.
+    X_power_exponents = np.where(X &gt; 0, np.power(X, exponents[None, :]), 0.0) # (N, F)
 
-    # 3. Bias terms for each output domain L_j. Shape (F,)
-    # These are constant offsets for each output loss dimension, representing a baseline loss
-    # independent of the proportions.
-    biases = params[F + F*F : F + F*F + F]
+    # Calculate sum_k (c_jk * X_k^e_k) for each L_j.
+    # This is equivalent to (N, F) @ (F, F).T -&gt; (N, F)
+    pred_no_bias = X_power_exponents @ coeffs.T # (N, F)
 
-    # --- Core calculation ---
-    # Calculate the power terms for each input dimension: X_ni ^ e_i
-    # We ensure exponents are strictly positive (&gt;= 1e-9) during fitting via bounds.
-    # This guarantees that np.power(0, positive_exponent) evaluates to 0, which is the
-    # desired behavior: an absent domain (proportion 0) contributes nothing via its
-    # power term to the sum.
-    X_powered = np.power(X, exponents[None, :]) # Element-wise power, broadcasts exponents to (1, F)
+    # Add biases to each output domain&#x27;s prediction.
+    pred = pred_no_bias + biases[None, :] # (N, F) + (1, F) -&gt; (N, F)
 
-    # Calculate predicted losses using a vectorized approach (matrix multiplication).
-    # The sum part: sum_i (coeffs[j, i] * X_powered[n, i]) is equivalent to a
-    # matrix product: X_powered @ coeffs.T.
-    # predicted_losses[n, j] = Bias_j + (X_powered[n, :] @ coeffs.T[:, j])
-    # The biases[None, :] ensures broadcasting the F biases across all N data points.
-    predicted_losses = np.dot(X_powered, coeffs.T) + biases[None, :]
-
-    return predicted_losses
+    return pred
 
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Fits the scaling_law_func parameters to the given data using L-BFGS-B optimization.
+    Optimizes the parameters for the scaling_law_func using L-BFGS-B,
+    with an objective function based on Sum of Squared Errors and adjusted convergence criteria
+    to potentially achieve a more precise fit.
 
-    This optimization approach is chosen for its efficiency with gradient-based methods
-    and its ability to handle parameter bounds, which is crucial for numerical stability
-    and constraining parameters to physically meaningful ranges for loss values.
-
-    Parameters:
-    - data_points: (N, F) array with domain proportions.
-    - loss_values: (N, F) array of corresponding multi-domain losses.
+    Args:
+        data_points (np.ndarray): (N, F) array with domain proportions for F domains.
+        loss_values (np.ndarray): Corresponding multi-domain losses (N, F).
 
     Returns:
-    - Optimized parameters (1D array of 35 parameters).
+        np.ndarray: Optimized parameters (1D array of 35 parameters).
     &quot;&quot;&quot;
-    # Ensure data is 2D numpy array of float type for consistency and numerical stability
-    X = np.atleast_2d(np.asarray(data_points, dtype=np.float64)) # (N, F)
-    y = np.asarray(loss_values, dtype=np.float64) # (N, F)
-    N, F = X.shape # F=5 (5 domains)
+    X = np.atleast_2d(np.asarray(data_points)) # (N, F)
+    y = np.asarray(loss_values) # (N, F)
+    N, F = X.shape # F = 5
 
-    # Total number of parameters as defined by scaling_law_func
-    P_total = F + F*F + F # For F=5: 5 (exponents) + 25 (coefficients) + 5 (biases) = 35 parameters.
+    # Number of parameters for the multi-output model
+    num_params = F + F*F + F # 5 + 25 + 5 = 35
 
-    # --- Initial parameter guess (heuristic-based for better convergence) ---
-    # A good initial guess can significantly speed up convergence and help avoid poor local minima.
-
-    # Exponents: Start near 1.0 (implying a linear initial relationship).
-    # This is a neutral starting point for power-law exponents.
-    init_exponents = np.ones(F) * 1.0
+    # Initial guess for parameters (deterministic initialization, proven effective)
+    # Biases: Mean loss for each domain is a good starting point.
+    init_biases = np.mean(y, axis=0) # (F,)
     
-    # Coefficients: Small random values centered around zero.
-    # This helps break symmetry, allowing the optimizer to explore both positive and negative
-    # influences of input domains on output domains. A slightly narrower range might
-    # reflect typical coefficient magnitudes, but -0.2 to 0.2 is a safe exploration range.
-    init_coeffs = np.random.uniform(low=-0.2, high=0.2, size=F * F)
+    # Coefficients: Initialize to zeros. This deterministic choice proved effective
+    # in previous high-scoring attempts, allowing the optimizer to find interactions.
+    init_coeffs_flat = np.zeros(F*F) # (F*F,)
     
-    # Biases: Initialize with the average loss for each respective output domain.
-    # This provides a very strong baseline guess, as biases often represent the intrinsic
-    # loss level when all proportions are zero or average out.
-    init_biases = np.mean(y, axis=0)
+    # Exponents: Initialize to 1.0 (linear scaling) for all input proportions.
+    # This provides a neutral starting point for power law behavior.
+    init_exponents = np.ones(F) * 1.0 # (F,)
 
-    # Concatenate all initial parameter components into a single flat array
-    initial_params_raw = np.concatenate([init_exponents, init_coeffs, init_biases])
+    # Combine initial parameters into a single 1D array
+    initial_params = np.concatenate([init_biases, init_coeffs_flat, init_exponents]) # (num_params,)
+
+    # Bounds for parameters to ensure numerical stability and reasonable values.
+    # Broader bounds have shown to be more effective for this problem, allowing
+    # the optimizer a wider search space without regularization.
     
-    # Add a small random perturbation. This helps the optimizer escape potential saddle points
-    # or break symmetries that could hinder initial progress, encouraging more thorough exploration
-    # around the heuristic initial guess.
-    initial_params_raw += np.random.normal(loc=0, scale=0.005, size=P_total) # Smaller scale for perturbation
-
-    # --- Define parameter bounds for L-BFGS-B optimizer ---
-    # These bounds are crucial for numerical stability, preventing nonsensical parameter values,
-    # and guiding the optimizer towards physically plausible solutions for cross-entropy loss values.
-    bounds = []
+    # Biases: Loss values are typically positive (1.8-4.2). Range [0.0, 5.0] is generous and safe.
+    bias_bounds = [(0.0, 5.0)] * F
     
-    # Exponents (F parameters):
-    # - Lower bound: `1e-9` (a very small positive number) ensures `0^e` consistently evaluates to 0
-    #   (as opposed to `0^0=1` if `e` could be exactly 0, or `0^-e=inf` if `e` could be negative).
-    # - Upper bound: `5.0` prevents excessively steep or flat power relationships, keeping the model
-    #   interpretable and numerically stable.
-    for _ in range(F):
-        bounds.append((1e-9, 5.0)) # Strictly positive lower bound for robustness with `X_i=0`
+    # Coefficients: Can be positive or negative. Wide range [-10.0, 10.0] allows for strong influences.
+    coeff_bounds = [(-10.0, 10.0)] * (F*F)
+    
+    # Exponents: Must be non-negative. Range [0.0, 5.0] is flexible for various scaling behaviors.
+    exponent_bounds = [(0.0, 5.0)] * F
 
-    # Coefficients (F*F parameters):
-    # A sufficiently wide range `(-10.0, 10.0)` allows for diverse scaling behaviors.
-    # This enables both positive (increasing loss) and negative (decreasing loss, often due to
-    # specific data distributions or interactions) contributions from input proportions.
-    for _ in range(F * F):
-        bounds.append((-10.0, 10.0))
+    bounds = bias_bounds + coeff_bounds + exponent_bounds
 
-    # Biases (F parameters):
-    # - Lower bound: `1.0` is a reasonable floor for cross-entropy losses, which are always positive
-    #   and typically above 1.0 in real-world scenarios. This ensures predicted losses remain realistic.
-    # - Upper bound: `5.0` accommodates the observed loss range (1.8-4.2) with some margin.
-    for _ in range(F):
-        bounds.append((1.0, 5.0))
-
-    # --- Clamp initial parameters to bounds ---
-    # It&#x27;s good practice to ensure the initial guess itself respects the defined bounds.
-    # This prevents the optimizer from starting in an invalid region, which can sometimes
-    # lead to slower convergence or errors.
-    initial_params = np.array([
-        np.clip(initial_params_raw[i], bounds[i][0], bounds[i][1]) 
-        for i in range(P_total)
-    ])
-
-    # --- Objective function for minimization ---
-    def objective(flat_params):
+    def objective(params_flat):
         &quot;&quot;&quot;
-        Calculates the Mean Squared Error (MSE) between predicted and actual losses.
-        This function is minimized by the optimizer. MSE is a common and robust choice
-        for regression tasks due to its differentiability and interpretability.
+        Calculates the Sum of Squared Errors between predictions and actual loss values.
+        This provides a larger objective value scale compared to MSE.
         &quot;&quot;&quot;
-        pred = scaling_law_func(X, flat_params)
-        mse = np.mean((pred - y) ** 2)
-        return mse
+        pred = scaling_law_func(X, params_flat) # (N, F)
+        sse = np.sum((pred - y) ** 2) # Changed from np.mean to np.sum
+        return sse
 
-    # --- Optimization ---
-    # Use &#x27;L-BFGS-B&#x27; method as it effectively handles parameter bounds and is efficient
-    # for medium-scale, bound-constrained optimization problems.
-    # - `maxiter`: Increased maximum iterations to allow ample time for convergence.
-    # - `ftol`: Function tolerance, controls convergence based on improvement in objective function value.
-    # - `gtol`: Gradient tolerance, controls convergence based on the magnitude of the gradient.
-    # Tighter tolerances encourage higher precision in the optimized parameters.
-    result = minimize(
-        objective, 
-        initial_params, 
-        method=&#x27;L-BFGS-B&#x27;, 
-        bounds=bounds,
-        options={&#x27;maxiter&#x27;: 5000, &#x27;ftol&#x27;: 1e-9, &#x27;gtol&#x27;: 1e-7}
-    )
-    
-    # Return the optimized parameters if minimization was successful.
-    # Otherwise, return the (clamped) initial parameters as a fallback
-    # to prevent errors, although L-BFGS-B is generally very robust.
+    # Use &#x27;L-BFGS-B&#x27; for optimization as it supports parameter bounds.
+    # Refined convergence criteria:
+    # Adjusted ftol and gtol to be appropriate for the Sum of Squared Errors objective,
+    # which has a larger scale than Mean Squared Error.
+    # A total of N*F = 80*5 = 400 individual loss values contribute to the sum.
+    # Default ftol (machine epsilon, ~2.22e-9) scaled by 400 is ~8.88e-7. Using 1e-6.
+    # Default gtol (1e-5) scaled by 400 is 4e-3. Using 1e-4 (slightly tighter).
+    result = minimize(objective, initial_params, method=&#x27;L-BFGS-B&#x27;, bounds=bounds,
+                      options={&#x27;maxiter&#x27;: 2000, &#x27;ftol&#x27;: 1e-6, &#x27;gtol&#x27;: 1e-4})
+
+    # Return optimized parameters if successful, otherwise return initial parameters.
     params_opt = result.x if result.success else initial_params
 
     return params_opt

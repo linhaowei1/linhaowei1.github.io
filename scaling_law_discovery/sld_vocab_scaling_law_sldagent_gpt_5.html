@@ -285,7 +285,7 @@
     <div class="bg-pattern"></div>
 
     <div class="container">
-      <a href="sld_index.html" class="back-link"> ← Back to Leaderboard </a>
+      <a href="index.html" class="back-link"> ← Back to Leaderboard </a>
 
       <div class="header">
         <h1>Vocabulary Scaling Law</h1>
@@ -300,15 +300,15 @@
           </div>
           <div class="meta-item">
             <span class="meta-label">Best R²:</span>
-            <span class="r2-badge" style="background-color: #006400; color: white"> 0.989298 </span>
+            <span class="r2-badge" style="background-color: #006400; color: white"> 0.988557 </span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Mean R²:</span>
-            <span class="meta-value">0.987696</span>
+            <span class="meta-value">0.986228</span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Min R²:</span>
-            <span class="meta-value">0.985422</span>
+            <span class="meta-value">0.984955</span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Runs:</span>
@@ -320,12 +320,13 @@
       <h2 class="section-title">All Runs (sorted by R²)</h2>
 
       <div class="runs-container">
+
         <div class="run-card best-run">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge best-badge">Best</span>
-              <span class="run-label">Run 1</span>
-              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.989298 </span>
+              <span class="run-label">Run 4</span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.988557 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -339,110 +340,161 @@
 import numpy as np
 from scipy.optimize import minimize
 
-_P0, _C0, _V0 = 1e8, 1e10, 1e4
+def _sp(x):
+    x = np.asarray(x, float)
+    return np.where(x &gt; 20.0, x, np.log1p(np.exp(-np.abs(x))) + np.maximum(x, 0.0))
+def _sg(x):
+    x = np.asarray(x, float)
+    return 1.0 / (1.0 + np.exp(-x))
 
 def scaling_law_func(data_points, params):
+    # Lossu = L + A * S * (1 + lam * t^2 / (1 + S))
+    # S = exp(a*(log Pref - log P)) + exp(a*(log Cref - log C)), t = log V - v0
     X = np.atleast_2d(np.asarray(data_points, float))
-    if X.shape[1] != 3:
-        raise ValueError(&quot;data_points must be (N,3)&quot;)
-    p = np.clip(X[:, 0], 1.0, None)
-    v = np.clip(X[:, 1], 1.0, None)
-    c = np.clip(X[:, 2], 1.0, None)
-    xp = np.log(p/_P0)
-    xv = np.log(v/_V0)
-    xc = np.log(c/_C0)
+    P, V, C = X[:, 0], X[:, 1], X[:, 2]
+    lP = np.log(np.clip(P, 1.0, np.inf))
+    lV = np.log(np.clip(V, 1.0, np.inf))
+    lC = np.log(np.clip(C, 1.0, np.inf))
 
-    th = np.asarray(params, float)
-    if th.ndim == 1:
-        th = th[None, :]
-    if th.shape[1] &lt; 7:
-        th = np.pad(th, ((0, 0), (0, 7 - th.shape[1])), constant_values=0.0)
-    th = th[:, :7]
-
-    L0 = th[:, 0]
-    A = np.maximum(th[:, 1], 1e-8)
-    ap = th[:, 2]
-    ac = th[:, 3]
-    q = np.maximum(th[:, 4], 1e-8)
-    xstar = th[:, 5]
-    b = th[:, 6]
-
-    Z = ap[None, :] * xp[:, None] + ac[None, :] * xc[:, None] - q[None, :] * (xv[:, None] - xstar[None, :])**2 + b[None, :]
-    Y = L0[None, :] + A[None, :] / (1.0 + np.exp(np.clip(Z, -50.0, 50.0)))
-    return Y[:, 0] if Y.shape[1] == 1 else Y
+    par = np.asarray(params, float)
+    if par.ndim == 1:
+        L, A, a, Pref, Cref, lam, v0 = par[:7]
+        zP = np.log(np.clip(Pref, 1e-30, np.inf))
+        zC = np.log(np.clip(Cref, 1e-30, np.inf))
+        sP = np.clip(a * (zP - lP), -60.0, 60.0)
+        sC = np.clip(a * (zC - lC), -60.0, 60.0)
+        S = np.exp(sP) + np.exp(sC)
+        Q = 1.0 + S
+        t = lV - v0
+        return L + A * S * (1.0 + lam * (t * t) / Q)
+    else:
+        par = par[:, :7]
+        L, A, a, Pref, Cref, lam, v0 = [par[:, i] for i in range(7)]
+        zP = np.log(np.clip(Pref, 1e-30, np.inf))[:, None]
+        zC = np.log(np.clip(Cref, 1e-30, np.inf))[:, None]
+        sP = np.clip(a[:, None] * (zP - lP[None, :]), -60.0, 60.0)
+        sC = np.clip(a[:, None] * (zC - lC[None, :]), -60.0, 60.0)
+        S = np.exp(sP) + np.exp(sC)
+        Q = 1.0 + S
+        t = lV[None, :] - v0[:, None]
+        return (L[:, None] + A[:, None] * S * (1.0 + lam[:, None] * (t * t) / Q)).T
 
 def fit_scaling_law(data_points, loss_values):
     X = np.atleast_2d(np.asarray(data_points, float))
-    y = np.asarray(loss_values, float).ravel()
-    if X.shape[1] != 3:
-        raise ValueError(&quot;data_points must be (N,3)&quot;)
+    y_in = np.asarray(loss_values, float)
+    Y = y_in[:, None] if y_in.ndim == 1 else y_in
+    lP = np.log(np.clip(X[:, 0], 1.0, np.inf))
+    lV = np.log(np.clip(X[:, 1], 1.0, np.inf))
+    lC = np.log(np.clip(X[:, 2], 1.0, np.inf))
 
-    p = np.clip(X[:, 0], 1.0, None)
-    v = np.clip(X[:, 1], 1.0, None)
-    c = np.clip(X[:, 2], 1.0, None)
-    xp = np.log(p/_P0)
-    xv = np.log(v/_V0)
-    xc = np.log(c/_C0)
+    def sp_inv(x):
+        x = max(float(x), 1e-12)
+        return np.log(np.expm1(x))
 
-    ymin, ymax = float(np.min(y)), float(np.max(y))
-    L0 = ymin
-    A0 = max(ymax - ymin, 0.5)
-    t = np.clip((y - L0) / A0, 1e-4, 1 - 1e-4)
-    z = np.log(1.0 / t - 1.0)
+    def solve(yt):
+        med = float(np.median(yt))
+        mad = 1.4826 * float(np.median(np.abs(yt - med)))
+        scale = max(1e-2, mad if (mad &gt; 0 and np.isfinite(mad)) else float(np.std(yt)) + 1e-2)
 
-    F = np.column_stack([xp, xc, xv**2, xv, np.ones_like(xp)])
-    try:
-        w, *_ = np.linalg.lstsq(F, z, rcond=None)
-    except np.linalg.LinAlgError:
-        w = np.zeros(5)
+        L0 = float(np.min(yt) - 0.1)
+        A0 = float(max(np.median(yt) - L0, 1.0))
+        a0 = 0.5
+        zP0, zC0 = float(np.median(lP)), float(np.median(lC))
+        lam0 = 0.03
+        v00 = float(np.median(lV))
 
-    ap, ac = w[0], w[1]
-    q = max(-w[2], 1e-8)
-    xstar = (w[3] / (2.0 * q)) if q &gt; 1e-8 else 0.0
-    b = w[4] + q * xstar * xstar
+        def raw_to_params(raw):
+            L = raw[0]
+            A = _sp(raw[1]) + 1e-8
+            a = _sp(raw[2]) + 0.05
+            zP = raw[3]
+            zC = raw[4]
+            lam = _sp(raw[5]) + 1e-10
+            v0 = raw[6]
+            return L, A, a, zP, zC, lam, v0
 
-    init = np.array([L0, A0, ap, ac, q, xstar, b], float)
-    bnds = [(-20.0, 5.0), (1e-8, 50.0), (-6.0, 6.0), (-6.0, 6.0), (1e-8, 6.0), (-6.0, 6.0), (-10.0, 10.0)]
+        def loss_grad(raw):
+            L, A, a, zP, zC, lam, v0 = raw_to_params(raw)
+            sP = a * (zP - lP); sC = a * (zC - lC)
+            sPc = np.clip(sP, -60.0, 60.0); sCc = np.clip(sC, -60.0, 60.0)
+            mP = (sP == sPc); mC = (sC == sCc)
+            uP = np.exp(sPc); uC = np.exp(sCc)
+            S = uP + uC; Q = 1.0 + S
+            t = lV - v0; T2 = t * t
+            pred = L + A * S * (1.0 + lam * T2 / Q)
 
-    def huber(r, d=0.5):
-        a = np.abs(r)
-        return np.where(a &lt;= d, 0.5*r*r, d*(a - 0.5*d))
+            dL = np.ones_like(pred)
+            dA = S * (1.0 + lam * T2 / Q)
+            dSd = A * (1.0 + lam * T2 / (Q * Q))
+            dSP = dSd * uP * mP
+            dSC = dSd * uC * mC
+            dAlpha = dSP * (zP - lP) + dSC * (zC - lC)
+            dzP = dSP * a
+            dzC = dSC * a
+            dLam = A * S * T2 / Q
+            dv0 = -2.0 * A * S * lam * t / Q
 
-    def obj(th):
-        pred = scaling_law_func(X, th)
-        r = pred - y
-        reg = 1e-6 * (th[2]**2 + th[3]**2 + th[4]**2 + th[5]**2 + th[6]**2 + 0.1*th[1]**2)
-        return np.mean(huber(r)) + reg
+            J = np.empty((7, pred.size), float)
+            J[0, :] = dL
+            J[1, :] = dA * _sg(raw[1])
+            J[2, :] = dAlpha * _sg(raw[2])
+            J[3, :] = dzP
+            J[4, :] = dzC
+            J[5, :] = dLam * _sg(raw[5])
+            J[6, :] = dv0
 
-    rng = np.random.default_rng(0)
-    best_val, best_th = np.inf, init
-    for k in range(8):
-        th0 = init.copy()
-        if k:
-            th0[0] += rng.normal(0, 0.2)              # L0
-            th0[1] *= np.exp(rng.normal(0, 0.2))      # A
-            th0[2:4] += rng.normal(0, 0.4, 2)         # ap, ac
-            th0[4] *= np.exp(rng.normal(0, 0.3))      # q
-            th0[5] += rng.normal(0, 0.5)              # xstar
-            th0[6] += rng.normal(0, 0.4)              # b
-        th0 = np.clip(th0, [b[0] for b in bnds], [b[1] for b in bnds])
-        res = minimize(obj, th0, method=&quot;L-BFGS-B&quot;, bounds=bnds, options={&quot;maxiter&quot;: 500})
-        val, thx = (res.fun, res.x) if res.success else (obj(th0), th0)
-        if val &lt; best_val:
-            best_val, best_th = val, thx
+            r = pred - yt
+            z = r / scale
+            loss = (scale ** 2) * float(np.mean(np.log(np.cosh(z))))
+            w = (scale / pred.size) * np.tanh(z)
 
-    return best_th
+            # mild regularization to stabilize fit
+            reg = 1e-7 * (raw[1] ** 2 + raw[2] ** 2 + raw[5] ** 2) \
+                + 1e-7 * (raw[6] - v00) ** 2 \
+                + 1e-8 * ((raw[3] - zP0) ** 2 + (raw[4] - zC0) ** 2)
+            grad_reg = np.array([0.0, 2e-7 * raw[1], 2e-7 * raw[2], 2e-8 * (raw[3] - zP0),
+                                 2e-8 * (raw[4] - zC0), 2e-7 * raw[5], 2e-7 * (raw[6] - v00)])
+
+            grad = J @ w + grad_reg
+            return loss + reg, grad
+
+        raw0 = np.array([L0, sp_inv(A0), sp_inv(a0 - 0.05), zP0, zC0, sp_inv(lam0), v00], float)
+        inits = [
+            raw0,
+            raw0 + np.array([0.0, 0.4, 0.2, 0.5, -0.5, -0.4, 0.0]),
+            raw0 + np.array([0.0, -0.4, -0.2, -0.5, 0.5, 0.4, 0.0]),
+            raw0 + np.array([0.0, 0.2, 0.3, 0.2, 0.2, 0.2, 0.0])
+        ]
+
+        best_raw, best_val = raw0, np.inf
+        f = lambda r: loss_grad(r)[0]
+        g = lambda r: loss_grad(r)[1]
+        for r0 in inits:
+            res = minimize(f, r0, jac=g, method=&#x27;L-BFGS-B&#x27;, options={&#x27;maxiter&#x27;: 600, &#x27;ftol&#x27;: 1e-9})
+            val = f(res.x) if res.success else f(r0)
+            if val &lt; best_val:
+                best_val, best_raw = val, (res.x if res.success else r0)
+
+        L, A, a, zP, zC, lam, v0 = raw_to_params(best_raw)
+        return np.array([L, A, a, np.exp(zP), np.exp(zC), lam, v0], float)
+
+    T = Y.shape[1]
+    if T == 1:
+        return solve(Y[:, 0])
+    out = np.zeros((T, 7), float)
+    for t in range(T):
+        out[t, :] = solve(Y[:, t])
+    return out
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#2</span>
-              <span class="run-label">Run 3</span>
-              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.988460 </span>
+              <span class="run-label">Run 2</span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.986609 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -456,132 +508,127 @@ def fit_scaling_law(data_points, loss_values):
 import numpy as np
 from scipy.optimize import minimize
 
-# Fixed reference scales (constants for numerical stability, not input-dependent)
-_P_REF = 1e8
-_C_REF = 1e10
-_V_REF = 32768.0
-
-def _sp(z):
-    z = np.asarray(z, dtype=np.float64)
-    y = np.empty_like(z)
-    m = z &gt; 20.0
-    y[m] = z[m]
-    y[~m] = np.log1p(np.exp(z[~m]))
-    return y
-
-def _predict_single(X, p):
-    # params: [L_inf, a_raw, alpha_raw, b_raw, beta_raw, phi_raw, w_raw] (≤7)
-    L_inf = float(p[0])
-    a     = _sp(p[1]); alpha = _sp(p[2])
-    b     = _sp(p[3]); beta  = _sp(p[4])
-    phi   = 0.8 * np.tanh(p[5]) if len(p) &gt; 5 else 0.0
-    w     = _sp(p[6]) if len(p) &gt; 6 else 0.0
-
-    P = np.clip(np.asarray(X[:,0], dtype=np.float64), 1.0, None)
-    V = np.clip(np.asarray(X[:,1], dtype=np.float64), 1.0, None)
-    C = np.clip(np.asarray(X[:,2], dtype=np.float64), 1.0, None)
-
-    lP = np.log(P) - np.log(_P_REF)
-    lC = np.log(C) - np.log(_C_REF)
-    lV = np.log(V) - np.log(_V_REF)
-    lV = np.clip(lV, -3.0, 3.0)  # stabilize extremes of vocab effects
-
-    # Regime combiner: smooth-min (power mean with q=2) of parameter/data-limited terms
-    sP = a * np.exp(-alpha * lP)
-    sC = b * np.exp(-beta  * (lC + phi * lV))
-    inv_q = 0.5  # q = 2
-    mix = (np.power(sP, -2.0) + np.power(sC, -2.0))**(-inv_q)
-
-    # U-shaped vocab penalty with data+model-dependent shrink and learned center via phi
-    shrink = np.exp(-0.5 * (alpha * lP + beta * lC))
-    vpen = w * shrink * (lV + 0.5 * phi) * (lV + 0.5 * phi)
-
-    return L_inf + mix + vpen
-
 def scaling_law_func(data_points, params):
     X = np.atleast_2d(np.asarray(data_points))
-    p = np.asarray(params, dtype=np.float64)
-    if p.ndim == 1:
-        return _predict_single(X, p)
-    return np.stack([_predict_single(X, p[i]) for i in range(p.shape[0])], axis=1)
+    P,V,C = X[:,0], X[:,1], X[:,2]
+    th = np.asarray(params)
+    if th.ndim==1: th = th[None,:]
+
+    def sp(z):
+        z = np.asarray(z)
+        return np.log1p(np.exp(-np.abs(z))) + np.maximum(z,0.0)  # softplus
+
+    def ecl(z):
+        return np.exp(np.clip(z,-80.0,80.0))
+
+    lnP = np.log(np.clip(P,1e-12,None))
+    lnC = np.log(np.clip(C,1e-12,None))
+    lnV = np.log(np.clip(V,1e-12,None))
+
+    L  = th[:,0]           # asymptotic best Lossu
+    A  = sp(th[:,1])       # scale
+    a  = sp(th[:,2])       # P exponent
+    b  = sp(th[:,3])       # C exponent
+    r  = sp(th[:,4])       # trade-off
+    v0 = th[:,5]           # optimal lnV center
+    g  = sp(th[:,6])       # curvature for vocab
+
+    # Smooth joint saturation: (P^{a/2} + sqrt(r) C^{b/2})^2
+    PA2 = ecl(0.5*np.outer(lnP,a))
+    CB2 = ecl(0.5*np.outer(lnC,b))
+    denom = np.maximum((PA2 + np.sqrt(r)[None,:]*CB2)**2, 1e-12)
+
+    # Multiplicative vocab efficiency on numerator (worse away from v0)
+    Vfac = np.exp(np.clip(g[None,:]*(lnV[:,None]-v0[None,:])**2, -30.0, 30.0))
+
+    num = A[None,:]*Vfac
+    pred = L[None,:] + num/denom
+    return pred[:,0] if th.shape[0]==1 else pred
 
 def fit_scaling_law(data_points, loss_values):
     X = np.atleast_2d(np.asarray(data_points))
-    y = np.asarray(loss_values, dtype=np.float64).ravel()
-    assert X.shape[1] == 3, &quot;Expected data_points with 3 features&quot;
+    y = np.asarray(loss_values).ravel()
+    P,V,C = X[:,0], X[:,1], X[:,2]
+    lnP = np.log(np.clip(P,1e-12,None))
+    lnC = np.log(np.clip(C,1e-12,None))
+    lnV = np.log(np.clip(V,1e-12,None))
 
-    med = np.median(y)
-    mad = np.median(np.abs(y - med)) + 1e-8
-    delta = max(1e-3, 1.35 * mad)
+    # Seed v0,g via quadratic fit in lnV
+    Xq = np.column_stack([np.ones_like(lnV), lnV, lnV**2])
+    beta = np.linalg.solve(Xq.T@Xq + 1e-6*np.eye(3), Xq.T@y)
+    u0,u1,u2 = map(float,beta)
+    if u2&lt;=1e-8:
+        v0 = float(np.median(lnV)); g0 = 0.01
+    else:
+        v0 = float(np.clip(-u1/(2.0*u2), lnV.min(), lnV.max()))
+        g0 = max(u2, 1e-3)
 
-    def huber(r):
-        a = np.abs(r)
-        return np.where(a &lt;= delta, 0.5 * r * r, delta * (a - 0.5 * delta))
+    # Seeds for saturation
+    a0,b0,r0 = 0.3,0.3,1.0
 
-    def objective(p):
-        r = scaling_law_func(X, p) - y
-        loss = np.mean(huber(r))
-        # Mild regularization to improve stability/generalization
-        a = _sp(p[1]); b = _sp(p[3]); w = _sp(p[6])
-        alpha = _sp(p[2]); beta = _sp(p[4]); phi = 0.8 * np.tanh(p[5])
-        reg = 1e-4*(alpha**2 + beta**2) + 5e-5*(phi**2) + 1e-6*(a + b) + 5e-6*w + 1e-6*(p[0] - med)**2
-        return loss + reg
+    # Given initial (a,b,r,v0,g), fit L and A by linear least squares on Z
+    def Z_feat(a,b,r,v0,g):
+        PA2 = np.exp(np.clip(0.5*lnP*a, -80, 80))
+        CB2 = np.exp(np.clip(0.5*lnC*b, -80, 80))
+        denom = np.maximum((PA2 + np.sqrt(r)*CB2)**2, 1e-12)
+        Vfac = np.exp(np.clip(g*(lnV - v0)**2, -30, 30))
+        return Vfac/denom
 
-    def sp_inv(x):
-        x = float(max(x, 1e-12))
-        return np.log(np.expm1(x))
+    Z0 = Z_feat(a0,b0,r0,v0,g0)
+    B = np.column_stack([np.ones_like(Z0), Z0])
+    th_ls = np.linalg.lstsq(B, y, rcond=None)[0]
+    L0, A0raw = map(float, th_ls)
+    A0 = max(1e-3, abs(A0raw))
 
-    y_min = np.percentile(y, 2.0)
-    amp = max(abs(np.mean(y) - y_min), 0.1)
-    base = np.array([
-        y_min,           # L_inf
-        sp_inv(amp/2),   # a_raw
-        sp_inv(0.3),     # alpha_raw
-        sp_inv(amp/2),   # b_raw
-        sp_inv(0.3),     # beta_raw
-        0.15,            # phi_raw
-        sp_inv(0.05*amp) # w_raw
-    ], dtype=np.float64)
+    def sp_inv(u):
+        u = max(float(u),1e-12)
+        return np.log(np.expm1(u))
 
-    rng = np.random.RandomState(42)
-    inits = [
-        base,
-        base + np.array([0.0, 0.2, -0.1, 0.2, -0.1, 0.2, -0.2]),
-        base + np.array([0.3, -0.2, 0.2, -0.2, 0.2, -0.2, 0.1])
-    ]
-    for _ in range(5):
-        j = rng.normal(0, 0.24, size=7); j[0] = rng.normal(0, 0.45)
-        inits.append(base + j)
+    th0 = np.array([L0, sp_inv(A0), sp_inv(a0), sp_inv(b0), sp_inv(r0), v0, sp_inv(g0)], float)
 
-    bounds = [
-        (-10.0, 2.0),   # L_inf (Lossu observed range)
-        (-8.0, 10.0),   # a_raw
-        (-6.0, 6.0),    # alpha_raw
-        (-8.0, 10.0),   # b_raw
-        (-6.0, 6.0),    # beta_raw
-        (-2.0, 2.0),    # phi_raw (tanh-bounded internally)
-        (-12.0, 10.0)   # w_raw
-    ]
+    # Robust Cauchy loss
+    mad = np.median(np.abs(y - np.median(y))) + 1e-9
+    d = 1.4826*mad
 
-    best_p, best_val = None, np.inf
-    for init in inits:
-        res = minimize(objective, init, method=&#x27;L-BFGS-B&#x27;, bounds=bounds)
-        p_opt = res.x if res.success else init
-        val = objective(p_opt)
-        if val &lt; best_val:
-            best_val, best_p = val, p_opt
-    return best_p
+    def obj(th):
+        r = scaling_law_func(X, th) - y
+        c = np.log1p((r/d)**2)
+        reg = 1e-6*(th[0]**2 + th[4]**2 + th[5]**2) + 4e-6*(th[1]**2 + th[2]**2 + th[3]**2 + th[6]**2)
+        return np.mean(c) + reg
+
+    best, bestv = th0.copy(), np.inf
+    rng = np.random.default_rng(123)
+    J = np.array([0.08,0.20,0.20,0.20,0.18,0.06,0.25])
+    seeds = [th0] + [th0 + J*rng.standard_normal(7) for _ in range(6)]
+    for st in seeds:
+        # Refit L and A at start point to reduce bias
+        z = Z_feat(np.exp(np.log1p(np.exp(-abs(st[2]))) ),  # a ~ sp(st[2]) approx not available here; use st directly
+                   np.exp(np.log1p(np.exp(-abs(st[3]))) ),
+                   np.exp(np.log1p(np.exp(-abs(st[4])))),
+                   st[5],
+                   np.exp(np.log1p(np.exp(-abs(st[6])))))
+        B = np.column_stack([np.ones_like(z), z])
+        la, aa = np.linalg.lstsq(B, y, rcond=None)[0]
+        st2 = st.copy()
+        st2[0] = la
+        st2[1] = sp_inv(max(1e-3, abs(aa)))
+        res = minimize(obj, st2, method=&#x27;L-BFGS-B&#x27;, options=dict(maxiter=700, ftol=1e-10))
+        if res.success and res.fun &lt; bestv:
+            bestv, best = res.fun, res.x
+    if not np.isfinite(bestv):
+        res = minimize(obj, th0, method=&#x27;Nelder-Mead&#x27;, options=dict(maxiter=800))
+        if res.success: best = res.x
+    return best
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#3</span>
-              <span class="run-label">Run 2</span>
-              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.988253 </span>
+              <span class="run-label">Run 5</span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.985549 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -592,142 +639,95 @@ def fit_scaling_law(data_points, loss_values):
                 <button class="copy-btn" onclick="copyCode(event, 'code-2')">Copy</button>
               </div>
               <pre><code class="language-python" id="code-2"># EVOLVE-BLOCK-START
-&quot;&quot;&quot;
-Scaling law for unigram-normalized loss across parameters, data, and vocabulary.
-
-Model (7 params):
-    Let Pn = P_non_vocab / P0
-        Vn = vocab_size   / V0
-        Cn = num_characters / C0
-        Deff = Cn * Vn^(-k)
-    Lossu = L_inf + A * Pn^(-a) + B * Deff^(-b) + C * (Pn^(-a)) * (Deff^(-b))
-
-Notes:
-- Captures diminishing returns of parameters and data with interaction.
-- Vocabulary affects effective data via exponent k, modeling tokenization trade-offs.
-- Fixed scales stabilize numerics and aid cross-dataset generalization.
-
-Fitting:
-- Bounded L-BFGS-B with multi-start inits chosen from priors and data heuristics.
-- Supports single or multiple target columns in loss_values.
-&quot;&quot;&quot;
 import numpy as np
-from scipy.optimize import minimize
-
-# Fixed scales (do not depend on input data)
-_P0 = 1e8      # ~100M non-vocab params
-_C0 = 1e10     # ~10B characters
-_V0 = 32000.0  # common vocab reference
-_EPS = 1e-12
 
 def scaling_law_func(data_points, params):
     X = np.atleast_2d(np.asarray(data_points, dtype=float))
-    Pn = np.maximum(X[:, 0], _EPS) / _P0
-    Vn = np.maximum(X[:, 1], 1.0)   / _V0
-    Cn = np.maximum(X[:, 2], _EPS) / _C0
-
-    par = np.asarray(params, dtype=float)
-    if par.ndim == 1:
-        # Ensure exactly 7 parameters
-        if par.size &lt; 7:
-            p = np.pad(par, (0, 7 - par.size))
-        else:
-            p = par[:7]
-        L_inf, A, a, B, b, Cc, k = p
-        Deff = Cn * (Vn ** (-max(k, 0.0)))
-        Pa = Pn ** (-max(a, _EPS))
-        Db = Deff ** (-max(b, _EPS))
-        return L_inf + A * Pa + B * Db + Cc * Pa * Db
-    else:
-        T = par.shape[0]
-        out = np.empty((X.shape[0], T), dtype=float)
-        for t in range(T):
-            p = par[t]
-            if p.size &lt; 7:
-                p = np.pad(p, (0, 7 - p.size))
-            else:
-                p = p[:7]
-            L_inf, A, a, B, b, Cc, k = p
-            Deff = Cn * (Vn ** (-max(k, 0.0)))
-            Pa = Pn ** (-max(a, _EPS))
-            Db = Deff ** (-max(b, _EPS))
-            out[:, t] = L_inf + A * Pa + B * Db + Cc * Pa * Db
-        return out
+    P, V, C = X[:,0], X[:,1], X[:,2]
+    lp = np.log(np.clip(P,1.0,None)); lv = np.log(np.clip(V,1.0,None)); lc = np.log(np.clip(C,1.0,None))
+    r = np.asarray(params, dtype=float).reshape(-1)
+    def e(z): return np.exp(np.clip(z, -80.0, 80.0))
+    c0, A, a, B, b, Kv0, m = r[0], e(r[1]), e(r[2]), e(r[3]), e(r[4]), e(r[5]), r[6]
+    t1 = A * e(-a*lp)
+    t2 = B * e(-b*lc)
+    g = 0.5*(a + b)
+    Kv = Kv0 * e(-g*(lp + lc))
+    return c0 + t1 + t2 + Kv * (lv - m)**2
 
 def fit_scaling_law(data_points, loss_values):
     X = np.atleast_2d(np.asarray(data_points, dtype=float))
-    y = np.asarray(loss_values, dtype=float)
-    y2d = y[:, None] if y.ndim == 1 else y
-    N, T = y2d.shape
+    y = np.asarray(loss_values, dtype=float).reshape(-1)
+    P, V, C = X[:,0], X[:,1], X[:,2]
+    lp = np.log(np.clip(P,1.0,None)); lv = np.log(np.clip(V,1.0,None)); lc = np.log(np.clip(C,1.0,None))
+    s = lp + lc
+    a0 = 0.1; b0 = 0.1; g0 = 0.5*(a0 + b0); m0 = float(np.mean(lv))
+    F = np.stack([np.ones_like(lp), np.exp(-a0*lp), np.exp(-b0*lc), np.exp(-g0*s)*(lv - m0)**2], axis=1)
+    FtF = F.T@F + 1e-8*np.eye(4); FtY = F.T@y
+    try:
+        w = np.linalg.solve(FtF, FtY)
+    except np.linalg.LinAlgError:
+        w = np.linalg.lstsq(F, y, rcond=None)[0]
+    c0, Ai, Bi, Kvi = w
+    Ai = max(float(Ai),1e-12); Bi = max(float(Bi),1e-12); Kvi = max(float(Kvi),1e-12)
+    r = np.array([c0, np.log(Ai), np.log(a0), np.log(Bi), np.log(b0), np.log(Kvi), m0], dtype=float)
 
-    bounds = [
-        (-10.0, 1.0),   # L_inf
-        (-10.0, 10.0),  # A
-        (1e-4, 3.0),    # a &gt; 0
-        (-10.0, 10.0),  # B
-        (1e-4, 3.0),    # b &gt; 0
-        (-10.0, 10.0),  # C (interaction)
-        (0.0, 1.0),     # k &gt;= 0
-    ]
+    def unpack(rr):
+        def e(z): return np.exp(np.clip(z,-50,50))
+        return rr[0], e(rr[1]), e(rr[2]), e(rr[3]), e(rr[4]), e(rr[5]), rr[6]
 
-    Pn = np.maximum(X[:, 0], _EPS) / _P0
-    Vn = np.maximum(X[:, 1], 1.0)   / _V0
-    Cn = np.maximum(X[:, 2], _EPS) / _C0
+    def pred_jac(rr):
+        c0,A,a,B,b,Kv0,m = unpack(rr)
+        e1 = np.exp(np.clip(-a*lp,-80,80))
+        e2 = np.exp(np.clip(-b*lc,-80,80))
+        t1 = A*e1; t2 = B*e2
+        g = 0.5*(a+b)
+        eg = np.exp(np.clip(-g*s,-80,80))
+        Kv = Kv0*eg
+        dv = lv - m; dv2 = dv*dv
+        yhat = c0 + t1 + t2 + Kv*dv2
+        J = np.empty((lp.shape[0],7), float)
+        J[:,0] = 1.0
+        J[:,1] = t1
+        J[:,2] = -a*lp*t1 + (-0.5*s*Kv)*a*dv2
+        J[:,3] = t2
+        J[:,4] = -b*lc*t2 + (-0.5*s*Kv)*b*dv2
+        J[:,5] = Kv*dv2
+        J[:,6] = -2.0*Kv*dv
+        return yhat, J
 
-    rng = np.random.default_rng(42)
-
-    def obj(p, yt):
-        pred = scaling_law_func(X, p)
-        if pred.ndim &gt; 1:
-            pred = pred[:, 0]
-        return float(np.mean((pred - yt) ** 2))
-
-    def init_guesses(yt):
-        # Heuristic amplitudes from spread of y
-        spread = float(np.ptp(yt)) if np.ptp(yt) &gt; 1e-9 else 1.0
-        L0 = float(np.min(yt) - 0.1)
-        seeds = [
-            np.array([L0,  1.0*spread, 0.3,  1.0*spread, 0.3,  0.0, 0.2]),
-            np.array([L0, -0.5*spread, 0.5,  0.8*spread, 0.4,  0.3, 0.1]),
-            np.array([L0,  0.8*spread, 0.2, -0.8*spread, 0.6, -0.4, 0.3]),
-        ]
-        for _ in range(5):
-            seeds.append(np.array([
-                rng.uniform(-6.0, -0.3),
-                rng.uniform(-3.0, 3.0),
-                rng.uniform(0.05, 0.9),
-                rng.uniform(-3.0, 3.0),
-                rng.uniform(0.05, 0.9),
-                rng.uniform(-3.0, 3.0),
-                rng.uniform(0.0, 0.6)
-            ], dtype=float))
-        return seeds
-
-    params_all = np.zeros((T, 7), dtype=float)
-    for t in range(T):
-        yt = y2d[:, t]
-        best_f = np.inf
-        best_p = None
-        for p0 in init_guesses(yt):
-            res = minimize(lambda p: obj(p, yt), p0, method=&quot;L-BFGS-B&quot;, bounds=bounds, options={&#x27;maxiter&#x27;: 500})
-            p_opt = res.x if res.success else p0
-            f = obj(p_opt, yt)
-            if f &lt; best_f:
-                best_f, best_p = f, p_opt
-        params_all[t] = best_p
-
-    return params_all[0] if T == 1 else params_all
+    lam = 1e-2
+    for _ in range(120):
+        yhat, J = pred_jac(r)
+        res = y - yhat
+        JTJ = J.T@J
+        g = J.T@res
+        A = JTJ + lam*(np.diag(np.diag(JTJ)) + 1e-12)
+        try:
+            d = np.linalg.solve(A, g)
+        except np.linalg.LinAlgError:
+            d = np.linalg.lstsq(A, g, rcond=None)[0]
+        r_new = r + d
+        yhat_new, _ = pred_jac(r_new)
+        if (y - yhat_new @ np.ones_like(yhat_new)).size == 0:  # guard (rare)
+            break
+        if np.sum((y - yhat_new)**2) &lt; np.sum(res**2):
+            r = r_new
+            lam *= 0.3
+            if np.linalg.norm(d) &lt; 1e-8: break
+        else:
+            lam *= 8.0
+            if lam &gt; 1e12: break
+    return r
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#4</span>
-              <span class="run-label">Run 5</span>
-              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.987048 </span>
+              <span class="run-label">Run 1</span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.985472 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -738,140 +738,197 @@ def fit_scaling_law(data_points, loss_values):
                 <button class="copy-btn" onclick="copyCode(event, 'code-3')">Copy</button>
               </div>
               <pre><code class="language-python" id="code-3"># EVOLVE-BLOCK-START
+&quot;&quot;&quot;
+Lossu scaling with parameter–data synergy and U-shaped vocabulary modulation.
+
+Model (7 params):
+  L = L_inf + A / ( (P/P_REF)^alpha + g * (D_eff/C_REF)^beta )
+  D_eff = C / (1 + k * (log(V+1) - m)^2)
+
+Parameterization (stability/positivity):
+  [0] L_inf, [1] log_A, [2] s_alpha, [3] s_beta, [4] log_g, [5] m, [6] log_k
+  alpha = softplus(s_alpha), beta = softplus(s_beta), g = exp(log_g), k = exp(log_k), A = exp(log_A)
+&quot;&quot;&quot;
 import numpy as np
-from scipy.optimize import least_squares
+from scipy.optimize import minimize
 
-# Fixed normalizations for stability (not data-dependent)
-_P0 = 1e8
-_C0 = 1e10
-_EPS = 1.0
-_PHI_SCALE = 0.1  # bounds |phi| &lt;= 0.1 via tanh for stability
+_P_REF = 1e8
+_C_REF = 1e10
+_EPS   = 1e-12
 
-def _sp(x):
-    ax = np.abs(x)
-    return np.log1p(np.exp(-ax)) + np.maximum(x, 0.0)
+def _softplus(x):
+    x = np.asarray(x)
+    return np.where(x &gt; 20.0, x, np.log1p(np.exp(x)))
 
-def _spi(y):
-    y = np.maximum(y, 1e-12)
-    return np.log(np.expm1(y))
+def _inv_softplus(y):
+    y = float(max(1e-12, y))
+    return np.log(np.exp(y) - 1.0)
 
-def _sg(z):
-    z = np.clip(z, -60.0, 60.0)
-    return 1.0 / (1.0 + np.exp(-z))
+def _decode_1d(p):
+    p = np.asarray(p).ravel()
+    if p.size != 7: raise ValueError(&quot;params must have length 7&quot;)
+    return (p[0], np.exp(p[1]), _softplus(p[2]), _softplus(p[3]), np.exp(p[4]), p[5], np.exp(p[6]))
+
+def _decode_2d(P):
+    if P.shape[1] != 7: raise ValueError(&quot;params rows must have length 7&quot;)
+    return (P[:,0], np.exp(P[:,1]), _softplus(P[:,2]), _softplus(P[:,3]), np.exp(P[:,4]), P[:,5], np.exp(P[:,6]))
 
 def scaling_law_func(data_points, params):
-    &quot;&quot;&quot;
-    Lossu = L + exp(-alpha * lnS) * (A + B * (lnV - v0)^2)
-    lnS = theta*ln(P/P0) + (1-theta)*ln(C/C0) + phi*lnV, with phi = PHI_SCALE * tanh(phi_raw).
-    Params: [L, A_raw, alpha_raw, theta_raw, B_raw, phi_raw, v0]
-    &quot;&quot;&quot;
-    X = np.atleast_2d(np.asarray(data_points, dtype=float))
-    if X.shape[1] != 3:
-        raise ValueError(&quot;data_points must have 3 columns: [P_non_vocab, vocab_size, num_characters]&quot;)
-    P = np.clip(X[:, 0], _EPS, np.inf)
-    V = np.clip(X[:, 1], _EPS, np.inf)
-    C = np.clip(X[:, 2], _EPS, np.inf)
-
-    p = np.asarray(params, dtype=float)
-    if p.ndim == 1:
-        p = p[None, :]
-    if p.shape[1] != 7:
-        raise ValueError(&quot;params must have 7 values per target&quot;)
-
-    L     = p[:, 0]
-    A     = _sp(p[:, 1])
-    alpha = _sp(p[:, 2])
-    theta = _sg(p[:, 3])
-    B     = _sp(p[:, 4])
-    phi   = _PHI_SCALE * np.tanh(p[:, 5])
-    v0    = p[:, 6]
-
-    lnP = np.log(P / _P0)[None, :]
-    lnC = np.log(C / _C0)[None, :]
-    lnV = np.log(V)[None, :]
-
-    lnS = theta[:, None] * lnP + (1.0 - theta)[:, None] * lnC + phi[:, None] * lnV
-    z = -alpha[:, None] * lnS
-    z = np.clip(z, -60.0, 60.0)
-    decay = np.exp(z)
-    vocab_quad = (lnV - v0[:, None])**2
-
-    pred = (L[:, None] + decay * (A[:, None] + B[:, None] * vocab_quad)).T
-    return pred[:, 0] if pred.shape[1] == 1 else pred
+    X = np.atleast_2d(np.asarray(data_points))
+    if X.shape[1] != 3: raise ValueError(&quot;data_points must have shape (N,3)&quot;)
+    P, V, C = X[:,0].astype(float), X[:,1].astype(float), X[:,2].astype(float)
+    logV = np.log(V + 1.0)
+    par = np.asarray(params)
+    if par.ndim == 1:
+        L0, A, a, b, g, m, k = _decode_1d(par)
+        denomV = 1.0 + k * (logV - m)**2
+        Deff   = C / (denomV + _EPS)
+        Ps = (P / _P_REF) + _EPS
+        Ds = (Deff / _C_REF) + _EPS
+        return L0 + A / (np.power(Ps, a) + g * np.power(Ds, b) + _EPS)
+    elif par.ndim == 2:
+        L0, A, a, b, g, m, k = _decode_2d(par)
+        Pc, Cc, logVc = P[:,None], C[:,None], logV[:,None]
+        denomV = 1.0 + k[None,:] * (logVc - m[None,:])**2
+        Deff   = Cc / (denomV + _EPS)
+        Ps = (Pc / _P_REF) + _EPS
+        Ds = (Deff / _C_REF) + _EPS
+        pred = L0[None,:] + A[None,:] / (np.power(Ps, a[None,:]) + g[None,:] * np.power(Ds, b[None,:]) + _EPS)
+        return pred if pred.shape[1] &gt; 1 else pred[:,0]
+    else:
+        raise ValueError(&quot;params must be 1D or 2D array&quot;)
 
 def fit_scaling_law(data_points, loss_values):
-    &quot;&quot;&quot;
-    Robust fit of 7-parameter model using soft_l1 least squares.
-    - Reweights samples to balance across vocab sizes.
-    - Light regularization on alpha, phi, and v0 to stabilize extremes.
-    &quot;&quot;&quot;
-    X = np.atleast_2d(np.asarray(data_points, dtype=float))
-    y = np.asarray(loss_values, dtype=float)
-    if X.shape[1] != 3:
-        raise ValueError(&quot;data_points must have 3 columns: [P_non_vocab, vocab_size, num_characters]&quot;)
+    X = np.atleast_2d(np.asarray(data_points))
+    y = np.asarray(loss_values)
+    if X.shape[1] != 3: raise ValueError(&quot;data_points must have shape (N,3)&quot;)
+    Y = y[:,None] if y.ndim == 1 else y
+    if Y.shape[0] != X.shape[0]: raise ValueError(&quot;loss_values must align with data_points rows&quot;)
 
-    Y = y[:, None] if y.ndim == 1 else y
-    N, T = Y.shape
+    N = X.shape[0]
+    P, V, C = X[:,0].astype(float), X[:,1].astype(float), X[:,2].astype(float)
+    logV = np.log(V + 1.0)
+    lv_min, lv_max = float(np.min(logV)), float(np.max(logV))
+    lv_span = max(1e-6, lv_max - lv_min)
 
-    lnV = np.log(np.clip(X[:, 1], _EPS, np.inf))
-    v0_init = float(np.median(lnV)) if np.isfinite(lnV).all() else float(np.mean(lnV))
+    # Balance vocab groups to prevent dominance by frequent vocab sizes
+    uv, cnt = np.unique(V, return_counts=True)
+    w_map = dict(zip(uv.tolist(), cnt.tolist()))
+    w = np.array([1.0 / w_map[v] for v in V], float)
+    w *= N / np.sum(w)
 
-    # Balance contributions across vocab sizes
-    V_vals = np.clip(X[:, 1], _EPS, np.inf)
-    uniq, counts = np.unique(V_vals, return_counts=True)
-    w_map = {u: c for u, c in zip(uniq, counts)}
-    w = np.array([1.0 / np.sqrt(w_map[v]) for v in V_vals], dtype=float)
-    w /= np.mean(w)
+    def huber(r, d):
+        a = np.abs(r)
+        return np.where(a &lt;= d, 0.5*r*r, d*(a - 0.5*d))
 
-    L0 = np.min(Y, axis=0) - 0.1
-    amp = np.maximum(np.median(np.abs(Y - L0), axis=0), 0.05)
-    a0, t0 = 0.3, 0.5
-    B0 = np.maximum(0.5 * amp, 0.02)
+    def phi_from_params(sa, sb, lg, m, lk):
+        a = _softplus(sa); b = _softplus(sb)
+        g = np.exp(lg);    k = np.exp(lk)
+        denomV = 1.0 + k * (logV - m)**2
+        Deff   = C / (denomV + _EPS)
+        Ps = (P / _P_REF) + _EPS
+        Ds = (Deff / _C_REF) + _EPS
+        den = np.power(Ps, a) + g * np.power(Ds, b) + _EPS
+        return 1.0 / den
 
-    p0 = np.zeros((T, 7), dtype=float)
-    p0[:, 0] = L0.ravel()
-    p0[:, 1] = _spi(amp.ravel())
-    p0[:, 2] = _spi(np.full(T, a0))
-    p0[:, 3] = np.log(t0 / (1.0 - t0))
-    p0[:, 4] = _spi(B0.ravel())
-    p0[:, 5] = 0.0  # phi_raw init -&gt; phi ~ 0
-    p0[:, 6] = v0_init
+    def solve_LA(phi, target):
+        sw = np.sqrt(w + _EPS)
+        M = np.stack([np.ones_like(phi), phi], 1)
+        Mw = sw[:,None] * M
+        yw = sw * target
+        try:
+            theta, _, _, _ = np.linalg.lstsq(Mw, yw, rcond=None)
+        except Exception:
+            theta = np.array([np.average(target, weights=w), 1e-3], float)
+        L, A = float(theta[0]), float(theta[1])
+        if A &lt;= 1e-12:
+            A = 1e-12
+            L = float((np.sum(w*(target - A*phi)) / (np.sum(w) + _EPS)))
+        return L, A
 
-    y_std = np.maximum(np.std(Y, axis=0), 1e-6)
+    def optimize_column(target):
+        ymin, ymax = float(np.min(target)), float(np.max(target))
+        med = float(np.median(target))
+        mad = float(np.median(np.abs(target - med)) + 1e-8)
+        delta = max(0.05, 1.4826 * mad)
 
-    alpha_ref = 0.3
-    phi_ref = 0.0
-    v_ref = v0_init
-    reg_a, reg_phi, reg_v = 0.05, 0.02, 0.01
+        # Seed grid for (m, k) and data/param balance g
+        m_grid = np.linspace(lv_min, lv_max, 5)
+        k_grid = np.array([0.05, 0.2, 1.0, 5.0, 20.0]) / (lv_span**2 + 1e-12)
+        a0, b0 = 0.35, 0.30
+        sa0, sb0 = _inv_softplus(a0), _inv_softplus(b0)
 
-    def residuals(flat_params):
-        params = flat_params.reshape(T, 7)
-        pred = scaling_law_func(X, params)
-        if pred.ndim == 1:
-            pred = pred[:, None]
-        res = (pred - Y) / y_std[None, :]
-        res = (w[:, None] * res).ravel()
-        # Regularize alpha towards 0.3, phi towards 0, and v0 towards median lnV
-        a = _sp(params[:, 2]) - alpha_ref
-        phi = _PHI_SCALE * np.tanh(params[:, 5]) - phi_ref
-        v = params[:, 6] - v_ref
-        reg = np.concatenate([reg_a * a, reg_phi * phi, reg_v * v])
-        return np.concatenate([res, reg])
+        seeds = []
+        for m0 in m_grid:
+            for lk0 in np.log(k_grid + _EPS):
+                # balance g via median branch magnitudes
+                denomV = 1.0 + np.exp(lk0) * (logV - m0)**2
+                Deff = C / (denomV + _EPS)
+                Ps = (P / _P_REF) + _EPS
+                Ds = (Deff / _C_REF) + _EPS
+                pphi = np.power(Ps, a0); dphi = np.power(Ds, b0)
+                g0 = float(np.median(pphi) / (np.median(dphi) + _EPS))
+                seeds.append(np.array([sa0, sb0, np.log(max(g0,1e-12)), m0, lk0], float))
 
-    out = least_squares(residuals, p0.ravel(), method=&#x27;trf&#x27;, loss=&#x27;soft_l1&#x27;, f_scale=1.0, max_nfev=6000)
-    p_opt = out.x.reshape(T, 7)
-    return p_opt[0] if T == 1 else p_opt
+        # Score seeds via robust error with closed-form (L_inf, A)
+        def score(par5):
+            phi = phi_from_params(*par5)
+            L, A = solve_LA(phi, target)
+            pred = L + A*phi
+            return float(np.sum(w * huber(pred - target, delta)) / N)
+
+        seeds.sort(key=score)
+        topK = seeds[:6]
+
+        # Local objective only over (s_alpha, s_beta, log_g, m, log_k)
+        def obj(par5):
+            sa, sb, lg, m, lk = par5
+            # mild priors to stabilize exponents, vocab center and width
+            a = _softplus(sa); b = _softplus(sb); k = np.exp(lk)
+            reg = (1e-4 * ((a - 0.35)**2 + (b - 0.30)**2)
+                   + 1e-6 * (np.log(k + 1e-12)**2)
+                   + 1e-5 * (max(0.0, m - (lv_max + 0.5))**2 + max(0.0, (lv_min - 0.5) - m)**2))
+            phi = phi_from_params(sa, sb, lg, m, lk)
+            L, A = solve_LA(phi, target)
+            pred = L + A*phi
+            loss = np.sum(w * huber(pred - target, delta)) / N
+            return loss + reg
+
+        bounds = [
+            (None, None),                  # s_alpha
+            (None, None),                  # s_beta
+            (-20.0, 20.0),                 # log_g
+            (lv_min - 1.0, lv_max + 1.0),  # m
+            (-20.0, 10.0),                 # log_k
+        ]
+
+        rng = np.random.default_rng(2025)
+        best_x, best_val = topK[0], obj(topK[0])
+        for base in topK:
+            for _ in range(3):
+                start = base + rng.normal(0, [0.4,0.4,0.4,0.15,0.3])
+                res = minimize(obj, start, method=&#x27;L-BFGS-B&#x27;, bounds=bounds, options={&#x27;maxiter&#x27;:700})
+                val = res.fun if res.success else obj(res.x)
+                if val &lt; best_val: best_val, best_x = val, (res.x if res.success else start)
+
+        # Recover (L_inf, log_A) at optimum via weighted LS
+        phi = phi_from_params(*best_x)
+        L_opt, A_opt = solve_LA(phi, target)
+        return np.array([L_opt, np.log(max(A_opt, 1e-12)), best_x[0], best_x[1], best_x[2], best_x[3], best_x[4]], float)
+
+    T = Y.shape[1]
+    pars = np.stack([ optimize_column(Y[:,t]) for t in range(T) ], 0)
+    return pars[0] if T == 1 else pars
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#5</span>
-              <span class="run-label">Run 4</span>
-              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.985422 </span>
+              <span class="run-label">Run 3</span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.984955 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -885,139 +942,107 @@ def fit_scaling_law(data_points, loss_values):
 import numpy as np
 from scipy.optimize import minimize
 
-# Fixed reference scales (not data-dependent)
-_P0, _V0, _C0 = 1e8, 32768.0, 1e10
-
-def _softplus(x):
+def _sp(x):
+    x = np.asarray(x, float)
     return np.log1p(np.exp(-np.abs(x))) + np.maximum(x, 0.0)
 
-def _inv_softplus(y, eps=1e-12):
-    y = np.maximum(y, eps)
-    return np.where(y &gt; 20, y, np.log(np.expm1(y)))
-
-def _sigmoid(x):
-    return 1.0 / (1.0 + np.exp(-x))
-
 def scaling_law_func(data_points, params):
-    &quot;&quot;&quot;
-    7-parameter law with synergistic P,C improvement and vocab optimum:
-    L = L_inf
-        + A * (exp(-a*log(P/P0)) + exp(-a*log(C/C0)))^rho
-        + c_v * ( log(V) - (v0 + vP*log(P/P0) + vC*log(C/C0)) )^2
-
-    params = [L_inf, v0, vP, vC, A_, a_, c_v_]
-    where A = softplus(A_), a = softplus(a_), c_v = softplus(c_v_), rho=0.7 fixed.
-    &quot;&quot;&quot;
-    X = np.atleast_2d(np.asarray(data_points, dtype=float))
+    X = np.atleast_2d(np.asarray(data_points, float))
     P, V, C = X[:, 0], X[:, 1], X[:, 2]
-    p = np.log(np.clip(P / _P0, 1e-12, 1e12))
-    c = np.log(np.clip(C / _C0, 1e-12, 1e12))
-    lv = np.log(np.clip(V, 1.0, 1e12))
+    p = np.asarray(params, float).ravel()
 
-    L_inf, v0, vP, vC, A_, a_, cv_ = np.asarray(params, dtype=float)
-    A = _softplus(A_)
-    a = _softplus(a_)
-    c_v = _softplus(cv_)
+    # Params (&lt;=7): [L_inf, raw_Ap, raw_alpha, raw_Ad, raw_beta, raw_k, raw_gamma]
+    L_inf = p[0] if p.size &gt; 0 else -2.0
+    Ap = _sp(p[1]) + 1e-8 if p.size &gt; 1 else 1.0
+    alpha = _sp(p[2]) + 0.05 if p.size &gt; 2 else 0.7
+    Ad = _sp(p[3]) + 1e-8 if p.size &gt; 3 else 1.0
+    beta = _sp(p[4]) + 0.05 if p.size &gt; 4 else 0.7
+    k = _sp(p[5]) + 0.5 if p.size &gt; 5 else 1.0
+    gamma = 2.0 * np.tanh((p[6] if p.size &gt; 6 else 0.0) / 2.0)
 
-    eP = np.exp(-a * p)
-    eC = np.exp(-a * c)
-    s = np.clip(eP + eC, 1e-300, np.inf)
-    rho = 0.7
-    pc = np.exp(rho * np.log(s))  # (eP + eC)^rho
+    # Stable normalizations and vocab-aware effective data
+    Pn = np.maximum(P, 1.0) / 1e8
+    Vlog = np.log(np.maximum(V, 2.0))
+    Vref = np.log(65536.0)
+    Deff = np.maximum(C, 1.0) * np.power(np.maximum(Vlog / Vref, 1e-12), gamma)
+    Dn = Deff / 1e9
 
-    lv_star = v0 + vP * p + vC * c
-    return L_inf + A * pc + c_v * (lv - lv_star) ** 2
+    # Coupled generalized mean: smooth min between params and data contributions
+    s1 = np.power(Ap * np.power(Pn, alpha) + 1e-18, 1.0 / k)
+    s2 = np.power(Ad * np.power(Dn, beta) + 1e-18, 1.0 / k)
+    return L_inf + np.power(s1 + s2 + 1e-18, -k)
 
 def fit_scaling_law(data_points, loss_values):
-    X = np.atleast_2d(np.asarray(data_points, dtype=float))
-    y = np.asarray(loss_values, dtype=float).reshape(-1)
-    P, V, C = X[:, 0], X[:, 1], X[:, 2]
-    p = np.log(np.clip(P / _P0, 1e-12, 1e12))
-    c = np.log(np.clip(C / _C0, 1e-12, 1e12))
-    lv = np.log(np.clip(V, 1.0, 1e12))
+    X = np.atleast_2d(np.asarray(data_points, float))
+    y = np.asarray(loss_values, float).ravel()
+    ymin, ymed, ymax = float(np.min(y)), float(np.median(y)), float(np.max(y))
 
-    # Robust initializations
-    L_inf0 = float(np.min(y) - 0.05)
-    spread = float(max(np.std(y), 1e-3))
-    # Ridge regression for vocab optimum init: lv ~ [1, p, c]
-    Phi = np.stack([np.ones_like(p), p, c], axis=1)
-    lam = 1e-3
-    H = Phi.T @ Phi + lam * np.eye(3)
-    theta = np.linalg.solve(H, Phi.T @ lv)
-    v0_0, vP0, vC0 = map(float, theta)
-    A0, a0, c_v0 = max(spread, 0.1), 0.35, max(0.05 * spread, 1e-3)
+    # Equalize contribution across vocab sizes to improve cross-vocab generalization
+    V = X[:, 1]
+    uV, inv, cnt = np.unique(V, return_inverse=True, return_counts=True)
+    w = 1.0 / cnt[inv]
+    w = w / np.sum(w)
 
-    init = np.array([
-        L_inf0, v0_0, vP0, vC0,
-        _inv_softplus(A0), _inv_softplus(a0), _inv_softplus(c_v0)
-    ], dtype=float)
+    def huber(r, d=0.45):
+        a = r / d
+        return d * d * (np.sqrt(1.0 + a * a) - 1.0)
 
-    def huber_grad(r, d=0.25):
-        a = np.abs(r)
-        return np.where(a &lt;= d, r, d * np.sign(r))
-
-    def huber_val(r, d=0.25):
-        a = np.abs(r)
-        return np.where(a &lt;= d, 0.5 * r * r, d * (a - 0.5 * d))
-
-    def pred_and_jac(theta):
-        L_inf, v0, vP, vC, A_, a_, cv_ = theta
-        A = _softplus(A_); a = _softplus(a_); cv = _softplus(cv_)
-        sA = _sigmoid(A_); sa = _sigmoid(a_); scv = _sigmoid(cv_)
-        eP = np.exp(-a * p); eC = np.exp(-a * c)
-        ssum = np.clip(eP + eC, 1e-300, np.inf)
-        rho = 0.7
-        pc = np.exp(rho * np.log(ssum))
-        # d pc / d a
-        dlogsum_da = - (p * eP + c * eC) / ssum
-        dpc_da = pc * rho * dlogsum_da
-
-        mu = v0 + vP * p + vC * c
-        diff = lv - mu
-        pred = L_inf + A * pc + cv * diff**2
-
-        J = np.empty((p.size, 7), dtype=float)
-        J[:, 0] = 1.0                              # d/d L_inf
-        J[:, 1] = -2.0 * cv * diff                 # d/d v0
-        J[:, 2] = -2.0 * cv * diff * p             # d/d vP
-        J[:, 3] = -2.0 * cv * diff * c             # d/d vC
-        J[:, 4] = sA * pc                          # d/d A_
-        J[:, 5] = sa * A * dpc_da                  # d/d a_
-        J[:, 6] = scv * (diff**2)                  # d/d cv_
-        return pred, J
-
-    def obj_and_grad(theta):
-        pred, J = pred_and_jac(theta)
+    lam_main, lam_gamma = 1e-4, 5e-5
+    def objective(p):
+        pred = scaling_law_func(X, p)
+        if np.any(~np.isfinite(pred)):
+            return 1e12
         r = pred - y
-        val = np.mean(huber_val(r))
-        g = huber_grad(r)
-        grad = (J * g[:, None]).mean(axis=0)
-        # tiny L2 regularization on vocab-location slopes for stability
-        reg = 1e-6 * np.array([0, theta[1], theta[2], theta[3], 0, 0, 0], dtype=float)
-        return val + 0.5 * 1e-6 * (theta[1]**2 + theta[2]**2 + theta[3]**2), grad + reg
+        loss = np.sum(w * huber(r, 0.45))
+        reg = lam_main * np.sum(p[1:6] * p[1:6]) + (lam_gamma * p[6] * p[6] if p.size &gt; 6 else 0.0)
+        return float(loss + reg)
 
-    def obj(theta): return obj_and_grad(theta)[0]
-    def jac(theta): return obj_and_grad(theta)[1]
+    def sp_inv(t):
+        t = float(max(t, 1e-12))
+        return np.log(np.expm1(t))
+    def spk_inv(kv):
+        kv = float(max(kv - 0.5, 1e-12))
+        return np.log(np.expm1(kv))
 
-    best_p, best_f = init, obj(init)
-    rng = np.random.default_rng(42)
-    for _ in range(7):
-        jitter = np.array([
-            rng.normal(0, 0.06),  # L_inf
-            rng.normal(0, 0.20),  # v0
-            rng.normal(0, 0.05),  # vP
-            rng.normal(0, 0.07),  # vC
-            rng.normal(0, 0.22),  # A_
-            rng.normal(0, 0.16),  # a_
-            rng.normal(0, 0.18),  # cv_
-        ])
-        p0 = init + jitter
-        res = minimize(obj, p0, method=&quot;L-BFGS-B&quot;, jac=jac, options=dict(maxiter=900))
-        if res.success and res.fun &lt; best_f:
-            best_p, best_f = res.x, res.fun
+    inits = [
+        np.array([ymin - 0.2, sp_inv(1.0), sp_inv(0.7), sp_inv(1.0), sp_inv(0.7), spk_inv(1.0), 0.0]),
+        np.array([ymed - 0.5, sp_inv(0.8), sp_inv(0.5), sp_inv(0.8), sp_inv(0.5), spk_inv(0.8), 0.0]),
+        np.array([ymin - 0.7, sp_inv(0.9), sp_inv(0.6), sp_inv(1.2), sp_inv(0.9), spk_inv(1.2), 0.8]),
+        np.array([ymax - 0.3, sp_inv(1.2), sp_inv(0.9), sp_inv(0.9), sp_inv(0.6), spk_inv(1.2), -0.8]),
+        np.array([ymed - 0.3, sp_inv(1.0), sp_inv(0.8), sp_inv(1.0), sp_inv(0.8), spk_inv(1.6), 0.3]),
+    ]
+    rng = np.random.default_rng(1234)
+    for _ in range(2):
+        L0 = float(ymed + rng.normal(0, 0.25))
+        Ap0 = np.clip(0.6 + rng.normal(0, 0.3), 0.05, 2.0)
+        Ad0 = np.clip(0.6 + rng.normal(0, 0.3), 0.05, 2.0)
+        al0 = np.clip(0.5 + rng.normal(0, 0.25), 0.1, 1.5)
+        be0 = np.clip(0.5 + rng.normal(0, 0.25), 0.1, 1.5)
+        k0 = np.clip(1.0 + rng.normal(0, 0.4), 0.6, 2.0)
+        g0 = float(np.clip(rng.normal(0, 0.7), -1.5, 1.5))
+        inits.append(np.array([L0, sp_inv(Ap0), sp_inv(al0), sp_inv(Ad0), sp_inv(be0), spk_inv(k0), g0]))
 
-    res = minimize(obj, best_p, method=&quot;L-BFGS-B&quot;, jac=jac, options=dict(maxiter=2500))
-    return res.x if res.success else best_p
+    bounds = [(ymin - 2.0, ymax + 2.0)] + [(None, None)] * 6
+    best_p, best_f = None, np.inf
+    for p0 in inits:
+        try:
+            res = minimize(objective, p0, method=&quot;L-BFGS-B&quot;, bounds=bounds)
+            if res.fun &lt; best_f and np.all(np.isfinite(res.x)):
+                best_f, best_p = res.fun, res.x
+        except Exception:
+            continue
+
+    # Polish with weaker regularization if an optimum was found
+    if best_p is not None:
+        lam_main, lam_gamma = 5e-5, 1e-5
+        try:
+            res2 = minimize(objective, best_p, method=&quot;L-BFGS-B&quot;, bounds=bounds)
+            if res2.success and np.all(np.isfinite(res2.x)):
+                best_p = res2.x
+        except Exception:
+            pass
+        return best_p
+    return inits[0]
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>

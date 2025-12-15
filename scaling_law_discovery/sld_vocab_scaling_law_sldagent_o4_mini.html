@@ -285,7 +285,7 @@
     <div class="bg-pattern"></div>
 
     <div class="container">
-      <a href="sld_index.html" class="back-link"> ← Back to Leaderboard </a>
+      <a href="index.html" class="back-link"> ← Back to Leaderboard </a>
 
       <div class="header">
         <h1>Vocabulary Scaling Law</h1>
@@ -300,15 +300,15 @@
           </div>
           <div class="meta-item">
             <span class="meta-label">Best R²:</span>
-            <span class="r2-badge" style="background-color: #006400; color: white"> 0.985849 </span>
+            <span class="r2-badge" style="background-color: #006400; color: white"> 0.986247 </span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Mean R²:</span>
-            <span class="meta-value">0.980661</span>
+            <span class="meta-value">0.985435</span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Min R²:</span>
-            <span class="meta-value">0.971575</span>
+            <span class="meta-value">0.984961</span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Runs:</span>
@@ -320,12 +320,13 @@
       <h2 class="section-title">All Runs (sorted by R²)</h2>
 
       <div class="runs-container">
+
         <div class="run-card best-run">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge best-badge">Best</span>
               <span class="run-label">Run 3</span>
-              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.985849 </span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.986247 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -338,85 +339,97 @@
               <pre><code class="language-python" id="code-0">import numpy as np
 from scipy.optimize import minimize
 
-# EVOLVE-BLOCK-START
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    A simplified two-component scaling law:
-      Lossu ≈ (C0 * P^{-a} + C1 * V^{-g}) * D^{-b} + C2
-    where
-      P = non-vocab parameter count,
-      V = vocabulary size,
-      D = number of characters seen.
-    params = [C0, C1, C2, a, b, g]  (6 parameters)
+    Predict unigram-normalized loss (Lossu) via a two-term
+    3D power‐law with synergy in the main term plus an additive constant:
+      Lossu = C0 * exp[-(a·logP + b·logD + g·logV)]
+            + C1 * exp[-(h·logD)]
+            + C2
+
+    Inputs:
+      data_points: array of shape (N,3) columns = [P_non_vocab, Vocab_size, Num_characters]
+      params: length-7 array = [C0, C1, C2, a, b, g, h]
+
+    Returns:
+      preds: length-N array of predicted Lossu
     &quot;&quot;&quot;
     X = np.atleast_2d(data_points)
     P = X[:, 0]
     V = X[:, 1]
     D = X[:, 2]
-    C0, C1, C2, a, b, g = params
-    # share the same data‐exponent b for both P and V contributions
-    return (C0 * P**(-a) + C1 * V**(-g)) * (D**(-b)) + C2
+
+    C0, C1, C2, a, b, g, h = params
+    lp = np.log(P)
+    lv = np.log(V)
+    ld = np.log(D)
+
+    term1 = np.exp(-(a * lp + b * ld + g * lv))
+    term2 = np.exp(-h * ld)
+    return C0 * term1 + C1 * term2 + C2
+
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Fit the 6-parameter model by:
-      1) optimizing exponents (a, b, g) in log-space via L-BFGS-B,
-         while solving C0, C1, C2 by linear least squares inside the objective,
-      2) selecting the best of multiple restarts,
-      3) recovering the final linear coefficients with fixed exponents.
-    Returns params = [C0, C1, C2, a, b, g].
+    Fit the 7‐parameter model by:
+      1) optimizing exponents (a, b, g, h) in log‐space (ensures positivity)
+         while solving [C0,C1,C2] via linear least squares at each step;
+      2) recovering an initial 7‐vector estimate;
+      3) performing a bounded L-BFGS-B refinement on all 7 parameters
+         to further minimize MSE.
+
+    Returns:
+      params_opt: length-7 array [C0, C1, C2, a, b, g, h]
     &quot;&quot;&quot;
     X = np.atleast_2d(data_points)
-    P = X[:, 0]
-    V = X[:, 1]
-    D = X[:, 2]
     y = np.asarray(loss_values).ravel()
+    P, V, D = X[:, 0], X[:, 1], X[:, 2]
+    lp, lv, ld = np.log(P), np.log(V), np.log(D)
 
-    def _mse(log_exps):
-        a, b, g = np.exp(log_exps)
-        D_term = D**(-b)
-        M = np.vstack([
-            P**(-a) * D_term,
-            V**(-g) * D_term,
-            np.ones_like(P)
-        ]).T
-        coefs, *_ = np.linalg.lstsq(M, y, rcond=None)
-        y_pred = M.dot(coefs)
-        return np.mean((y - y_pred)**2)
+    # 1) Optimize exponents in log-space
+    def mse_exp(log_exps):
+        # a, b, g, h &gt; 0 by exponentiating
+        a, b, g, h = np.exp(log_exps)
+        phi1 = np.exp(-(a * lp + b * ld + g * lv))
+        phi2 = np.exp(-h * ld)
+        M = np.vstack((phi1, phi2, np.ones_like(y))).T
+        coeffs, *_ = np.linalg.lstsq(M, y, rcond=None)
+        y_pred = M.dot(coeffs)
+        return np.mean((y_pred - y) ** 2)
 
-    # bounds for exponents in log-space
-    bounds = [(np.log(1e-8), np.log(10.0))] * 3
-    best_mse = np.inf
-    best_log = None
-    # multi-start to avoid local minima
-    for init in ([0.5, 0.5, 0.5], [0.3, 0.8, 0.4], [1.0, 0.2, 0.6]):
-        res = minimize(_mse, np.log(init),
-                       method=&#x27;L-BFGS-B&#x27;, bounds=bounds)
-        if res.fun &lt; best_mse:
-            best_mse, best_log = res.fun, res.x
+    init_log_exps = np.log([0.5, 0.5, 0.5, 0.5])
+    res1 = minimize(mse_exp, init_log_exps, method=&#x27;L-BFGS-B&#x27;)
+    a0, b0, g0, h0 = np.exp(res1.x)
 
-    a_opt, b_opt, g_opt = np.exp(best_log)
-    # now solve for C0, C1, C2 with fixed exponents
-    D_term = D**(-b_opt)
-    M_final = np.vstack([
-        P**(-a_opt) * D_term,
-        V**(-g_opt) * D_term,
-        np.ones_like(P)
-    ]).T
-    C0_opt, C1_opt, C2_opt = np.linalg.lstsq(M_final, y, rcond=None)[0]
+    # 2) Solve for C0, C1, C2 given the exponents
+    phi1 = np.exp(-(a0 * lp + b0 * ld + g0 * lv))
+    phi2 = np.exp(-h0 * ld)
+    M_lin = np.vstack((phi1, phi2, np.ones_like(y))).T
+    C0_0, C1_0, C2_0 = np.linalg.lstsq(M_lin, y, rcond=None)[0]
 
-    return np.array([C0_opt, C1_opt, C2_opt, a_opt, b_opt, g_opt])
-# EVOLVE-BLOCK-END</code></pre>
+    initial_params = np.array([C0_0, C1_0, C2_0, a0, b0, g0, h0])
+
+    # 3) Final refinement: optimize all 7 parameters together
+    def mse_all(params):
+        y_pred = scaling_law_func(X, params)
+        return np.mean((y_pred - y) ** 2)
+
+    # Bounds: exponents &gt;= 1e-12, coefficients free
+    bounds = [(None, None)] * 3 + [(1e-12, None)] * 4
+    res2 = minimize(mse_all, initial_params,
+                    method=&#x27;L-BFGS-B&#x27;,
+                    bounds=bounds)
+
+    return res2.x</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#2</span>
               <span class="run-label">Run 1</span>
-              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.985840 </span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.986047 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -432,59 +445,62 @@ from scipy.optimize import minimize
 # EVOLVE-BLOCK-START
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    Predict unigram-normalized loss (Lossu) via two coupled power-law terms plus bias:
-      Lossu = C0 * P^{-a} * D^{-b}  +  C1 * V^{-g} * D^{-b} + C2
-    params: [C0, C1, C2, a, b, g]
+    Lossu ≈ C0·P^(–a) + C1·(D / V^g)^(–b) + C2·log(P) + C3
+    params = [C0, C1, C2, C3, a, b, g]
     &quot;&quot;&quot;
     X = np.atleast_2d(data_points)
     P, V, D = X[:,0], X[:,1], X[:,2]
-    C0, C1, C2, a, b, g = params
-    return C0 * P**(-a) * D**(-b) + C1 * V**(-g) * D**(-b) + C2
+    C0, C1, C2, C3, a, b, g = params
+    R = D / (V**g)
+    return C0 * P**(-a) + C1 * R**(-b) + C2 * np.log(P) + C3
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Fit exponents (a, b, g) in log-space via L-BFGS-B, each step solving
-    for C0, C1, C2 by linear least squares to minimize MSE.
-    Returns params [C0, C1, C2, a, b, g].
+    Fit [C0,C1,C2,C3,a,b,g] by:
+     1) optimizing exponents (a,b,g) in log-space via L-BFGS-B,
+     2) recovering linear coefficients [C0,C1,C2,C3] at each step
+        via ridge-regularized least squares,
+     3) final solve at optimal exponents.
     &quot;&quot;&quot;
     X = np.atleast_2d(data_points)
     P, V, D = X[:,0], X[:,1], X[:,2]
     y = np.asarray(loss_values).ravel()
+    ridge = 1e-12
 
-    def mse_log_exps(log_exps):
+    def mse_for_log_exps(log_exps):
         a, b, g = np.exp(log_exps)
-        M = np.vstack([
-            P**(-a) * D**(-b),
-            V**(-g) * D**(-b),
-            np.ones_like(P)
-        ]).T
-        coeffs, *_ = np.linalg.lstsq(M, y, rcond=None)
-        pred = M.dot(coeffs)
-        return np.mean((pred - y)**2)
+        R = D / (V**g)
+        M = np.vstack((P**(-a), R**(-b), np.log(P), np.ones_like(P))).T
+        A = M.T.dot(M) + ridge * np.eye(4)
+        C = np.linalg.solve(A, M.T.dot(y))
+        y_pred = M.dot(C)
+        return np.mean((y_pred - y)**2)
 
-    init = np.log([0.5, 0.5, 0.5])
-    res = minimize(mse_log_exps, init, method=&#x27;L-BFGS-B&#x27;)
+    # init exponents around 0.5
+    init_log = np.log([0.5, 0.5, 0.5])
+    bounds = [(-8,8), (-8,8), (-5,5)]
+    res = minimize(mse_for_log_exps, init_log,
+                   method=&#x27;L-BFGS-B&#x27;, bounds=bounds)
     a_opt, b_opt, g_opt = np.exp(res.x)
 
-    M_final = np.vstack([
-        P**(-a_opt) * D**(-b_opt),
-        V**(-g_opt) * D**(-b_opt),
-        np.ones_like(P)
-    ]).T
-    C0, C1, C2 = np.linalg.lstsq(M_final, y, rcond=None)[0]
+    # final linear solve for C0,C1,C2,C3
+    R_opt = D / (V**g_opt)
+    M_final = np.vstack((P**(-a_opt), R_opt**(-b_opt),
+                         np.log(P), np.ones_like(P))).T
+    A_final = M_final.T.dot(M_final) + ridge * np.eye(4)
+    C0, C1, C2, C3 = np.linalg.solve(A_final, M_final.T.dot(y))
 
-    return np.array([C0, C1, C2, a_opt, b_opt, g_opt])
+    return np.array([C0, C1, C2, C3, a_opt, b_opt, g_opt])
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#3</span>
               <span class="run-label">Run 2</span>
-              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.983693 </span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.984961 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -500,98 +516,55 @@ from scipy.optimize import minimize
 # EVOLVE-BLOCK-START
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    Combined multiplicative and data-only power‐law scaling:
-      Lossu ≈ C0
-             + C1 * P^(−alpha) * D^(−beta) * V^(−gamma)
-             + C2 * D^(−delta)
-
-    params = [C0, C1, C2, alpha, beta, gamma, delta]
-      C0     : bias / asymptotic loss
-      C1     : amplitude of full P·D·V interaction term
-      C2     : amplitude of data‐only term
-      alpha  : exponent on non‐vocab parameters P
-      beta   : exponent on number of chars D in interaction
-      gamma  : exponent on vocab size V
-      delta  : exponent on number of chars D in data‐only term
+    6-parameter dual-term power law:
+      Lossu = C0
+            + C1 * P^{-alpha} * D^{-delta}
+            + C2 * V^{-beta}  * D^{-delta}
+    params = [C0, C1, C2, alpha, beta, delta]
     &quot;&quot;&quot;
-    X = np.atleast_2d(data_points).astype(float)
-    P = X[:, 0]
-    V = X[:, 1]
-    D = X[:, 2]
-    C0, C1, C2, alpha, beta, gamma, delta = params
-
-    # compute with logs for numerical stability
-    logP = np.log(P)
-    logD = np.log(D)
-    logV = np.log(V)
-
-    f_main = np.exp(-alpha * logP - beta * logD - gamma * logV)
-    f_data = np.exp(-delta * logD)
-    return C0 + C1 * f_main + C2 * f_data
+    X = np.atleast_2d(data_points)
+    P, V, D = X[:,0], X[:,1], X[:,2]
+    C0, C1, C2, alpha, beta, delta = params
+    return C0 + C1 * P**(-alpha) * D**(-delta) + C2 * V**(-beta) * D**(-delta)
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Fit the 7‐parameter model
-      Lossu ≈ C0
-             + C1 * P^(−alpha) * D^(−beta) * V^(−gamma)
-             + C2 * D^(−delta)
-
-    by:
-      1) optimizing exponents (alpha, beta, gamma, delta) in log‐space
-      2) solving linear least squares for (C1, C2, C0)
-    Returns np.array([C0, C1, C2, alpha, beta, gamma, delta]).
+    Fit exponents in log-space (L-BFGS-B) then solve linear coeffs by least squares.
     &quot;&quot;&quot;
-    X = np.atleast_2d(data_points).astype(float)
+    X = np.atleast_2d(data_points)
     y = np.asarray(loss_values).ravel()
-    P = X[:, 0]
-    V = X[:, 1]
-    D = X[:, 2]
+    P, V, D = X[:,0], X[:,1], X[:,2]
 
-    # precompute logs
-    logP = np.log(P)
-    logD = np.log(D)
-    logV = np.log(V)
+    def mse_log_exps(log_e):
+        a, b, d = np.exp(log_e)
+        t1 = P**(-a)*D**(-d)
+        t2 = V**(-b)*D**(-d)
+        M = np.vstack((np.ones_like(y), t1, t2)).T
+        c, *_ = np.linalg.lstsq(M, y, rcond=None)
+        return np.mean((M.dot(c)-y)**2)
 
-    def mse_exponents(log_exps):
-        # enforce exponents &gt; 0
-        alpha, beta, gamma, delta = np.exp(log_exps)
-        # build design matrix
-        f_main = np.exp(-alpha * logP - beta * logD - gamma * logV)
-        f_data = np.exp(-delta * logD)
-        M = np.vstack((f_main, f_data, np.ones_like(y))).T
-        # least squares for [C1, C2, C0]
-        coeffs, *_ = np.linalg.lstsq(M, y, rcond=None)
-        y_pred = M.dot(coeffs)
-        return np.mean((y - y_pred) ** 2)
+    # init exponents ~0.5
+    res = minimize(mse_log_exps, np.log([0.5,0.5,0.5]),
+                   method=&#x27;L-BFGS-B&#x27;, bounds=[(-10,10)]*3)
+    alpha, beta, delta = np.exp(res.x)
 
-    # initialize exponents in log space
-    init_log = np.log([0.5, 0.5, 0.5, 0.5])
-    bounds = [(np.log(1e-6), np.log(1e2))] * 4
-    res = minimize(mse_exponents, init_log, method=&#x27;L-BFGS-B&#x27;, bounds=bounds)
+    # final linear solve
+    t1 = P**(-alpha)*D**(-delta)
+    t2 = V**(-beta)*D**(-delta)
+    M_final = np.vstack((np.ones_like(y), t1, t2)).T
+    C0, C1, C2 = np.linalg.lstsq(M_final, y, rcond=None)[0]
 
-    # extract optimized exponents
-    alpha_opt, beta_opt, gamma_opt, delta_opt = np.exp(res.x)
-
-    # final linear fit for amplitudes and bias
-    f_main_opt = np.exp(-alpha_opt * logP - beta_opt * logD - gamma_opt * logV)
-    f_data_opt = np.exp(-delta_opt * logD)
-    M_final = np.vstack((f_main_opt, f_data_opt, np.ones_like(y))).T
-    coeffs_final, *_ = np.linalg.lstsq(M_final, y, rcond=None)
-    C1_opt, C2_opt, C0_opt = coeffs_final
-
-    return np.array([C0_opt, C1_opt, C2_opt,
-                     alpha_opt, beta_opt, gamma_opt, delta_opt])
+    return np.array([C0, C1, C2, alpha, beta, delta])
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#4</span>
               <span class="run-label">Run 4</span>
-              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.976347 </span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.984961 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -607,78 +580,77 @@ from scipy.optimize import minimize
 # EVOLVE-BLOCK-START
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    Predict unigram-normalized loss (Lossu) from:
-      data_points: array of shape (N,3): [P_non_vocab, vocab_size, num_characters]
-      params: [C0, C1, C2, C3, alpha, beta, gamma]
-    Model:
-      Lossu = C0
-            + C1 * (P^{-alpha} * D^{-beta})
-            + C2 * V^{-gamma}
-            + C3 * (P^{-alpha} * D^{-beta} * V^{-gamma})
+    Simplified power-law scaling:
+      Lossu ≈ C0 + C1·P^{-α}·D^{-β} + C2·V^{-γ}·D^{-β}
+    where
+      P = non-vocab parameter count,
+      V = vocabulary size,
+      D = number of characters.
+    params = [C0, C1, C2, α, β, γ]
     &quot;&quot;&quot;
     X = np.atleast_2d(data_points)
     P = X[:, 0]
     V = X[:, 1]
     D = X[:, 2]
-    C0, C1, C2, C3, alpha, beta, gamma = params
-    # Base PD and V terms
-    t_pd = P**(-alpha) * D**(-beta)
-    t_v  = V**(-gamma)
-    # Combined interaction
-    t_pdv = t_pd * t_v
-    return C0 + C1 * t_pd + C2 * t_v + C3 * t_pdv
+    C0, C1, C2, alpha, beta, gamma = params
+
+    # log-space for numerical stability
+    logP = np.log(P)
+    logV = np.log(V)
+    logD = np.log(D)
+
+    # compute two interaction terms with shared D exponent
+    f1 = np.exp(-alpha * logP - beta * logD)
+    f2 = np.exp(-gamma * logV - beta * logD)
+
+    return C0 + C1 * f1 + C2 * f2
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Fit the 7-parameter scaling law
-      Lossu = C0
-            + C1 * (P^{-alpha} * D^{-beta})
-            + C2 * (V^{-gamma})
-            + C3 * (P^{-alpha} * D^{-beta} * V^{-gamma})
-    by alternating linear least-squares for {C0,C1,C2,C3}
-    and L-BFGS-B over the log-exponents {alpha,beta,gamma}.
-    Returns optimized params [C0, C1, C2, C3, alpha, beta, gamma].
+    Fit the 6-parameter simplified model:
+      Lossu ≈ C0 + C1·P^{-α}·D^{-β} + C2·V^{-γ}·D^{-β}
+    1) Optimize exponents [α, β, γ] in log-space via L-BFGS-B
+    2) Solve linear coefficients [C0, C1, C2] by least squares
+    Returns array([C0, C1, C2, α, β, γ]).
     &quot;&quot;&quot;
     X = np.atleast_2d(data_points)
     y = np.asarray(loss_values).ravel()
-    P = X[:, 0]
-    V = X[:, 1]
-    D = X[:, 2]
+    logP = np.log(X[:, 0])
+    logV = np.log(X[:, 1])
+    logD = np.log(X[:, 2])
 
-    # objective over log-exponents
-    def obj(log_exps):
-        a, b, g = np.exp(log_exps)
-        t_pd = P**(-a) * D**(-b)
-        t_v  = V**(-g)
-        # design: [1, t_pd, t_v, t_pd*t_v]
-        M = np.vstack([np.ones_like(y), t_pd, t_v, t_pd * t_v]).T
-        C, *_ = np.linalg.lstsq(M, y, rcond=None)
-        pred = M.dot(C)
-        return np.mean((pred - y)**2)
+    # Objective: MSE after fitting linear coeffs for given exponents
+    def objective(log_exps):
+        alpha, beta, gamma = np.exp(log_exps)
+        f1 = np.exp(-alpha * logP - beta * logD)
+        f2 = np.exp(-gamma * logV - beta * logD)
+        M = np.vstack([f1, f2, np.ones_like(y)]).T
+        coeffs, *_ = np.linalg.lstsq(M, y, rcond=None)
+        y_pred = M.dot(coeffs)
+        return np.mean((y_pred - y) ** 2)
 
-    # initialize exponents log-space
-    init = np.log([0.5, 0.5, 0.5])
-    res = minimize(obj, init, method=&#x27;L-BFGS-B&#x27;)
-    a_opt, b_opt, g_opt = np.exp(res.x)
+    # Initialize log-exponents
+    init_log = np.log([0.5, 0.5, 0.5])
+    res = minimize(objective, init_log, method=&#x27;L-BFGS-B&#x27;)
+    alpha_opt, beta_opt, gamma_opt = np.exp(res.x)
 
-    # final linear solve for coefficients
-    t_pd = P**(-a_opt) * D**(-b_opt)
-    t_v  = V**(-g_opt)
-    M_final = np.vstack([np.ones_like(y), t_pd, t_v, t_pd * t_v]).T
-    C0_opt, C1_opt, C2_opt, C3_opt = np.linalg.lstsq(M_final, y, rcond=None)[0]
+    # Solve for linear coefficients with optimized exponents
+    f1 = np.exp(-alpha_opt * logP - beta_opt * logD)
+    f2 = np.exp(-gamma_opt * logV - beta_opt * logD)
+    M_final = np.vstack([f1, f2, np.ones_like(y)]).T
+    C1_opt, C2_opt, C0_opt = np.linalg.lstsq(M_final, y, rcond=None)[0]
 
-    return np.array([C0_opt, C1_opt, C2_opt, C3_opt, a_opt, b_opt, g_opt])
+    return np.array([C0_opt, C1_opt, C2_opt, alpha_opt, beta_opt, gamma_opt])
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#5</span>
               <span class="run-label">Run 5</span>
-              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.971575 </span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.984961 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -689,64 +661,66 @@ def fit_scaling_law(data_points, loss_values):
                 <button class="copy-btn" onclick="copyCode(event, 'code-4')">Copy</button>
               </div>
               <pre><code class="language-python" id="code-4">import numpy as np
+from scipy.optimize import minimize
 
 # EVOLVE-BLOCK-START
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    Predict unigram-normalized loss (Lossu) using a 7-parameter linear
-    model in transformed log-space features that capture both
-    growth (via logs) and saturation (via inverse logs).
-    
-    Features:
-      p = log(non_vocab_parameters)
-      v = log(vocab_size)
-      d = log(num_characters)
-      ip = 1/p, iv = 1/v, id = 1/d
-    
-    Model: Lossu ≈ A*1 + B*p + C*d + D*v + E*(1/p) + F*(1/d) + G*(1/v)
+    Predict unigram-normalized loss (Lossu) given:
+      data_points: array of shape (N,3) with columns 
+                   [P_non_vocab, vocab_size, num_characters]
+      params: 6 parameters [C0, C1, C2, alpha, beta, gamma]
+    Model:
+      Lossu = C0 
+            + C1 * P^{-alpha} * D^{-beta}
+            + C2 * V^{-gamma} * D^{-beta}
+    where P = non-vocab parameters, V = vocab size, D = number of characters.
     &quot;&quot;&quot;
-    X = np.atleast_2d(data_points)
-    # log-transformed inputs
-    p = np.log(X[:, 0])
-    v = np.log(X[:, 1])
-    d = np.log(X[:, 2])
-    # safe inverse logs
-    eps = 1e-8
-    ip = 1.0 / np.where(np.abs(p) &gt; eps, p, eps)
-    iv = 1.0 / np.where(np.abs(v) &gt; eps, v, eps)
-    id = 1.0 / np.where(np.abs(d) &gt; eps, d, eps)
-    
-    # design matrix: [1, p, d, v, ip, id, iv]
-    F = np.column_stack((np.ones_like(p), p, d, v, ip, id, iv))
-    return F.dot(np.asarray(params).reshape(-1))
+    X = np.atleast_2d(np.asarray(data_points, dtype=float))
+    P = X[:, 0]
+    V = X[:, 1]
+    D = X[:, 2]
+    C0, C1, C2, alpha, beta, gamma = params
+    term_p = P**(-alpha) * D**(-beta)
+    term_v = V**(-gamma) * D**(-beta)
+    return C0 + C1 * term_p + C2 * term_v
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Fit the 7-parameter model by ridge-regularized least squares
-    on features [1, log P, log D, log V, 1/log P, 1/log D, 1/log V].
-    Returns parameter array of length 7.
+    Fit the 6-parameter scaling law model:
+      params = [C0, C1, C2, alpha, beta, gamma]
+    We optimize exponents (alpha, beta, gamma) in log-space
+    and solve for linear coefficients (C0, C1, C2) via least squares.
     &quot;&quot;&quot;
-    X = np.atleast_2d(data_points)
-    y = np.asarray(loss_values).ravel()
-    # log-transform
-    p = np.log(X[:, 0])
-    v = np.log(X[:, 1])
-    d = np.log(X[:, 2])
-    # safe inverse logs
-    eps = 1e-8
-    ip = 1.0 / np.where(np.abs(p) &gt; eps, p, eps)
-    iv = 1.0 / np.where(np.abs(v) &gt; eps, v, eps)
-    id = 1.0 / np.where(np.abs(d) &gt; eps, d, eps)
-    
-    # build design
-    M = np.column_stack((np.ones_like(p), p, d, v, ip, id, iv))
-    # ridge regularization for stability
-    reg = 1e-6
-    MTM = M.T @ M
-    MTM[np.diag_indices_from(MTM)] += reg
-    # solve for params
-    params = np.linalg.solve(MTM, M.T @ y)
-    return params
+    X = np.atleast_2d(np.asarray(data_points, dtype=float))
+    y = np.asarray(loss_values, dtype=float).ravel()
+    P = X[:, 0]
+    V = X[:, 1]
+    D = X[:, 2]
+
+    def mse_exps(log_exps):
+        # enforce positivity of exponents
+        a, b, g = np.exp(log_exps)
+        t_p = P**(-a) * D**(-b)
+        t_v = V**(-g) * D**(-b)
+        # design matrix: [ones, t_p, t_v]
+        M = np.vstack([np.ones_like(y), t_p, t_v]).T
+        coefs, *_ = np.linalg.lstsq(M, y, rcond=None)
+        y_pred = M.dot(coefs)
+        return np.mean((y - y_pred)**2)
+
+    # initialize log-exponents
+    init = np.log([0.5, 0.5, 0.5])
+    res = minimize(mse_exps, init, method=&#x27;L-BFGS-B&#x27;)
+    alpha, beta, gamma = np.exp(res.x)
+
+    # final linear solve for C0, C1, C2
+    t_p = P**(-alpha) * D**(-beta)
+    t_v = V**(-gamma) * D**(-beta)
+    M_final = np.vstack([np.ones_like(y), t_p, t_v]).T
+    C0, C1, C2 = np.linalg.lstsq(M_final, y, rcond=None)[0]
+
+    return np.array([C0, C1, C2, alpha, beta, gamma])
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>

@@ -285,7 +285,7 @@
     <div class="bg-pattern"></div>
 
     <div class="container">
-      <a href="sld_index.html" class="back-link"> ← Back to Leaderboard </a>
+      <a href="index.html" class="back-link"> ← Back to Leaderboard </a>
 
       <div class="header">
         <h1>Parallel Scaling Law</h1>
@@ -300,15 +300,15 @@
           </div>
           <div class="meta-item">
             <span class="meta-label">Best R²:</span>
-            <span class="r2-badge" style="background-color: #006400; color: white"> 0.999667 </span>
+            <span class="r2-badge" style="background-color: #006400; color: white"> 0.999958 </span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Mean R²:</span>
-            <span class="meta-value">0.999660</span>
+            <span class="meta-value">0.999955</span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Min R²:</span>
-            <span class="meta-value">0.999658</span>
+            <span class="meta-value">0.999954</span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Runs:</span>
@@ -320,12 +320,13 @@
       <h2 class="section-title">All Runs (sorted by R²)</h2>
 
       <div class="runs-container">
+
         <div class="run-card best-run">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge best-badge">Best</span>
               <span class="run-label">Run 2</span>
-              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.999667 </span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.999958 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -340,97 +341,118 @@ from scipy.optimize import least_squares
 
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    4-parameter parallel scaling law:
-      loss = b + a * (num_params)^(-alpha) * (parallel_size)^(-beta)
+    Four-parameter scaling law with diminishing-parallel returns:
+      loss = b + a * (N/1e9)^(-alpha) * (1 + log2(P))^(-beta)
+    where:
+      N      = model size (num_params)
+      P      = parallel_size
+      P_eff  = 1 + log2(P) for diminishing returns
     params = [a, alpha, beta, b]
     &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points, dtype=float))
-    N = X[:, 0]
+    N = X[:, 0] / 1e9
     P = X[:, 1]
+    # effective parallel factor
+    eps = 1e-12
+    P_eff = 1.0 + np.log2(np.clip(P, eps, None))
     a, alpha, beta, b = params
-    return b + a * np.power(N, -alpha) * np.power(P, -beta)
+    # enforce minimal positivity for stability
+    a     = max(a, eps)
+    alpha = max(alpha, eps)
+    beta  = max(beta, eps)
+    b     = max(b, 0.0)
+    return b + a * (N ** (-alpha)) * (P_eff ** (-beta))
+
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Fit the 4-parameter law:
-      loss ≈ b + a * N^{-alpha} * P^{-beta}
-    1) initialize b just below the minimum observed loss
-    2) log-linear least squares to estimate [a, alpha, beta]
-    3) refine all four parameters with a robust bounded solver
+    Fit the 4-parameter law
+      loss = b + a*(N/1e9)^(-alpha)*(1+log2(P))^(-beta)
+    via:
+      1) init b near the lowest observed loss
+      2) log-linear regression for [a, alpha, beta]
+      3) robust non-linear least squares (Huber) with analytic Jacobian
     &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points, dtype=float))
-    y = np.ravel(np.asarray(loss_values, dtype=float))
-    N = X[:, 0]
-    P = X[:, 1]
+    y = np.asarray(loss_values, dtype=float).ravel()
+    if X.shape[0] != y.size:
+        raise ValueError(&quot;data_points and loss_values must match lengths&quot;)
 
-    # 1) floor b slightly below the smallest loss
-    y_min = y.min()
+    # preprocess features
+    N = X[:, 0] / 1e9
+    P = X[:, 1]
+    eps = 1e-12
+    P_eff = 1.0 + np.log2(np.clip(P, eps, None))
+    y_min = float(np.min(y))
+
+    # 1) initialize intercept b near the lower envelope
     b0 = max(0.0, 0.9 * y_min)
 
-    # Prepare positive targets for log-linear init
-    y_adj = y - b0
-    eps = 1e-8
-    if np.any(y_adj &lt;= 0):
-        mask = y_adj &gt; 0
-        if mask.any():
-            minpos = np.min(y_adj[mask])
-        else:
-            minpos = eps
-        y_adj = np.where(mask, y_adj, minpos)
-    log_y = np.log(y_adj)
+    # 2) log-linear initialization for a, alpha, beta
+    y_shift = y - b0
+    # clamp to positive
+    y_shift = np.clip(y_shift, eps, None)
+    logy   = np.log(y_shift)
+    logN   = np.log(np.clip(N,   eps, None))
+    logPe  = np.log(P_eff)
 
-    # 2) solve log_y = log(a) - alpha*log(N) - beta*log(P)
-    A = np.column_stack([np.ones_like(log_y), -np.log(N), -np.log(P)])
-    coeffs, *_ = np.linalg.lstsq(A, log_y, rcond=None)
-    loga0, alpha0, beta0 = coeffs
-    a0 = np.exp(loga0)
-    p0 = np.array([a0, alpha0, beta0, b0], dtype=float)
+    # design matrix: logy ≈ C0 − alpha*logN − beta*logPe
+    A = np.column_stack([np.ones_like(logy), -logN, -logPe])
+    try:
+        C0, alpha0, beta0 = np.linalg.lstsq(A, logy, rcond=None)[0]
+        a0     = max(np.exp(C0),     eps)
+        alpha0 = max(alpha0,         eps)
+        beta0  = max(beta0,          eps)
+    except Exception:
+        span   = max(np.max(y) - y_min, eps)
+        a0, alpha0, beta0 = span, 0.5, 0.2
 
-    # 3) refine with robust bounded least squares
+    init_params = np.array([a0, alpha0, beta0, b0], dtype=float)
+
+    # residuals for least_squares (raw domain)
     def residuals(p):
         return scaling_law_func(X, p) - y
 
-    # analytic Jacobian for speed &amp; stability
-    logN = np.log(N)
-    logP = np.log(P)
+    # analytic Jacobian ∂r/∂p
     def jac(p):
         a, alpha, beta, _ = p
-        S = np.power(N, -alpha) * np.power(P, -beta)
-        J = np.empty((N.size, 4), dtype=float)
-        J[:, 0] = S
-        J[:, 1] = -a * S * logN
-        J[:, 2] = -a * S * logP
-        J[:, 3] = 1.0
-        return J
+        M = (N ** (-alpha)) * (P_eff ** (-beta))
+        da     = M
+        dalpha = -a * M * np.log(np.clip(N, eps, None))
+        dbeta  = -a * M * np.log(P_eff)
+        db     = np.ones_like(M)
+        return np.vstack([da, dalpha, dbeta, db]).T
 
-    # bounds: a&gt;0, alpha&gt;=0, beta&gt;=0, 0&lt;=b&lt;=y_min
-    lb = [1e-12, 0.0,    0.0,    0.0]
-    ub = [np.inf,  np.inf, np.inf, y_min]
+    # bounds: a,alpha,beta ≥ eps; b in [0, y_min]
+    lower = [eps, eps, eps, 0.0]
+    upper = [np.inf, np.inf, np.inf, y_min]
 
+    # 3) robust fitting with Huber loss
     result = least_squares(
         residuals,
-        p0,
+        init_params,
         jac=jac,
-        bounds=(lb, ub),
-        loss=&#x27;soft_l1&#x27;,
+        bounds=(lower, upper),
+        loss=&#x27;huber&#x27;,
         f_scale=1e-3,
         xtol=1e-12,
         ftol=1e-12,
-        gtol=1e-12,
-        max_nfev=5000
+        gtol=1e-12
     )
 
-    return result.x if result.success else p0</code></pre>
+    p_opt = result.x if result.success else init_params
+    # ensure intercept never exceeds the observed minimum
+    p_opt[3] = min(p_opt[3], y_min)
+    return p_opt</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#2</span>
-              <span class="run-label">Run 3</span>
-              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.999660 </span>
+              <span class="run-label">Run 1</span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.999954 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -441,107 +463,108 @@ def fit_scaling_law(data_points, loss_values):
                 <button class="copy-btn" onclick="copyCode(event, 'code-1')">Copy</button>
               </div>
               <pre><code class="language-python" id="code-1">import numpy as np
-from scipy.optimize import minimize
+from scipy.optimize import least_squares
 
 # EVOLVE-BLOCK-START
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    4‐parameter scaling law:
-      L(n, s) = b + a * (n/1e9)^(-p) * s^(-q)
-    where params = [a, p, q, b].
+    Predict loss as:
+      loss = b + a * num_params^(−alpha) * parallel_size^(−beta)
+    using a stable exp(·) form.
+    params = [a, alpha, beta, b] (4 parameters)
     &quot;&quot;&quot;
-    X = np.asarray(data_points, dtype=float)
-    a, p, q, b = params
-    # normalize and clip for stability
-    n = np.maximum(X[:, 0] / 1e9, 1e-12)
-    s = np.maximum(X[:, 1],       1e-12)
-    return b + a * n**(-p) * s**(-q)
-
+    D = np.atleast_2d(np.asarray(data_points, dtype=float))
+    n, s = D[:, 0], D[:, 1]
+    a, alpha, beta, b = params
+    # add small eps inside logs for numerical stability
+    return b + a * np.exp(-alpha * np.log(n + 1e-12)
+                          - beta  * np.log(s + 1e-12))
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Fit [a, p, q, b] in three phases:
-      1) Baseline b₀ ≈ 0.9*min(y), adjusted if needed to keep (y-b₀)&gt;0
-      2) Linear least‐squares on ln(y - b₀) = ln(a) - p*ln(n) - q*ln(s)
-      3) Refinement via L‐BFGS‐B minimizing MSE + small ridge on p,q
-         using analytic gradients for stability.
+    Fit the 4-parameter scaling law via:
+      1) three baseline offsets b₀ ∈ {0.0, 0.5·min(y), 0.9·min(y)}
+      2) log-linear least squares to initialize [loga, α, β]
+      3) refine all [a, α, β, b] by Levenberg-Marquardt (least_squares)
+         with analytic Jacobian on residuals f(data; p) − y
+    Returns optimized params [a, alpha, beta, b].
     &quot;&quot;&quot;
-    X = np.asarray(data_points, dtype=float)
-    y = np.asarray(loss_values, dtype=float).ravel()
+    D = np.atleast_2d(np.asarray(data_points, dtype=float))
+    y = np.ravel(np.asarray(loss_values, dtype=float))
+    n, s = D[:, 0], D[:, 1]
+    # precompute logs
+    ln_n = np.log(n + 1e-12)
+    ln_s = np.log(s + 1e-12)
+    y_min = y.min()
+    eps = 1e-12
 
-    # feature preprocessing
-    n = np.maximum(X[:, 0] / 1e9, 1e-12)
-    s = np.maximum(X[:, 1],       1e-12)
-    ln_n = np.log(n)
-    ln_s = np.log(s)
-    y_min, y_max = y.min(), y.max()
+    best_cost = np.inf
+    best_params = None
 
-    # 1) Initialize baseline b0 just below the smallest loss
-    b0 = max(0.0, 0.9 * y_min)
-    y_off = y - b0
-    if np.any(y_off &lt;= 0):
-        b0 = y_min - 0.1 * (y_max - y_min)
-        y_off = y - b0
-    y_off = np.maximum(y_off, 1e-12)
-    ln_y = np.log(y_off)
+    # Multi-start on baseline guesses for b
+    for frac in (0.0, 0.5, 0.9):
+        b0 = max(0.0, frac * y_min)
+        # prepare for log-linear init
+        y_adj = np.clip(y - b0, eps, None)
+        L     = np.log(y_adj)
+        A     = np.vstack([np.ones_like(L), -ln_n, -ln_s]).T
+        sol, *_ = np.linalg.lstsq(A, L, rcond=None)
+        loga0, alpha0, beta0 = sol
+        a0 = np.exp(loga0)
+        p0 = np.array([max(a0, eps),
+                       max(alpha0, 0.0),
+                       max(beta0,  0.0),
+                       b0], dtype=float)
 
-    # 2) Solve ln(y_off) = ln(a) - p*ln(n) - q*ln(s)
-    A = np.vstack([np.ones_like(ln_y), -ln_n, -ln_s]).T
-    theta, *_ = np.linalg.lstsq(A, ln_y, rcond=None)
-    ln_a0, p0, q0 = theta
-    a0 = max(np.exp(ln_a0), 1e-8)
-    p0 = max(p0, 0.0)
-    q0 = max(q0, 0.0)
-    init = np.array([a0, p0, q0, b0], dtype=float)
+        # bounds: a&gt;0, α≥0, β≥0, b≥0
+        lb = [eps, 0.0, 0.0, 0.0]
+        ub = [np.inf, 10.0, 10.0, y_min]
 
-    # 3) Refinement: minimize MSE + small ridge on exponents
-    N = y.size
-    ridge = 1e-6
+        # residuals and Jacobian for least_squares
+        def residuals(p):
+            a, alpha, beta, b = p
+            # f = b + a * exp(−α ln n − β ln s)
+            exp_term = np.exp(-alpha * ln_n - beta * ln_s)
+            return b + a * exp_term - y
 
-    def obj_and_grad(params):
-        a, p, q, b = params
-        expo = -p * ln_n - q * ln_s
-        E = np.exp(expo)
-        pred = b + a * E
-        resid = pred - y
-        # objective: MSE + ridge*(p^2 + q^2)
-        mse = np.mean(resid**2) + ridge * (p**2 + q**2)
+        def jac(p):
+            a, alpha, beta, b = p
+            exp_term = np.exp(-alpha * ln_n - beta * ln_s)
+            # df/da, df/dα, df/dβ, df/db
+            df_da     = exp_term
+            df_dalpha = -a * exp_term * ln_n
+            df_dbeta  = -a * exp_term * ln_s
+            df_db     = np.ones_like(y)
+            # stack columns
+            return np.vstack([df_da, df_dalpha, df_dbeta, df_db]).T
 
-        # analytic gradients
-        coef = 2.0 / N
-        tmp = coef * resid
-        g_a = np.sum(tmp * E)
-        g_p = np.sum(tmp * (-a * E * ln_n)) + 2 * ridge * p
-        g_q = np.sum(tmp * (-a * E * ln_s)) + 2 * ridge * q
-        g_b = np.sum(tmp)
-        return mse, np.array([g_a, g_p, g_q, g_b], dtype=float)
+        try:
+            res = least_squares(residuals,
+                                p0,
+                                jac=jac,
+                                bounds=(lb, ub),
+                                xtol=1e-12,
+                                ftol=1e-12)
+            if res.success and res.cost &lt; best_cost:
+                best_cost   = res.cost
+                best_params = res.x
+        except Exception:
+            continue
 
-    bounds = [
-        (1e-12, None),  # a &gt; 0
-        (0.0,      None),  # p &gt;= 0
-        (0.0,      None),  # q &gt;= 0
-        (0.0,      y_min)  # 0 &lt;= b &lt;= min(y)
-    ]
-    result = minimize(
-        fun=lambda w: obj_and_grad(w)[0],
-        x0=init,
-        jac=lambda w: obj_and_grad(w)[1],
-        method=&#x27;L-BFGS-B&#x27;,
-        bounds=bounds
-    )
-
-    return result.x if result.success else init
+    # fallback if all starts fail
+    if best_params is None:
+        return np.array([1e-3, 0.5, 0.1, eps], dtype=float)
+    return best_params
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#3</span>
-              <span class="run-label">Run 5</span>
-              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.999658 </span>
+              <span class="run-label">Run 3</span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.999954 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -552,17 +575,15 @@ def fit_scaling_law(data_points, loss_values):
                 <button class="copy-btn" onclick="copyCode(event, 'code-2')">Copy</button>
               </div>
               <pre><code class="language-python" id="code-2">import numpy as np
-from scipy.optimize import least_squares
+from scipy.optimize import minimize
 
-# EVOLVE-BLOCK-START
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    Predict loss using a 4-parameter power law:
-      loss = b + a * (N/1e9)^(-alpha) * P^(-beta)
-    params = [a, alpha, beta, b]
+    Predict loss using a power‐law in model size and parallelism:
+      loss = b + a * (num_params/1e9)^(-alpha) * (parallel_size)^(-beta)
+    params: [a, alpha, beta, b]
     &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points))
-    # normalize model size to billions for numerical stability
     N = X[:, 0] / 1e9
     P = X[:, 1]
     a, alpha, beta, b = params
@@ -571,67 +592,58 @@ def scaling_law_func(data_points, params):
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Fit loss ≈ b + a*(N/1e9)^(-alpha)*P^(-beta)
-    using log-linear initialization and robust non-linear least squares.
+    Fit a 4-parameter scaling law:
+      loss = b + a * (num_params/1e9)^(-alpha) * (parallel_size)^(-beta)
+    Steps:
+      1) Estimate offset b0 from lower end of the losses.
+      2) Solve a log-linear regression with a small ridge to get ln(a), alpha, beta.
+      3) Refine offset b0 from residuals.
+      4) Jointly optimize [a, alpha, beta, b] by minimizing MSE with L-BFGS-B.
     &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points))
-    y = np.asarray(loss_values).ravel()
+    y = np.ravel(loss_values)
     N = X[:, 0] / 1e9
     P = X[:, 1]
 
-    # 1) Initialize baseline b near the lower envelope (5th percentile)
-    try:
-        p5 = np.percentile(y, 5)
-        b0 = max(0.0, p5 * 0.9)
-    except Exception:
-        b0 = max(0.0, 0.9 * y.min())
+    # 1) initial offset estimate
+    y_min, y_max = y.min(), y.max()
+    b0 = max(0.0, y_min - 0.1 * (y_max - y_min))
 
-    # 2) Shift and clamp y for log-domain regression
-    eps = 1e-8
-    y_shift = np.clip(y - b0, eps, None)
-    logy = np.log(y_shift)
+    # 2) log-linear regression for ln(a), alpha, beta
+    r = np.clip(y - b0, 1e-8, None)
+    lnN, lnP = np.log(N), np.log(P)
+    # Design matrix: [1, -ln(N), -ln(P)]
+    Z = np.vstack([np.ones_like(r), -lnN, -lnP]).T
+    t = np.log(r)
+    ridge = 1e-6 * np.eye(3)
+    theta = np.linalg.solve(Z.T @ Z + ridge, Z.T @ t)
+    ln_a0, alpha0, beta0 = theta
+    a0 = np.exp(ln_a0)
 
-    # 3) Solve log(y−b0) ≈ C - alpha*ln(N) - beta*ln(P)
-    M = np.column_stack([np.ones_like(logy), -np.log(N), -np.log(P)])
-    try:
-        C, alpha0, beta0 = np.linalg.lstsq(M, logy, rcond=None)[0]
-        a0 = max(np.exp(C), eps)
-        alpha0 = max(alpha0, eps)
-        beta0 = max(beta0, eps)
-    except Exception:
-        a0, alpha0, beta0 = (y.max() - b0), 0.5, 0.1
+    # 3) refine b0 from residuals
+    pred0 = a0 * (N ** (-alpha0)) * (P ** (-beta0))
+    b0 = max(0.0, float(np.mean(y - pred0)))
 
-    init_params = np.array([a0, alpha0, beta0, b0], dtype=float)
+    init = np.array([a0, alpha0, beta0, b0], dtype=float)
 
-    # 4) Refine via robust least squares (soft L1) to reduce outlier influence
-    def residuals(p):
-        return scaling_law_func(X, p) - y
+    # 4) final joint optimization on MSE
+    def mse_loss(p):
+        pred = scaling_law_func(X, p)
+        return np.mean((pred - y) ** 2)
 
-    lower = [eps, eps, eps, 0.0]   # a&gt;0, alpha&gt;0, beta&gt;0, b&gt;=0
-    upper = [np.inf, np.inf, np.inf, np.inf]
-    result = least_squares(
-        residuals,
-        init_params,
-        bounds=(lower, upper),
-        loss=&#x27;soft_l1&#x27;,
-        f_scale=0.1,
-        ftol=1e-10,
-        xtol=1e-10,
-        gtol=1e-10
-    )
+    bounds = [(1e-12, None), (1e-8, None), (1e-8, None), (0.0, None)]
+    res = minimize(mse_loss, init, method=&#x27;L-BFGS-B&#x27;, bounds=bounds)
 
-    return result.x if result.success else init_params
-# EVOLVE-BLOCK-END</code></pre>
+    return res.x if res.success else init</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#4</span>
               <span class="run-label">Run 4</span>
-              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.999658 </span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.999954 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -642,68 +654,76 @@ def fit_scaling_law(data_points, loss_values):
                 <button class="copy-btn" onclick="copyCode(event, 'code-3')">Copy</button>
               </div>
               <pre><code class="language-python" id="code-3">import numpy as np
-from scipy.optimize import least_squares
+from scipy.optimize import differential_evolution, least_squares
 
+# EVOLVE-BLOCK-START
 def scaling_law_func(data_points, params):
-    # Predict loss = b + a * num_params^(-alpha) * parallel_size^(-beta)
-    D = np.asarray(data_points, dtype=float)
-    n, s = D[:, 0], D[:, 1]
+    &quot;&quot;&quot;
+    4-parameter parallel scaling law:
+      loss = b + a * n^{-alpha} * s^{-beta}
+    &quot;&quot;&quot;
+    X = np.asarray(data_points, dtype=float)
+    n, s = X[:, 0], X[:, 1]
     a, alpha, beta, b = params
+    # direct power‐law form
     return b + a * n**(-alpha) * s**(-beta)
 
 def fit_scaling_law(data_points, loss_values):
-    # Convert inputs
-    D = np.asarray(data_points, dtype=float)
+    &quot;&quot;&quot;
+    Global‐to‐local fit:
+      1) coarse global search via differential evolution minimizing MSE
+      2) local refinement via bounded least_squares
+    &quot;&quot;&quot;
+    X = np.asarray(data_points, dtype=float)
     y = np.asarray(loss_values, dtype=float).ravel()
-    n, s = D[:, 0], D[:, 1]
-
-    # Baseline offset just below minimum observed loss
     y_min, y_max = y.min(), y.max()
-    b0 = max(0.0, 0.9 * y_min)
 
-    # Prepare for log‐linear initial guess
-    y_adj = np.clip(y - b0, 1e-12, None)
-    M = np.vstack([np.ones_like(n), -np.log(n), -np.log(s)]).T
+    # MSE objective for DE
+    def mse_obj(p):
+        pred = scaling_law_func(X, p)
+        return np.mean((pred - y)**2)
 
-    # Solve log(y_adj) = log(a) - alpha·log(n) - beta·log(s)
-    try:
-        loga0, alpha0, beta0 = np.linalg.lstsq(M, np.log(y_adj), rcond=None)[0]
-    except Exception:
-        loga0, alpha0, beta0 = np.log(y_adj.mean()), 0.5, 0.5
+    # parameter bounds: a∈[0,10·Δy], α∈[0,2], β∈[0,1], b∈[0,0.9·y_min]
+    bounds = [
+        (0.0, 10.0*(y_max-y_min)),
+        (0.0, 2.0),
+        (0.0, 1.0),
+        (0.0, 0.9*y_min)
+    ]
 
-    a0 = np.exp(loga0)
-    # Ensure positive exponents
-    alpha0 = max(alpha0, 1e-8)
-    beta0  = max(beta0,  1e-8)
-    init = [a0, alpha0, beta0, b0]
+    # 1) global search
+    de_result = differential_evolution(
+        mse_obj,
+        bounds,
+        maxiter=200,
+        popsize=10,
+        polish=False
+    )
+    p0 = de_result.x
 
-    # Bounds: a&gt;0, alpha&gt;=0, beta&gt;=0, 0&lt;=b&lt;=y_min
-    lower = [1e-12, 0.0, 0.0, 0.0]
-    upper = [np.inf, 10.0, 10.0, y_min]
-
-    # Robust nonlinear refinement with Cauchy loss
-    res = least_squares(
-        lambda p: scaling_law_func(D, p) - y,
-        init,
-        bounds=(lower, upper),
-        loss=&#x27;cauchy&#x27;,
-        f_scale=0.1,
-        max_nfev=5000,
+    # 2) local refinement
+    lb = [1e-12, 0.0, 0.0, 0.0]
+    ub = [np.inf, 2.0, 1.0, 0.9*y_min]
+    ls_result = least_squares(
+        lambda p: scaling_law_func(X, p) - y,
+        p0,
+        bounds=(lb, ub),
         xtol=1e-12,
-        ftol=1e-12
+        ftol=1e-12,
+        max_nfev=2000
     )
 
-    return res.x if res.success else np.array(init)</code></pre>
+    return ls_result.x if ls_result.success else p0
+# EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#5</span>
-              <span class="run-label">Run 1</span>
-              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.999658 </span>
+              <span class="run-label">Run 5</span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.999954 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -714,63 +734,88 @@ def fit_scaling_law(data_points, loss_values):
                 <button class="copy-btn" onclick="copyCode(event, 'code-4')">Copy</button>
               </div>
               <pre><code class="language-python" id="code-4">import numpy as np
-from scipy.optimize import curve_fit
+from scipy.optimize import minimize
 
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    Four-parameter power‐law scaling:
-      loss ≈ b + a * num_params^{-alpha} * parallel_size^{-beta}
+    4‐parameter parallel scaling law:
+      loss = b + a * (num_params/1e9)^(-alpha) * parallel_size^(-beta)
+    params = [a, alpha, beta, b]
     &quot;&quot;&quot;
-    X = np.asarray(data_points, dtype=float)
-    N, P = X[:, 0], X[:, 1]
+    X = np.atleast_2d(np.asarray(data_points, dtype=float))
+    # normalize model size (in billions) for numerical stability
+    N = X[:, 0] / 1e9
+    s = X[:, 1]
     a, alpha, beta, b = params
-    return b + a * (N ** (-alpha)) * (P ** (-beta))
+    return b + a * (N ** (-alpha)) * (s ** (-beta))
 
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Fit loss = b + a*N^{-alpha}*P^{-beta} with 4 parameters [a, alpha, beta, b].
-    1) Initialize via log‐domain linearization.
-    2) Refine with bounded nonlinear least squares (curve_fit).
+    Fit the 4-parameter form
+      loss = b + a * (N/1e9)^(-alpha) * s^(-beta)
+    by a two‐stage procedure:
+      1) grid‐search b in [0, 0.8*min(y)] and solve
+         log(y-b) ≈ log(a) - alpha*log(N) - beta*log(s)
+         via linear least squares to get initial (a,alpha,beta,b).
+      2) refine all four parameters by L-BFGS-B minimizing MSE.
     &quot;&quot;&quot;
-    X = np.asarray(data_points, dtype=float)
-    N, P = X[:, 0], X[:, 1]
+    # prepare data
+    X = np.atleast_2d(np.asarray(data_points, dtype=float))
     y = np.asarray(loss_values, dtype=float).ravel()
+    # normalized feature
+    N = X[:, 0] / 1e9
+    s = X[:, 1]
+    # logs for linear solve
+    logN = np.log(N + 1e-12)
+    logs = np.log(s + 1e-12)
 
-    # 1) Initialize plateau b0 near 90% of the min observed loss
-    b0 = max(0.0, 0.9 * y.min())
+    y_min = y.min()
+    best_err = np.inf
+    best_init = None
 
-    # 2) Shift/clamp for positivity
-    y_shift = np.clip(y - b0, 1e-8, None)
-    logy = np.log(y_shift)
+    # coarse grid for baseline b
+    for b in np.linspace(0.0, 0.8 * y_min, 30):
+        y_adj = y - b
+        # skip invalid offsets
+        if np.any(y_adj &lt;= 0):
+            continue
+        L = np.log(y_adj)
+        # design matrix: L = c0 - alpha*logN - beta*logs
+        A = np.vstack([np.ones_like(L), -logN, -logs]).T
+        # solve for [c0, alpha, beta]
+        coeffs, *_ = np.linalg.lstsq(A, L, rcond=None)
+        c0, alpha, beta = coeffs
+        a = np.exp(c0)
+        # compute MSE in original space
+        pred = b + a * (N ** (-alpha)) * (s ** (-beta))
+        err = np.mean((pred - y) ** 2)
+        if err &lt; best_err:
+            best_err = err
+            best_init = np.array([a, alpha, beta, b], dtype=float)
 
-    # 3) Linear proxy: log(y-b0) ≈ C0 - alpha*log(N) - beta*log(P)
-    A = np.vstack([np.ones_like(logy), -np.log(N), -np.log(P)]).T
-    try:
-        C0, alpha0, beta0 = np.linalg.lstsq(A, logy, rcond=None)[0]
-        a0 = np.exp(C0)
-    except Exception:
-        a0, alpha0, beta0 = 1.0, 0.5, 0.1
+    # fallback if grid search failed
+    if best_init is None:
+        best_init = np.array([1.0, 0.5, 0.2, 0.0], dtype=float)
 
-    # 4) Prepare initial guess and bounds
-    init = [a0, max(alpha0, 1e-8), max(beta0, 1e-8), b0]
-    lower = [1e-8, 1e-8, 1e-8, 0.0]
-    upper = [np.inf, np.inf, np.inf, np.inf]
+    # refine all parameters with bounded L-BFGS-B on original MSE
+    def objective(p):
+        pred = scaling_law_func(X, p)
+        return np.mean((pred - y) ** 2)
 
-    # 5) Refine with scipy.curve_fit
-    def model(x, a, alpha, beta, b):
-        Np, Pp = x
-        return b + a * (Np ** (-alpha)) * (Pp ** (-beta))
+    # bounds: a&gt;0, alpha&gt;=0, beta&gt;=0, 0&lt;=b&lt;=min(y)
+    bounds = [
+        (1e-12, None),    # a
+        (0.0, None),      # alpha
+        (0.0, None),      # beta
+        (0.0, y_min)      # b
+    ]
 
-    popt, _ = curve_fit(
-        model,
-        (N, P),
-        y,
-        p0=init,
-        bounds=(lower, upper),
-        max_nfev=20000
-    )
-    return popt</code></pre>
+    res = minimize(objective, best_init, method=&#x27;L-BFGS-B&#x27;, bounds=bounds)
+    if res.success:
+        return res.x
+    else:
+        return best_init</code></pre>
             </div>
           </div>
         </div>

@@ -285,7 +285,7 @@
     <div class="bg-pattern"></div>
 
     <div class="container">
-      <a href="sld_index.html" class="back-link"> ← Back to Leaderboard </a>
+      <a href="index.html" class="back-link"> ← Back to Leaderboard </a>
 
       <div class="header">
         <h1>Domain Mixture Scaling Law</h1>
@@ -300,15 +300,15 @@
           </div>
           <div class="meta-item">
             <span class="meta-label">Best R²:</span>
-            <span class="r2-badge" style="background-color: #006400; color: white"> 0.994208 </span>
+            <span class="r2-badge" style="background-color: #006400; color: white"> 0.998727 </span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Mean R²:</span>
-            <span class="meta-value">0.915190</span>
+            <span class="meta-value">0.997472</span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Min R²:</span>
-            <span class="meta-value">0.813832</span>
+            <span class="meta-value">0.995904</span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Runs:</span>
@@ -320,12 +320,13 @@
       <h2 class="section-title">All Runs (sorted by R²)</h2>
 
       <div class="runs-container">
+
         <div class="run-card best-run">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge best-badge">Best</span>
-              <span class="run-label">Run 2</span>
-              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.994208 </span>
+              <span class="run-label">Run 4</span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.998727 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -337,210 +338,205 @@
               </div>
               <pre><code class="language-python" id="code-0"># EVOLVE-BLOCK-START
 &quot;&quot;&quot;
-Enhanced scaling law with adaptive power basis and hierarchical interactions.
-Uses 35 parameters: power exponents (5), linear weights (5), quadratic weights (5),
-pairwise interactions (10), cubic terms (5), global scale (3), bias (2).
-Focuses on numerical stability and cross-domain generalization.
+Refined per-domain scaling law with robust cross-domain modeling
+Uses 35 parameters: 7 per domain with enhanced numerical stability and fitting
 &quot;&quot;&quot;
 import numpy as np
-from scipy.optimize import minimize, differential_evolution
+from scipy.optimize import minimize
 
 def scaling_law_func(data_points, params):
-    X = np.atleast_2d(np.asarray(data_points))
+    &quot;&quot;&quot;
+    Per-domain scaling law with comprehensive modeling.
+    Each of 5 domains uses 7 parameters (35 total):
+    - scale: power law coefficient
+    - exponent: power law shape (clipped for stability)
+    - bias: baseline loss offset
+    - quad: quadratic self-interaction
+    - cross1, cross2, cross3: top 3 cross-domain linear effects
+    
+    Model: loss_d = scale * prop_d^exp + quad * prop_d^2 + 
+                    sum(cross_i * prop_other_i) + bias
+    &quot;&quot;&quot;
+    X = np.atleast_2d(np.asarray(data_points))  # (N, 5)
     N, F = X.shape
-    params = np.asarray(params)
+    params = np.asarray(params).flatten()
     
-    if params.ndim == 1:
-        params = params[None, :]
-    T, P = params.shape
+    # Ensure exactly 35 parameters
+    if len(params) &lt; 35:
+        params = np.pad(params, (0, 35 - len(params)), constant_values=0.0)
+    params = params[:35]
     
-    # Parameter allocation (35 total)
-    alpha = params[:, :F]           # (T, F) - power law exponents
-    w_linear = params[:, F:2*F]     # (T, F) - linear weights
-    w_quad = params[:, 2*F:3*F]     # (T, F) - quadratic weights
-    w_cross = params[:, 3*F:3*F+10] # (T, 10) - pairwise interactions
-    w_cubic = params[:, 3*F+10:3*F+15] # (T, 5) - cubic terms all domains
-    scale_main = params[:, -5]      # (T,) - main output scale
-    scale_quad = params[:, -4]      # (T,) - quadratic feature scale
-    scale_cubic = params[:, -3]     # (T,) - cubic feature scale
-    bias = params[:, -2]            # (T,) - constant bias
-    bias_mix = params[:, -1]        # (T,) - mixture-dependent bias
+    # Numerical stability with safe clipping
+    X_safe = np.clip(X, 1e-9, 1.0)
     
-    X_safe = np.clip(X, 1e-10, 1.0)
+    predictions = np.zeros((N, F))
     
-    # Adaptive power law features
-    power_features = X_safe[:, None, :] ** alpha[None, :, :]
-    pred = (w_linear[None, :, :] * power_features).sum(axis=2)
+    for d in range(F):
+        idx = d * 7
+        
+        # Extract domain parameters
+        scale = params[idx]
+        exponent = params[idx + 1]
+        bias = params[idx + 2]
+        quad = params[idx + 3]
+        cross_weights = params[idx + 4:idx + 7]
+        
+        # Clip exponent for stability
+        exponent = np.clip(exponent, 0.1, 2.3)
+        
+        # Power law: main self-effect
+        power_term = scale * (X_safe[:, d] ** exponent)
+        
+        # Quadratic: concentration effects
+        quad_term = quad * (X_safe[:, d] ** 2)
+        
+        # Cross-domain: systematic other domain selection
+        cross_term = 0.0
+        other_domains = [i for i in range(F) if i != d]
+        for w_idx in range(min(3, len(other_domains))):
+            cross_term += cross_weights[w_idx] * X_safe[:, other_domains[w_idx]]
+        
+        # Combine terms
+        predictions[:, d] = power_term + quad_term + cross_term + bias
     
-    # Quadratic self-interactions with dedicated scaling
-    quad_features = X_safe ** 2
-    pred += scale_quad[None, :] * (w_quad[None, :, :] * quad_features[:, None, :]).sum(axis=2)
-    
-    # Pairwise cross-domain interactions
-    cross_terms = np.zeros((N, 10))
-    idx = 0
-    for i in range(F):
-        for j in range(i+1, F):
-            cross_terms[:, idx] = X_safe[:, i] * X_safe[:, j]
-            idx += 1
-    pred += (w_cross[None, :, :] * cross_terms[:, None, :]).sum(axis=2)
-    
-    # Cubic terms for all domains with dedicated scaling
-    cubic_features = X_safe ** 3
-    pred += scale_cubic[None, :] * (w_cubic[None, :, :] * cubic_features[:, None, :]).sum(axis=2)
-    
-    # Global scaling and adaptive bias
-    X_entropy = -np.sum(X_safe * np.log(X_safe + 1e-10), axis=1, keepdims=True)
-    pred = scale_main[None, :] * pred + bias[None, :] + bias_mix[None, :] * X_entropy
-    
-    return pred[:, 0] if pred.shape[1] == 1 else pred
+    return predictions
 
 
 def fit_scaling_law(data_points, loss_values):
+    &quot;&quot;&quot;
+    Robust fitting with enhanced initialization and progressive optimization
+    &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points))
-    y = np.asarray(loss_values)
+    y = np.atleast_2d(np.asarray(loss_values))
+    
     N, F = X.shape
-    P = 35  # All 35 parameters
     
-    y2d = y[:, None] if y.ndim == 1 else y
-    T = y2d.shape[1]
+    # Shape correction
+    if y.shape[1] != F:
+        if y.shape[0] == F and y.shape[1] == N:
+            y = y.T
+        elif y.shape[1] == 1:
+            y = np.tile(y, (1, F))
     
-    np.random.seed(42)
-    y_mean = np.mean(y2d, axis=0)
-    y_std = np.std(y2d, axis=0) + 1e-8
-    X_mean = np.mean(X, axis=0) + 1e-8
+    # Enhanced data-driven initialization
+    init = np.zeros(35)
     
-    def objective(flat_params):
-        params = flat_params.reshape(T, P)
+    for d in range(F):
+        idx = d * 7
+        y_d = y[:, d]
+        x_d = X[:, d]
+        
+        # Robust statistics using percentiles
+        q10, q25, q50, q75, q90 = np.percentile(y_d, [10, 25, 50, 75, 90])
+        iqr = q75 - q25
+        
+        # Estimate exponent via log-space regression on filtered data
+        mask = (x_d &gt; 0.01) &amp; (y_d &gt; q10)
+        if np.sum(mask) &gt; 3:
+            log_x = np.log(x_d[mask] + 1e-7)
+            log_y = np.log(np.maximum(y_d[mask] - q10 + 0.05, 0.05))
+            
+            if np.std(log_x) &gt; 1e-5:
+                # Robust slope estimation
+                slope = np.polyfit(log_x, log_y, 1)[0]
+                init[idx + 1] = np.clip(slope, 0.4, 1.1)
+            else:
+                init[idx + 1] = 0.65
+        else:
+            init[idx + 1] = 0.65
+        
+        # Scale: based on IQR
+        init[idx] = iqr * 0.5
+        
+        # Bias: lower percentile baseline with median contribution
+        init[idx + 2] = q10 * 0.8 + q50 * 0.2
+        
+        # Quadratic: small stabilizing term
+        init[idx + 3] = iqr * 0.02
+        
+        # Cross-domain: proportional to residual with variation
+        init[idx + 4:idx + 7] = iqr * 0.015 * (1.0 + 0.08 * np.random.randn(3))
+    
+    def objective(params):
         try:
             pred = scaling_law_func(X, params)
-            mse = np.mean((pred - y2d) ** 2)
+            
+            # Adaptive domain weighting: inverse variance
+            domain_vars = np.var(y, axis=0)
+            weights = 1.0 / (domain_vars + 0.03)
+            weights = F * weights / np.sum(weights)
+            
+            mse = np.mean(((pred - y) ** 2) * weights[None, :])
             
             # Hierarchical regularization
-            alpha_reg = 1e-5 * np.sum((params[:, :F] - 0.9) ** 2)  # Slightly sub-linear
-            linear_reg = 1e-6 * np.sum(params[:, F:2*F] ** 2)
-            quad_reg = 1e-6 * np.sum(params[:, 2*F:3*F] ** 2)
-            cross_reg = 1e-6 * np.sum(params[:, 3*F:3*F+10] ** 2)
-            cubic_reg = 1e-5 * np.sum(params[:, 3*F+10:3*F+15] ** 2)  # Higher penalty
-            scale_reg = 1e-5 * np.sum((params[:, -5:-3] - 1.0) ** 2)
-            bias_reg = 1e-7 * np.sum(params[:, -2:] ** 2)
+            # Lightest on main effects
+            r_scale = 0.00002 * np.sum(params[::7] ** 2)
+            r_bias = 0.00001 * np.sum(params[2::7] ** 2)
             
-            return mse + alpha_reg + linear_reg + quad_reg + cross_reg + cubic_reg + scale_reg + bias_reg
+            # Moderate on shape parameters
+            r_exp = 0.00007 * np.sum((params[1::7] - 0.7) ** 2)
+            r_quad = 0.00009 * np.sum(params[3::7] ** 2)
+            
+            # Stronger on cross-domain to prevent overfitting
+            r_cross = 0.00028 * (np.sum(params[4::7] ** 2) + 
+                                  np.sum(params[5::7] ** 2) + 
+                                  np.sum(params[6::7] ** 2))
+            
+            return mse + r_scale + r_bias + r_exp + r_quad + r_cross
         except:
             return 1e10
     
-    best_params = None
-    best_loss = float(&#x27;inf&#x27;)
+    # Carefully tuned bounds
+    bounds = []
+    for _ in range(F):
+        bounds.extend([
+            (-9, 13),      # scale
+            (0.1, 2.3),    # exponent
+            (-7, 11),      # bias
+            (-3, 3),       # quad
+            (-4, 4),       # cross1
+            (-4, 4),       # cross2
+            (-4, 4)        # cross3
+        ])
     
-    # Strategy 1: Data-informed initialization
-    init1 = np.random.randn(T, P) * 0.015
-    init1[:, :F] = 0.85 + np.random.randn(T, F) * 0.12
-    init1[:, F:2*F] = (y_mean / X_mean)[:, None].T * 0.4 + np.random.randn(T, F) * 0.08
-    init1[:, 2*F:3*F] = np.random.randn(T, F) * 0.04
-    init1[:, 3*F:3*F+10] = np.random.randn(T, 10) * 0.03
-    init1[:, 3*F+10:3*F+15] = np.random.randn(T, F) * 0.02
-    init1[:, -5] = 1.0
-    init1[:, -4] = 0.3
-    init1[:, -3] = 0.1
-    init1[:, -2] = y_mean
-    init1[:, -1] = 0.0
+    # Progressive multi-stage optimization
+    best_params = init
+    best_loss = objective(init)
     
-    # Strategy 2: Conservative near-linear
-    init2 = np.zeros((T, P))
-    init2[:, :F] = 1.0
-    init2[:, F:2*F] = (y_mean / X_mean)[:, None].T * 0.6
-    init2[:, 2*F:3*F] = np.random.randn(T, F) * 0.05
-    init2[:, -5] = 1.0
-    init2[:, -4] = 0.2
-    init2[:, -3] = 0.05
-    init2[:, -2] = y_mean
-    init2[:, -1] = 0.0
+    # Stage 1: Exploration with moderate tolerance
+    res1 = minimize(objective, init, method=&#x27;L-BFGS-B&#x27;, bounds=bounds,
+                    options={&#x27;maxiter&#x27;: 1400, &#x27;ftol&#x27;: 1e-9, &#x27;gtol&#x27;: 1e-8})
     
-    # Strategy 3: Moderate exploration
-    init3 = np.random.randn(T, P) * 0.06
-    init3[:, :F] = 0.7 + np.random.randn(T, F) * 0.25
-    init3[:, F:2*F] = np.random.randn(T, F) * 0.35
-    init3[:, 2*F:3*F] = np.random.randn(T, F) * 0.12
-    init3[:, 3*F:3*F+10] = np.random.randn(T, 10) * 0.08
-    init3[:, 3*F+10:3*F+15] = np.random.randn(T, F) * 0.05
-    init3[:, -5] = 0.9 + np.random.randn(T) * 0.15
-    init3[:, -4] = 0.4 + np.random.randn(T) * 0.1
-    init3[:, -3] = 0.15 + np.random.randn(T) * 0.05
-    init3[:, -2] = y_mean + np.random.randn(T) * 0.1
-    init3[:, -1] = np.random.randn(T) * 0.05
+    if res1.success and res1.fun &lt; best_loss:
+        best_params = res1.x
+        best_loss = res1.fun
     
-    # Strategy 4: Wide exploration
-    init4 = np.random.randn(T, P) * 0.1
-    init4[:, :F] = 0.5 + np.random.randn(T, F) * 0.35
-    init4[:, F:2*F] = np.random.randn(T, F) * 0.5
-    init4[:, -5] = 1.0
-    init4[:, -4] = 0.5
-    init4[:, -3] = 0.2
-    init4[:, -2] = y_mean
+    # Stage 2: Refinement with tighter tolerance
+    res2 = minimize(objective, best_params, method=&#x27;L-BFGS-B&#x27;, bounds=bounds,
+                    options={&#x27;maxiter&#x27;: 1200, &#x27;ftol&#x27;: 1e-11, &#x27;gtol&#x27;: 1e-9})
     
-    for init in [init1, init2, init3, init4]:
-        try:
-            result = minimize(
-                objective,
-                init.ravel(),
-                method=&#x27;L-BFGS-B&#x27;,
-                options={&#x27;maxiter&#x27;: 1800, &#x27;ftol&#x27;: 1e-11, &#x27;gtol&#x27;: 1e-9}
-            )
-            
-            if result.fun &lt; best_loss:
-                best_loss = result.fun
-                best_params = result.x.reshape(T, P)
-        except:
-            continue
+    if res2.success and res2.fun &lt; best_loss:
+        best_params = res2.x
+        best_loss = res2.fun
     
-    # Global search if needed
-    if best_params is None or best_loss &gt; 0.04:
-        try:
-            bounds = [(-3, 3)] * (T * P)
-            result = differential_evolution(
-                objective,
-                bounds,
-                maxiter=180,
-                seed=42,
-                atol=1e-8,
-                tol=1e-8,
-                popsize=15
-            )
-            if result.fun &lt; best_loss:
-                best_params = result.x.reshape(T, P)
-                best_loss = result.fun
-        except:
-            pass
+    # Stage 3: Final polishing
+    res3 = minimize(objective, best_params, method=&#x27;L-BFGS-B&#x27;, bounds=bounds,
+                    options={&#x27;maxiter&#x27;: 600, &#x27;ftol&#x27;: 1e-12})
     
-    # Final polish
-    if best_params is not None:
-        try:
-            result = minimize(
-                objective,
-                best_params.ravel(),
-                method=&#x27;L-BFGS-B&#x27;,
-                options={&#x27;maxiter&#x27;: 600, &#x27;ftol&#x27;: 1e-12, &#x27;gtol&#x27;: 1e-10}
-            )
-            if result.fun &lt; best_loss:
-                best_params = result.x.reshape(T, P)
-        except:
-            pass
+    if res3.success and res3.fun &lt; best_loss:
+        best_params = res3.x
     
-    if best_params is None:
-        best_params = init1
-    
-    return best_params[0] if T == 1 else best_params
+    return best_params
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#2</span>
-              <span class="run-label">Run 4</span>
-              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.958728 </span>
+              <span class="run-label">Run 3</span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.998636 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -552,196 +548,247 @@ def fit_scaling_law(data_points, loss_values):
               </div>
               <pre><code class="language-python" id="code-1"># EVOLVE-BLOCK-START
 &quot;&quot;&quot;
-Refined multi-output scaling law with domain-adaptive modeling
-Uses 35 parameters: baselines (5) + linear (5) + log-saturation (5) + 
-selective interactions (10) + dual nonlinear terms (10: 5 sqrt + 5 cbrt)
-Focus: Better domain 2 performance and cross-domain stability
+Advanced scaling law with domain interactions and adaptive power laws
+Uses exactly 35 parameters for enhanced multi-domain modeling
+- 5 output domains × 7 params each
+- Per domain: 1 base + 1 self-coeff + 1 self-exp + 4 cross-coeffs
+Key innovation: Separate exponents per domain, better handling of cross-domain effects
 &quot;&quot;&quot;
 import numpy as np
-from scipy.optimize import minimize
+from scipy.optimize import minimize, differential_evolution
 
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    Domain-adaptive mixture model:
-    loss_d = base_d + linear + log_sat + key_interactions + sqrt_terms + cbrt_terms
+    Enhanced per-domain model with domain-specific exponents
     
-    Parameters (35 total):
-    - 5: domain-specific baselines
-    - 5: linear mixture coefficients
-    - 5: log-saturation (diminishing returns)
-    - 10: selective pairwise interactions (most important pairs)
-    - 5: sqrt nonlinearity (convex effects)
-    - 5: cubic root nonlinearity (smoother than sqrt for small values)
+    For each of 5 output domains (7 params each):
+    - params[0]: base loss
+    - params[1]: self-domain coefficient
+    - params[2]: self-domain exponent
+    - params[3:7]: cross-domain coefficients (4 others)
+    
+    Innovation: Each domain has its own power law behavior
     &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points))
-    N, F = X.shape
-    params = np.asarray(params)
+    N = X.shape[0]
+    params = np.asarray(params).flatten()
     
-    if params.ndim == 1:
-        params = params.reshape(1, -1)
-    T, P = params.shape
+    if len(params) &lt; 35:
+        params = np.pad(params, (0, 35 - len(params)), constant_values=1.0)
+    params = params[:35].reshape(5, 7)
     
-    # Parameter allocation
-    baselines = params[:, :5]           # (T, 5)
-    linear_coefs = params[:, 5:10]      # (T, 5)
-    saturation = params[:, 10:15]       # (T, 5)
-    interactions = params[:, 15:25]     # (T, 10) - selective pairs
-    sqrt_terms = params[:, 25:30]       # (T, 5)
-    cbrt_terms = params[:, 30:35]       # (T, 5)
+    predictions = np.zeros((N, 5))
     
-    pred = np.zeros((N, T))
-    
-    # Define most important interaction pairs (based on domain theory)
-    # Focus on adjacent and complementary domains
-    interaction_pairs = [(0,1), (0,2), (1,2), (1,3), (2,3), (2,4), (3,4), (0,3), (1,4), (0,4)]
-    
-    for t in range(T):
-        # Domain-specific baseline
-        pred[:, t] = baselines[t, t]
+    for d_out in range(5):
+        p = params[d_out]
+        base = p[0]
+        self_coeff = p[1]
+        self_exp = np.clip(p[2], 0.2, 3.5)  # Wider range for flexibility
         
-        # Linear mixture effects
-        pred[:, t] += np.dot(X, linear_coefs[t, :])
+        # Start with base
+        pred = base
         
-        # Log-saturation with numerical stability
-        pred[:, t] += np.dot(np.log1p(X), saturation[t, :])
+        # Self-domain: power law with domain-specific exponent
+        x_self = np.maximum(X[:, d_out], 1e-10)
+        pred += self_coeff * np.power(x_self, self_exp)
         
-        # Selective pairwise interactions (10 most important)
-        for idx, (i, j) in enumerate(interaction_pairs):
-            pred[:, t] += X[:, i] * X[:, j] * interactions[t, idx]
+        # Cross-domain effects with quadratic interaction term
+        cross_idx = 0
+        for d_in in range(5):
+            if d_in != d_out:
+                cross_coeff = p[3 + cross_idx]
+                x_cross = X[:, d_in]
+                
+                # Linear + small quadratic interaction with self-domain
+                pred += cross_coeff * x_cross
+                
+                # Add subtle interaction between cross-domain and self-domain
+                # This helps capture non-linear transfer effects
+                interaction = 0.1 * cross_coeff * x_cross * x_self
+                pred += interaction
+                
+                cross_idx += 1
         
-        # Sqrt terms (good for convex diminishing returns)
-        pred[:, t] += np.dot(np.sqrt(X + 1e-10), sqrt_terms[t, :])
-        
-        # Cubic root terms (smoother, better for small proportions)
-        pred[:, t] += np.dot(np.cbrt(X + 1e-10), cbrt_terms[t, :])
+        predictions[:, d_out] = pred
     
-    return pred[:, 0] if T == 1 else pred
+    return predictions
 
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Enhanced fitting with domain-aware initialization and adaptive regularization
+    Hybrid optimization: Global search + local refinement
     &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points))
-    y = np.asarray(loss_values)
-    N, F = X.shape
+    y = np.atleast_2d(np.asarray(loss_values))
     
-    if y.ndim == 1:
-        y2d = y[:, None]
-    else:
-        y2d = y
-    T = y2d.shape[1]
+    if y.shape[1] == 1:
+        y = np.repeat(y, 5, axis=1)
     
     P = 35
-    init = np.zeros((T, P))
     
-    # Compute domain-specific statistics for adaptive initialization
-    domain_stds = np.std(y2d, axis=0)
-    domain_ranges = np.ptp(y2d, axis=0)
+    # Enhanced statistics
+    y_mean = np.mean(y, axis=0)
+    y_std = np.std(y, axis=0)
+    y_min = np.min(y, axis=0)
+    y_max = np.max(y, axis=0)
+    y_range = y_max - y_min
     
-    for t in range(T):
-        # Adaptive baseline: use weighted percentile based on domain variance
-        percentile = 50 if domain_stds[t] &lt; np.median(domain_stds) else 55
-        init[t, t] = np.percentile(y2d[:, t], percentile)
+    # Compute domain-specific correlations
+    correlations = np.zeros((5, 5))
+    for i in range(5):
+        for j in range(5):
+            if np.std(X[:, i]) &gt; 1e-8 and np.std(y[:, j]) &gt; 1e-8:
+                correlations[i, j] = np.corrcoef(X[:, i], y[:, j])[0, 1]
+    
+    # Advanced initialization
+    init = np.zeros(P)
+    for d in range(5):
+        idx = d * 7
         
-        # Linear coefficients via adaptive ridge regression
-        residual = y2d[:, t] - init[t, t]
+        # Base: start lower to let other terms contribute
+        init[idx] = y_min[d] + 0.2 * y_range[d]
         
+        # Self-domain coefficient: strong effect
+        init[idx + 1] = y_std[d] * 0.85
+        
+        # Self-domain exponent: domain-specific initialization
+        # Domains with higher variance might benefit from different exponents
+        variance_ratio = y_std[d] / (np.mean(y_std) + 1e-8)
+        init[idx + 2] = 0.85 + 0.3 * variance_ratio  # Range ~0.85-1.15
+        
+        # Cross-domain coefficients: correlation-weighted
+        cross_idx = 0
+        for d_in in range(5):
+            if d_in != d:
+                corr_strength = np.abs(correlations[d_in, d])
+                # Scale by correlation and relative domain importance
+                init[idx + 3 + cross_idx] = y_std[d] * 0.12 * (1.0 + 1.5 * corr_strength)
+                cross_idx += 1
+    
+    # Adaptive bounds per domain
+    bounds = []
+    for d in range(5):
+        bounds.append((y_min[d] - 0.5, y_max[d] + 0.5))  # base
+        bounds.append((-30.0, 30.0))  # self-coeff (wider for flexibility)
+        bounds.append((0.2, 3.5))  # self-exp (wider range)
+        bounds.extend([(-25.0, 25.0)] * 4)  # cross-coeffs
+    
+    def objective(p):
         try:
-            # Adaptive ridge lambda based on domain characteristics
-            lambda_ridge = 0.012 * np.std(residual) * (1 + 0.5 * (domain_stds[t] / np.mean(domain_stds)))
-            XTX = X.T @ X + lambda_ridge * np.eye(F)
-            XTy = X.T @ residual
-            coefs = np.linalg.solve(XTX, XTy)
-            # Scale based on domain difficulty (higher variance = more conservative)
-            scale_factor = 0.42 if domain_stds[t] &gt; np.median(domain_stds) else 0.50
-            init[t, 5:10] = coefs * scale_factor
+            pred = scaling_law_func(X, p)
+            
+            # MSE with per-domain weighting (focus on harder domains)
+            errors = (pred - y) ** 2
+            domain_weights = 1.0 + 0.5 * (y_std / (np.mean(y_std) + 1e-8))
+            mse = np.mean(errors * domain_weights)
+            
+            P_mat = p[:35].reshape(5, 7)
+            
+            # Adaptive regularization
+            self_coeff_scale = np.mean(np.abs(P_mat[:, 1]))
+            cross_coeff_scale = np.mean(np.abs(P_mat[:, 3:7]))
+            
+            # L2 on self-domain coefficients
+            reg_self = 2e-5 * np.sum(P_mat[:, 1] ** 2) * (1 + self_coeff_scale / 12)
+            
+            # L2 on cross-domain coefficients
+            reg_cross = 4e-5 * np.sum(P_mat[:, 3:7] ** 2) * (1 + cross_coeff_scale / 10)
+            
+            # Exponent regularization: prefer near 1.0 but allow variation
+            reg_exp = 2e-4 * np.sum((P_mat[:, 2] - 1.0) ** 2)
+            
+            # Base regularization
+            reg_base = 5e-6 * np.sum((P_mat[:, 0] - y_mean) ** 2)
+            
+            return mse + reg_self + reg_cross + reg_exp + reg_base
         except:
-            # Robust fallback
-            for f in range(F):
-                corr = np.corrcoef(X[:, f], residual)[0, 1]
-                if not np.isnan(corr):
-                    init[t, 5+f] = corr * 0.13
-        
-        # Log-saturation: slightly negative (domain-adaptive)
-        sat_scale = -0.082 if t == 2 else -0.090  # Special treatment for domain 2
-        init[t, 10:15] = sat_scale
-        
-        # Interactions: controlled random with domain-specific variance
-        interact_std = 0.014 if domain_stds[t] &lt; np.median(domain_stds) else 0.020
-        init[t, 15:25] = np.random.randn(10) * interact_std
-        
-        # Sqrt terms: positive with domain adaptation
-        sqrt_scale = 0.032 if t == 2 else 0.040
-        init[t, 25:30] = sqrt_scale
-        
-        # Cbrt terms: smaller magnitude, smoother effect
-        init[t, 30:35] = 0.022
+            return 1e10
     
-    def objective(flat_params):
-        params = flat_params.reshape(T, P)
-        pred = scaling_law_func(X, params)
-        
-        # MSE loss with per-domain weighting (emphasize difficult domains)
-        per_domain_mse = np.mean((pred - y2d) ** 2, axis=0)
-        # Weight harder domains more (but not too much)
-        domain_weights = 1.0 + 0.2 * (domain_stds / np.mean(domain_stds))
-        mse = np.mean(per_domain_mse * domain_weights)
-        
-        # Adaptive regularization based on parameter groups
-        reg_linear = 0.0010 * np.sum(params[:, 5:10]**2)      # Light on linear
-        reg_sat = 0.0020 * np.sum(params[:, 10:15]**2)        # Light on saturation
-        reg_interact = 0.0070 * np.sum(params[:, 15:25]**2)   # Medium on interactions
-        reg_sqrt = 0.0028 * np.sum(params[:, 25:30]**2)       # Light on sqrt
-        reg_cbrt = 0.0025 * np.sum(params[:, 30:35]**2)       # Light on cbrt
-        
-        return mse + reg_linear + reg_sat + reg_interact + reg_sqrt + reg_cbrt
+    best_params, best_score = None, float(&#x27;inf&#x27;)
     
-    # Strategic multi-start optimization
-    best_params = init.copy()
-    best_loss = objective(init.ravel())
-    
-    restart_strategies = [
-        (&#x27;original&#x27;, lambda: init),
-        (&#x27;small_noise&#x27;, lambda: init + np.random.randn(T, P) * 0.025),
-        (&#x27;medium_noise&#x27;, lambda: init + np.random.randn(T, P) * 0.048),
-        (&#x27;scale_perturb&#x27;, lambda: init * (1 + np.random.randn(T, P) * 0.13)),
-        (&#x27;baseline_shift&#x27;, lambda: shift_baseline(init.copy(), y2d, percentile=60)),
-        (&#x27;large_explore&#x27;, lambda: init + np.random.randn(T, P) * 0.070),
-    ]
-    
-    def shift_baseline(params, y_data, percentile):
-        for t in range(T):
-            params[t, t] = np.percentile(y_data[:, t], percentile)
-        params += np.random.randn(T, P) * 0.022
-        return params
-    
-    for name, strategy in restart_strategies:
-        init_restart = strategy()
-        
-        result = minimize(
+    # Stage 1: Differential evolution for global exploration (quick pass)
+    try:
+        result = differential_evolution(
             objective,
-            init_restart.ravel(),
-            method=&#x27;L-BFGS-B&#x27;,
-            options={&#x27;maxiter&#x27;: 2000, &#x27;ftol&#x27;: 1e-11, &#x27;gtol&#x27;: 1e-8}
+            bounds,
+            maxiter=150,
+            popsize=8,
+            seed=42,
+            atol=1e-10,
+            tol=1e-10
         )
-        
-        if result.fun &lt; best_loss:
-            best_loss = result.fun
-            best_params = result.x.reshape(T, P)
+        if result.fun &lt; best_score:
+            best_score, best_params = result.fun, result.x
+    except:
+        pass
     
-    return best_params[0] if T == 1 else best_params
+    # Stage 2: L-BFGS-B from smart initialization
+    try:
+        res = minimize(
+            objective, init, method=&#x27;L-BFGS-B&#x27;, bounds=bounds,
+            options={&#x27;maxiter&#x27;: 4000, &#x27;ftol&#x27;: 1e-13, &#x27;gtol&#x27;: 1e-9}
+        )
+        if res.fun &lt; best_score:
+            best_score, best_params = res.fun, res.x
+    except:
+        pass
+    
+    # Stage 3: L-BFGS-B from DE result
+    if best_params is not None:
+        try:
+            res = minimize(
+                objective, best_params, method=&#x27;L-BFGS-B&#x27;, bounds=bounds,
+                options={&#x27;maxiter&#x27;: 3000, &#x27;ftol&#x27;: 1e-13, &#x27;gtol&#x27;: 1e-9}
+            )
+            if res.fun &lt; best_score:
+                best_score, best_params = res.fun, res.x
+        except:
+            pass
+    
+    # Stage 4: Multiple restarts with strategic perturbations
+    for attempt in range(3):
+        try:
+            if best_params is not None:
+                # Perturb around best solution
+                noise_scale = 0.05 * (attempt + 1)
+                init_p = best_params + np.random.randn(P) * noise_scale
+            else:
+                # Perturb around initialization
+                noise_scale = 0.08 * (attempt + 1)
+                init_p = init + np.random.randn(P) * noise_scale
+            
+            res = minimize(
+                objective, init_p, method=&#x27;L-BFGS-B&#x27;, bounds=bounds,
+                options={&#x27;maxiter&#x27;: 2500, &#x27;ftol&#x27;: 1e-12}
+            )
+            if res.fun &lt; best_score:
+                best_score, best_params = res.fun, res.x
+        except:
+            continue
+    
+    # Stage 5: Final refinement
+    if best_params is not None and best_score &lt; 0.03:
+        try:
+            res = minimize(
+                objective, best_params, method=&#x27;L-BFGS-B&#x27;, bounds=bounds,
+                options={&#x27;maxiter&#x27;: 1500, &#x27;ftol&#x27;: 1e-14, &#x27;gtol&#x27;: 1e-10}
+            )
+            if res.fun &lt; best_score:
+                best_params = res.x
+        except:
+            pass
+    
+    return best_params if best_params is not None else init
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#3</span>
               <span class="run-label">Run 5</span>
-              <span class="r2-badge" style="background-color: #228b22; color: white"> R² = 0.922399 </span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.997703 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -753,223 +800,217 @@ def fit_scaling_law(data_points, loss_values):
               </div>
               <pre><code class="language-python" id="code-2"># EVOLVE-BLOCK-START
 &quot;&quot;&quot;
-Enhanced scaling law with improved cross-domain modeling and adaptive fitting
-Uses 35 parameters: 7 per domain with refined interaction terms
-Focus: better extreme mixture handling, adaptive initialization, robust optimization
+Enhanced polynomial scaling law with domain-aware interactions
+Key improvements:
+- Pure power law basis without residual computation
+- Polynomial saturation (quadratic + cubic) for better modeling
+- Enhanced asymmetric interactions with complementarity effects
+- Domain-specific adaptive weighting in optimization
+- Refined regularization strategy
 &quot;&quot;&quot;
 import numpy as np
 from scipy.optimize import minimize
 
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    Domain-specific scaling law with enhanced interaction modeling
-    Parameters (35 total = 7 per domain × 5 domains):
-    For each domain d:
-    - alpha_d: base coefficient for power law
-    - beta_d: power law exponent
-    - gamma_d: bias term
-    - delta_d: self-interaction (quadratic penalty)
-    - w1_d: cross-domain sum interaction
-    - w2_d: diversity bonus (balanced mixture reward)
-    - lambda_d: output scaling factor
+    Enhanced polynomial scaling law with asymmetric interactions
+    Parameters (35 total):
+    - 5 power law coefficients
+    - 5 flexible exponents (per domain)
+    - 5 quadratic coefficients (diminishing returns)
+    - 5 cubic coefficients (saturation modeling)
+    - 10 asymmetric interaction weights
+    - 5 output biases
     &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points))
     N, F = X.shape
     params = np.asarray(params).ravel()
     
-    params_matrix = params.reshape(5, 7)
-    pred = np.zeros((N, F))
+    # Parse parameters (35 total)
+    power_coeffs = params[:F]           # 5 - power law coefficients
+    exponents = params[F:2*F]           # 5 - flexible exponents
+    quad_coeffs = params[2*F:3*F]       # 5 - quadratic terms
+    cubic_coeffs = params[3*F:4*F]      # 5 - cubic saturation
+    interactions = params[4*F:4*F+10]   # 10 - asymmetric interactions
+    biases = params[4*F+10:5*F+10]      # 5 - output biases
     
-    for d in range(F):
-        alpha = params_matrix[d, 0]
-        beta = params_matrix[d, 1]
-        gamma = params_matrix[d, 2]
-        delta = params_matrix[d, 3]
-        w1 = params_matrix[d, 4]
-        w2 = params_matrix[d, 5]
-        lam = params_matrix[d, 6]
-        
-        # Stabilized domain proportion
-        x_d = np.clip(X[:, d], 1e-8, 1.0)
-        
-        # Power law with bounded exponent
-        beta_safe = np.clip(beta, -1.3, 1.3)
-        power_term = alpha * (x_d ** beta_safe)
-        
-        # Quadratic self-interaction (concentration penalty)
-        self_term = delta * (X[:, d] ** 2)
-        
-        # Cross-domain sum interaction
-        other_sum = np.sum(X, axis=1) - X[:, d]
-        cross_term = w1 * X[:, d] * other_sum
-        
-        # Enhanced diversity term with cubic component
-        # Captures non-linear mixture effects better
-        diversity_base = X[:, d] * (1.0 - X[:, d])
-        # Add cubic term for extreme mixture behavior
-        diversity_cubic = X[:, d] * (1.0 - X[:, d]) * (0.5 - X[:, d])
-        diversity_term = w2 * (diversity_base + 0.4 * diversity_cubic)
-        
-        # Combine with output scaling
-        pred[:, d] = lam * (power_term + self_term + cross_term + diversity_term) + gamma
+    # Numerical stability
+    X_safe = np.clip(X, 1e-6, 1.0)
+    exponents = np.clip(exponents, 0.3, 1.8)
     
-    return pred
+    # 1. Pure power law terms: c * x^exp (no residual subtraction)
+    power_terms = power_coeffs[None, :] * (X_safe ** exponents[None, :])
+    
+    # 2. Quadratic diminishing returns: q * x^2
+    quad_terms = quad_coeffs[None, :] * (X_safe ** 2)
+    
+    # 3. Cubic saturation effects: cub * x^3
+    cubic_terms = cubic_coeffs[None, :] * (X_safe ** 3)
+    
+    # 4. Enhanced asymmetric interactions with complementarity
+    interaction_matrix = np.zeros((N, F))
+    idx = 0
+    for i in range(F):
+        for j in range(i+1, F):
+            weight = interactions[idx]
+            
+            # Symmetric multiplicative coupling (geometric-like)
+            sym_coupling = 0.5 * weight * X_safe[:, i] * X_safe[:, j]
+            
+            # Asymmetric complementarity effects
+            # When domain i has high weight and domain j low, there&#x27;s a cross effect
+            asym_i_to_j = 0.3 * weight * X_safe[:, i] * (1.0 - X_safe[:, j])
+            asym_j_to_i = 0.3 * weight * X_safe[:, j] * (1.0 - X_safe[:, i])
+            
+            # Distribute effects to both domains
+            interaction_matrix[:, i] += sym_coupling + asym_j_to_i
+            interaction_matrix[:, j] += sym_coupling + asym_i_to_j
+            
+            idx += 1
+    
+    # Combine all components
+    predictions = power_terms + quad_terms + cubic_terms + interaction_matrix + biases[None, :]
+    
+    return predictions
 
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Enhanced fitting with adaptive initialization and extended optimization
+    Enhanced fitting with domain-aware initialization and adaptive optimization
     &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points))
     y = np.asarray(loss_values)
     N, F = X.shape
+    P = 35
     
     if y.ndim == 1:
-        y = y[:, None]
-    if y.shape[1] != F:
-        if y.shape[1] == 1:
-            y = np.tile(y, (1, F))
+        y = y.reshape(-1, 1)
+    if y.shape[1] == 1:
+        y = np.tile(y, (1, F))
     
-    init = np.zeros(35)
+    # Compute statistics
+    y_mean = np.mean(y, axis=0)
+    y_std = np.std(y, axis=0)
+    y_min = np.min(y, axis=0)
+    y_max = np.max(y, axis=0)
+    x_mean = np.mean(X, axis=0)
+    x_std = np.std(X, axis=0)
     
-    for d in range(F):
-        y_d = y[:, d]
-        y_mean = np.mean(y_d)
-        y_std = np.std(y_d)
-        y_range = np.max(y_d) - np.min(y_d)
-        y_median = np.median(y_d)
-        
-        # Enhanced correlation analysis
-        x_d = X[:, d]
-        if np.std(x_d) &gt; 1e-6:
-            corr = np.corrcoef(x_d, y_d)[0, 1]
-            if np.isnan(corr):
-                corr = 0.0
-            
-            # Compute rank correlation for non-linear relationships
-            try:
-                from scipy.stats import spearmanr
-                rank_corr, _ = spearmanr(x_d, y_d)
-                if np.isnan(rank_corr):
-                    rank_corr = corr
-            except:
-                rank_corr = corr
+    # Smart initialization
+    init = np.zeros(P)
+    
+    # Power coefficients: correlation-based initialization
+    for i in range(F):
+        if x_std[i] &gt; 1e-6:
+            corr = np.corrcoef(X[:, i], y[:, i])[0, 1]
+            if not np.isnan(corr):
+                slope = corr * y_std[i] / (x_std[i] + 1e-6)
+                init[i] = slope * 0.75  # Slightly more aggressive than before
+            else:
+                init[i] = 0.6
         else:
-            corr = 0.0
-            rank_corr = 0.0
-        
-        # Analyze variance structure
-        x_high_mask = x_d &gt; np.median(x_d)
-        y_high_var = np.std(y_d[x_high_mask]) if np.sum(x_high_mask) &gt; 2 else y_std
-        y_low_var = np.std(y_d[~x_high_mask]) if np.sum(~x_high_mask) &gt; 2 else y_std
-        var_ratio = y_high_var / (y_low_var + 1e-8)
-        
-        idx = d * 7
-        
-        # Alpha: adaptive to range and variance structure
-        init[idx] = y_range * (0.45 + 0.15 * abs(rank_corr)) * np.sqrt(var_ratio)
-        
-        # Beta: refined based on correlation patterns
-        if corr &lt; -0.25:
-            init[idx + 1] = 0.35  # Strong negative -&gt; sublinear
-        elif corr &lt; -0.05:
-            init[idx + 1] = 0.5   # Weak negative
-        elif corr &lt; 0.15:
-            init[idx + 1] = 0.65  # Weak positive
-        else:
-            init[idx + 1] = 0.75  # Strong positive -&gt; more linear
-        
-        # Gamma: use median for robustness to outliers
-        init[idx + 2] = y_median * 0.92 + y_mean * 0.08
-        
-        # Delta: adaptive penalty based on variance structure
-        init[idx + 3] = -0.14 * (1.0 + 0.2 * abs(corr))
-        
-        # W1: cross-domain weight based on correlation direction
-        init[idx + 4] = 0.09 if rank_corr &gt; 0 else 0.05
-        
-        # W2: diversity bonus with slight bias
-        init[idx + 5] = 0.065
-        
-        # Lambda: near unity
-        init[idx + 6] = 1.0
+            init[i] = 0.6
+    
+    # Exponents: start near linear
+    init[F:2*F] = 1.0
+    
+    # Quadratic: small negative for diminishing returns
+    init[2*F:3*F] = -0.12
+    
+    # Cubic: very small for subtle saturation
+    init[3*F:4*F] = -0.025
+    
+    # Interactions: start small positive
+    init[4*F:4*F+10] = 0.02
+    
+    # Biases: domain means
+    init[4*F+10:5*F+10] = y_mean
     
     def objective(params):
-        pred = scaling_law_func(X, params)
-        
-        # MSE loss
-        mse = np.mean((pred - y) ** 2)
-        
-        params_mat = params.reshape(5, 7)
-        
-        # Adaptive regularization
-        # Exponents toward moderate values
-        reg_beta = 0.0075 * np.sum((params_mat[:, 1] - 0.55) ** 2)
-        
-        # Alpha regularization toward reasonable scale
-        reg_alpha = 0.0004 * np.sum((params_mat[:, 0] - np.std(y, axis=0)) ** 2)
-        
-        # Light regularization on interaction terms
-        reg_interact = 0.00025 * np.sum(params_mat[:, 3:6] ** 2)
-        
-        # Lambda toward 1
-        reg_lambda = 0.00015 * np.sum((params_mat[:, 6] - 1.0) ** 2)
-        
-        return mse + reg_beta + reg_alpha + reg_interact + reg_lambda
+        try:
+            pred = scaling_law_func(X, params)
+            residuals = pred - y
+            
+            # Per-domain MSE
+            per_dim_mse = np.mean(residuals ** 2, axis=0)
+            
+            # Adaptive weighting: balance based on geometric mean of variance and range
+            difficulty = np.sqrt(y_std * (y_max - y_min) + 0.1)
+            weights = 1.0 / (difficulty + 0.05)
+            weights = weights / np.sum(weights)
+            
+            mse = np.sum(weights * per_dim_mse)
+            
+            # Differential regularization strategy
+            # Light on power terms, moderate on polynomial, stronger on interactions
+            reg_power = 0.00003 * np.sum(params[:2*F] ** 2)
+            reg_poly = 0.0001 * np.sum(params[2*F:4*F] ** 2)
+            reg_inter = 0.0003 * np.sum(params[4*F:4*F+10] ** 2)
+            
+            # Penalty for extreme exponents
+            exp_penalty = 0.0015 * np.sum(np.maximum(0, np.abs(params[F:2*F]) - 1.6) ** 2)
+            
+            return mse + reg_power + reg_poly + reg_inter + exp_penalty
+        except:
+            return 1e10
     
-    # Refined bounds
+    # Bounds
     bounds = []
-    for d in range(5):
-        bounds.append((0.01, 9.0))      # alpha
-        bounds.append((-1.3, 1.3))      # beta
-        bounds.append((-3.5, 8.5))      # gamma
-        bounds.append((-0.85, 0.35))    # delta
-        bounds.append((-0.55, 0.55))    # w1
-        bounds.append((-0.35, 0.35))    # w2
-        bounds.append((0.2, 2.6))       # lambda
+    bounds.extend([(-8, 8)] * F)           # power coefficients
+    bounds.extend([(0.3, 1.8)] * F)        # exponents
+    bounds.extend([(-1.2, 0.5)] * F)       # quadratic
+    bounds.extend([(-0.4, 0.15)] * F)      # cubic
+    bounds.extend([(-1.2, 1.2)] * 10)      # interactions
+    bounds.extend([(y_min.min() - 2*y_std.max(), 
+                    y_max.max() + 2*y_std.max())] * F)  # biases
     
-    # Extended multi-start optimization
+    # Multi-start optimization with adaptive perturbations
     best_result = None
     best_loss = float(&#x27;inf&#x27;)
     
-    for trial in range(4):
-        if trial == 0:
+    for restart in range(8):
+        if restart == 0:
             init_trial = init.copy()
         else:
-            # Progressive exploration with controlled noise
-            noise_scale = 0.025 if trial == 1 else (0.04 if trial == 2 else 0.055)
-            init_trial = init + np.random.randn(35) * noise_scale
+            base = best_result.x if best_result is not None else init
+            # Progressive perturbation increase
+            if restart &lt; 4:
+                noise_scale = 0.025 * (1 + restart * 0.3)
+            else:
+                noise_scale = 0.08 * (1 + (restart-4) * 0.2)
+            
+            init_trial = base + np.random.randn(P) * noise_scale
             
             # Clip to bounds
             for i, (lb, ub) in enumerate(bounds):
                 init_trial[i] = np.clip(init_trial[i], lb, ub)
         
-        result = minimize(
-            objective,
-            init_trial,
-            method=&#x27;L-BFGS-B&#x27;,
-            bounds=bounds,
-            options={&#x27;maxiter&#x27;: 1400, &#x27;ftol&#x27;: 1e-10, &#x27;gtol&#x27;: 1e-8}
-        )
-        
-        if result.fun &lt; best_loss:
-            best_loss = result.fun
-            best_result = result
+        try:
+            result = minimize(
+                objective,
+                init_trial,
+                method=&#x27;L-BFGS-B&#x27;,
+                bounds=bounds,
+                options={&#x27;maxiter&#x27;: 750, &#x27;ftol&#x27;: 1e-9}
+            )
+            
+            if result.fun &lt; best_loss:
+                best_loss = result.fun
+                best_result = result
+        except:
+            continue
     
-    params_opt = best_result.x if best_result and best_result.success else init
-    
-    return params_opt
+    return best_result.x if best_result is not None else init
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#4</span>
-              <span class="run-label">Run 1</span>
-              <span class="r2-badge" style="background-color: #228b22; color: white"> R² = 0.886782 </span>
+              <span class="run-label">Run 2</span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.996392 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -981,191 +1022,205 @@ def fit_scaling_law(data_points, loss_values):
               </div>
               <pre><code class="language-python" id="code-3"># EVOLVE-BLOCK-START
 &quot;&quot;&quot;
-Robust multi-domain scaling law with sqrt-log hybrid features
+Refined scaling law with domain-specific power laws and improved numerical stability
+Uses exactly 35 parameters: 7 per output domain (5 domains)
+- 5 linear coefficients (domain mixture effects)
+- 1 power exponent (non-linearity per output)
+- 1 bias term (base loss level)
+
 Key improvements:
-1. Novel sqrt-log hybrid transformation for better numerical properties
-2. 7 parameters per domain (35 total): baseline + 5 linear + 1 quadratic
-3. Adaptive mixture regularization based on domain balance
-4. Robust initialization with Tikhonov regularization
-5. Multi-stage optimization with smart warm-starting
+- Strict 35 parameter limit (7×5)
+- Simplified power law model for better generalization
+- Enhanced numerical stability with gradient clipping
+- Improved initialization using robust statistics
+- Adaptive regularization based on parameter magnitude
 &quot;&quot;&quot;
 import numpy as np
 from scipy.optimize import minimize
 
 def scaling_law_func(data_points, params):
     &quot;&quot;&quot;
-    Hybrid sqrt-log compositional model with centered quadratic.
-    Parameters per output domain (7 × 5 = 35 total):
-    - 1 baseline offset
-    - 5 linear mixture coefficients (on transformed features)
-    - 1 centered quadratic self-interaction coefficient
+    Power law model per domain: y_d = sum_i(w_{d,i} * x_i^alpha_d) + b_d
     
-    Uses sqrt(log(1+4x)) transformation for optimal conditioning.
+    Parameters per output d:
+    - w_{d,i}: 5 weights showing how input domain i affects output domain d
+    - alpha_d: power exponent for non-linear transformation
+    - b_d: bias term for base loss level
     &quot;&quot;&quot;
     X = np.atleast_2d(np.asarray(data_points))  # (N, 5)
     N, F = X.shape
     params = np.asarray(params)
     
     if params.ndim == 1:
-        params = params[None, :]
-    T = params.shape[0]
+        params = params[None, :]  # (1, P)
+    T, P = params.shape
     
-    params = params.reshape(T, 7)
     predictions = np.zeros((N, T))
     
-    # Hybrid transformation: sqrt(log(1+4x)) combines benefits of both
-    # - log handles sparse regions well
-    # - sqrt reduces extreme values
-    # - 4x scaling optimizes for [0,1] range
-    X_transformed = np.sqrt(np.log1p(X * 4.0))
-    
     for t in range(T):
-        # Linear component on transformed features
-        pred = params[t, 0] + np.dot(X_transformed, params[t, 1:6])
+        # Extract 7 parameters for this output domain
+        p = params[t, :] if T &gt; 1 else params[0, :]
         
-        # Centered quadratic on original space for interpretability
-        x_centered = X[:, t] - 0.2
-        pred += params[t, 6] * (x_centered ** 2)
+        weights = p[:F]       # 5 weights
+        exponent = p[F]       # 1 exponent
+        bias = p[F+1]         # 1 bias
         
-        predictions[:, t] = pred
+        # Numerical safety: clip inputs and exponent
+        eps = 1e-10
+        X_safe = np.clip(X, eps, 1.0)
+        exp_clipped = np.clip(exponent, 0.25, 2.8)
+        
+        # Apply power transformation
+        X_powered = X_safe ** exp_clipped
+        
+        # Weighted sum plus bias
+        predictions[:, t] = np.dot(X_powered, weights) + bias
     
     return predictions[:, 0] if T == 1 else predictions
 
 
 def fit_scaling_law(data_points, loss_values):
     &quot;&quot;&quot;
-    Tikhonov-regularized initialization with adaptive optimization
+    Robust fitting with correlation-based initialization and multi-start optimization
     &quot;&quot;&quot;
-    X = np.atleast_2d(np.asarray(data_points))
+    X = np.atleast_2d(np.asarray(data_points))  # (N, 5)
     y = np.asarray(loss_values)
     N, F = X.shape
     
-    y2d = y[:, None] if y.ndim == 1 else y
+    if y.ndim == 1:
+        y2d = y[:, None]
+    else:
+        y2d = y
     T = y2d.shape[1]
     
-    # Transform features
-    X_transformed = np.sqrt(np.log1p(X * 4.0))
+    # Exactly 7 parameters per output
+    P = 7
     
-    # Compute domain balance for adaptive regularization
-    domain_balance = np.std(y2d, axis=0) / (np.mean(y2d, axis=0) + 1e-8)
-    
-    # Tikhonov-regularized initialization
-    init = np.zeros((T, 7))
+    # Robust initialization using correlations and statistics
+    init = np.zeros((T, P))
     
     for t in range(T):
-        try:
-            # Adaptive Tikhonov parameter based on domain balance
-            lambda_tikh = 0.05 * (1.0 + domain_balance[t])
+        y_t = y2d[:, t]
+        y_mean = np.mean(y_t)
+        y_std = np.std(y_t)
+        
+        # Initialize weights based on correlation with clipping
+        for i in range(F):
+            X_std = np.std(X[:, i])
             
-            # Tikhonov regularization: (X^T X + λI)^{-1} X^T y
-            XtX = X_transformed.T @ X_transformed
-            XtX_reg = XtX + lambda_tikh * np.eye(F)
-            Xty = X_transformed.T @ y2d[:, t]
-            
-            coeffs = np.linalg.solve(XtX_reg, Xty)
-            
-            # Baseline from median residual
-            linear_pred = X_transformed @ coeffs
-            residuals = y2d[:, t] - linear_pred
-            init[t, 0] = np.median(residuals)
-            
-            # Linear coefficients
-            init[t, 1:6] = coeffs
-            
-            # Quadratic: weighted correlation
-            x_centered = X[:, t] - 0.2
-            x_sq = x_centered ** 2
-            
-            if np.std(x_sq) &gt; 1e-9:
-                # Weight by residual variance
-                res_var = np.var(residuals)
-                corr = np.corrcoef(x_sq, residuals)[0, 1]
-                if not np.isnan(corr):
-                    # Scale by domain balance
-                    scale_factor = 0.45 / (domain_balance[t] + 0.5)
-                    init[t, 6] = scale_factor * corr
-                else:
-                    init[t, 6] = -0.18
+            if X_std &gt; 1e-8 and y_std &gt; 1e-8:
+                # Compute Pearson correlation
+                X_centered = X[:, i] - np.mean(X[:, i])
+                y_centered = y_t - y_mean
+                corr = np.sum(X_centered * y_centered) / (N * X_std * y_std)
+                corr = np.clip(corr, -1.0, 1.0)
             else:
-                init[t, 6] = -0.18
-                
-        except:
-            # Fallback
-            init[t, 0] = np.median(y2d[:, t])
-            init[t, 1:6] = np.zeros(5)
-            init[t, 1:6][t] = 0.82
-            init[t, 6] = -0.18
+                corr = 0.0
+            
+            # Scale by standard deviation ratio with dampening
+            scale_factor = (y_std / (X_std + 1e-8)) * 0.18
+            init[t, i] = corr * scale_factor
+        
+        # Initialize exponent close to 1 (near-linear)
+        init[t, F] = 1.0
+        
+        # Initialize bias as mean output
+        init[t, F+1] = y_mean
+    
+    # Adaptive regularization
+    reg_weight = 0.003
+    reg_exp = 0.0008
     
     def objective(flat_params):
-        params = flat_params.reshape(T, 7)
-        pred = scaling_law_func(X, params)
-        mse = np.mean((pred - y2d) ** 2)
+        params = flat_params.reshape(T, P)
         
-        # Adaptive mixture regularization
-        reg_total = 0.0
-        for t in range(T):
-            # Balance-aware regularization
-            weight = 1.0 / (domain_balance[t] + 0.4)
+        try:
+            pred = scaling_law_func(X, params)
             
-            # Stratified regularization
-            baseline_reg = 0.0006 * weight * params[t, 0] ** 2
-            linear_reg = 0.0024 * weight * np.sum(params[t, 1:6] ** 2)
-            quad_reg = 0.012 * weight * params[t, 6] ** 2
+            if pred.ndim == 1:
+                pred = pred[:, None]
             
-            reg_total += baseline_reg + linear_reg + quad_reg
-        
-        return mse + reg_total
+            # Mean squared error
+            mse = np.mean((pred - y2d) ** 2)
+            
+            # L2 regularization on weights (adaptive to magnitude)
+            weights_all = params[:, :F]
+            reg_weights = reg_weight * np.mean(weights_all ** 2)
+            
+            # Regularization on exponents (prefer near 1)
+            exponents = params[:, F]
+            reg_exponents = reg_exp * np.sum((exponents - 1.0) ** 2)
+            
+            return mse + reg_weights + reg_exponents
+        except:
+            return 1e10
     
-    # Conservative bounds
+    # Bounds for numerical stability
     bounds = []
     for t in range(T):
-        bounds.append((0.22, 6.4))  # Baseline
-        bounds.extend([(-5.2, 7.2)] * 5)  # Linear
-        bounds.append((-3.2, 1.7))  # Quadratic
+        # Weights: allow both positive and negative
+        bounds.extend([(-6.5, 6.5)] * F)
+        # Exponent: bounded for stability
+        bounds.append((0.25, 2.8))
+        # Bias: reasonable range for loss values
+        bounds.append((0.2, 6.5))
     
-    # Stage 1: Primary optimization
+    # Multi-start optimization for robustness
+    best_result = None
+    best_loss = float(&#x27;inf&#x27;)
+    
+    # Attempt 1: Smart initialization
     result = minimize(
-        objective, init.ravel(), method=&#x27;L-BFGS-B&#x27;,
-        bounds=bounds, options={&#x27;maxiter&#x27;: 2700, &#x27;ftol&#x27;: 1e-11, &#x27;gtol&#x27;: 1e-9}
+        objective,
+        init.ravel(),
+        method=&#x27;L-BFGS-B&#x27;,
+        bounds=bounds,
+        options={&#x27;maxiter&#x27;: 2500, &#x27;ftol&#x27;: 1e-11, &#x27;gtol&#x27;: 1e-8}
     )
     
-    best_result = result if result.success else None
-    best_loss = result.fun if result.success else float(&#x27;inf&#x27;)
+    if result.fun &lt; best_loss:
+        best_loss = result.fun
+        best_result = result
     
-    # Stage 2: Refinement if promising
-    if best_result is not None and best_loss &lt; 0.33:
-        result2 = minimize(
-            objective, best_result.x, method=&#x27;L-BFGS-B&#x27;,
-            bounds=bounds, options={&#x27;maxiter&#x27;: 1100, &#x27;ftol&#x27;: 1e-12, &#x27;gtol&#x27;: 1e-10}
+    # Attempt 2-5: Perturbed initializations with decreasing noise
+    np.random.seed(42)
+    for restart_idx in range(4):
+        # Controlled perturbation with decreasing magnitude
+        noise_scale = 0.13 * (1.0 - restart_idx * 0.22)
+        perturbed_init = init + np.random.randn(*init.shape) * noise_scale
+        
+        # Keep exponents in reasonable range
+        perturbed_init[:, F] = np.clip(perturbed_init[:, F], 0.7, 1.5)
+        
+        result = minimize(
+            objective,
+            perturbed_init.ravel(),
+            method=&#x27;L-BFGS-B&#x27;,
+            bounds=bounds,
+            options={&#x27;maxiter&#x27;: 2500, &#x27;ftol&#x27;: 1e-11, &#x27;gtol&#x27;: 1e-8}
         )
-        if result2.success and result2.fun &lt; best_loss:
-            best_result = result2
-            best_loss = result2.fun
+        
+        if result.fun &lt; best_loss:
+            best_loss = result.fun
+            best_result = result
     
-    # Stage 3: Alternative start if needed
-    if best_loss &gt; 0.27:
-        # Small perturbation
-        init_pert = init + np.random.randn(*init.shape) * 0.07
-        result3 = minimize(
-            objective, init_pert.ravel(), method=&#x27;L-BFGS-B&#x27;,
-            bounds=bounds, options={&#x27;maxiter&#x27;: 2400, &#x27;ftol&#x27;: 1e-11, &#x27;gtol&#x27;: 1e-9}
-        )
-        if result3.success and result3.fun &lt; best_loss:
-            best_result = result3
+    # Return best result or fallback to initialization
+    if best_result is not None and best_result.success:
+        params_opt = best_result.x.reshape(T, P)
+    else:
+        params_opt = init
     
-    params_opt = best_result.x.reshape(T, 7) if best_result is not None else init
     return params_opt[0] if T == 1 else params_opt
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
         </div>
-
         <div class="run-card">
           <div class="run-header" onclick="toggleRun(this)">
             <div class="run-info">
               <span class="run-badge">#5</span>
-              <span class="run-label">Run 3</span>
-              <span class="r2-badge" style="background-color: #228b22; color: white"> R² = 0.813832 </span>
+              <span class="run-label">Run 1</span>
+              <span class="r2-badge" style="background-color: #006400; color: white"> R² = 0.995904 </span>
             </div>
             <span class="expand-icon">▼</span>
           </div>
@@ -1177,163 +1232,235 @@ def fit_scaling_law(data_points, loss_values):
               </div>
               <pre><code class="language-python" id="code-4"># EVOLVE-BLOCK-START
 &quot;&quot;&quot;
-Hybrid scaling law combining quadratic specialization and cross-domain interactions
-Uses 7 parameters per output: 5 domain weights + 1 bias + 1 combined interaction term
+Refined scaling law with SVD initialization and focused optimization
+Key improvements over current:
+- SVD-based coefficient initialization for numerical robustness
+- Log-space exponent estimation with physical constraints
+- Focused 5-trial multi-start with strategic perturbations
+- Balanced regularization tuned for generalization
+- Enhanced numerical stability
+Total: 35 parameters (25 coeffs + 5 exponents + 5 biases)
 &quot;&quot;&quot;
 import numpy as np
-from scipy.optimize import minimize, differential_evolution
+from scipy.optimize import minimize
 
 def scaling_law_func(data_points, params):
-    X = np.atleast_2d(np.asarray(data_points))           # (N, F)
+    &quot;&quot;&quot;
+    Structured multi-output scaling law: y_i = sum_j(c_ij * x_j^e_j) + b_i
+    
+    Parameters (35 total):
+    - coeffs: 25 params (5 outputs × 5 domains)
+    - exponents: 5 params (shared domain transformations)
+    - biases: 5 params (output-specific offsets)
+    &quot;&quot;&quot;
+    X = np.atleast_2d(np.asarray(data_points))
     N, F = X.shape
     params = np.asarray(params)
     
     if params.ndim == 1:
-        params = params[None, :]                         # (1, P)
-    T, P = params.shape
+        params = params[None, :]
     
-    # Parameters structure per output (7 params):
-    # - 5 domain-specific coefficients
-    # - 1 bias term
-    # - 1 combined interaction coefficient
+    # Multi-output case with 35 parameters
+    if params.shape[0] == 1 and F == 5 and params.shape[1] == 35:
+        coeffs = params[0, :25].reshape(5, 5)
+        exponents = params[0, 25:30]
+        biases = params[0, 30:35]
+        
+        # Enhanced numerical stability with tighter clipping
+        X_safe = np.clip(X, 1e-10, 1.0)
+        X_transformed = X_safe ** exponents[None, :]
+        pred = X_transformed @ coeffs.T + biases[None, :]
+        
+    else:
+        # Fallback for non-standard cases
+        T = params.shape[0]
+        P = params.shape[1]
+        
+        if P &gt;= 2 * F + 1:
+            coeffs = params[:, :F]
+            exponents = params[:, F:2*F]
+            bias = params[:, -1]
+            
+            X_safe = np.clip(X, 1e-10, 1.0)
+            pred = (coeffs[None, :, :] * (X_safe[:, None, :] ** exponents[None, :, :])).sum(axis=2) + bias[None, :]
+            pred = pred[:, 0] if pred.shape[1] == 1 else pred
+        else:
+            pred = np.zeros((N, T))
     
-    coeffs = params[:, :F]                               # (T, F)
-    bias = params[:, F]                                  # (T,)
-    interaction_coeff = params[:, F+1]                   # (T,)
-    
-    # Linear term: weighted sum of domain proportions
-    linear_pred = np.dot(X, coeffs.T)                    # (N, T)
-    
-    # Combined interaction term:
-    # 1. Quadratic specialization: measures deviation from uniform
-    # 2. Geometric interaction: captures synergy between domains
-    uniform = 1.0 / F
-    quad_term = np.sum((X - uniform) ** 2, axis=1)       # (N,)
-    
-    # Geometric mean interaction (with safety for log)
-    X_safe = np.clip(X, 1e-10, 1.0)
-    geom_term = np.exp(np.mean(np.log(X_safe), axis=1))  # (N,)
-    
-    # Combine both interaction types (weighted average)
-    combined_interaction = 0.5 * quad_term + 0.5 * (1.0 - geom_term)  # (N,)
-    interaction_pred = combined_interaction[:, None] * interaction_coeff[None, :]  # (N, T)
-    
-    pred = linear_pred + interaction_pred + bias[None, :]  # (N, T)
-    
-    return pred[:, 0] if pred.shape[1] == 1 else pred
+    return pred
 
 
 def fit_scaling_law(data_points, loss_values):
-    X = np.atleast_2d(np.asarray(data_points))           # (N, F)
+    &quot;&quot;&quot;
+    Enhanced optimization with SVD initialization and focused multi-start
+    &quot;&quot;&quot;
+    X = np.atleast_2d(np.asarray(data_points))
     y = np.asarray(loss_values)
     N, F = X.shape
-    P = F + 2  # 5 coeffs + 1 bias + 1 interaction = 7 params per output
     
     if y.ndim == 1:
-        y2d = y[:, None]
-    else:
-        y2d = y
-    T = y2d.shape[1]
+        y = y[:, None]
+    T = y.shape[1]
     
-    def objective(flat_params):
-        params = flat_params.reshape(T, P)
-        pred = scaling_law_func(X, params)               # (N, T)
+    if F == 5 and T == 5:
+        X_safe = np.clip(X, 1e-10, 1.0)
         
-        # Per-dimension weighted MSE to handle variance across domains
-        residuals = pred - y2d
-        
-        # Adaptive weighting based on loss scale per dimension
-        dim_scales = np.std(y2d, axis=0, keepdims=True) + 1e-6
-        weighted_residuals = residuals / dim_scales
-        mse = np.mean(weighted_residuals ** 2)
-        
-        # Adaptive L2 regularization (stronger for larger coefficients)
-        reg = 0.0005 * np.sum(params[:, :F] ** 2)
-        reg += 0.0001 * np.sum(params[:, F:] ** 2)
-        
-        return mse + reg
-    
-    # Multi-start optimization with improved strategies
-    best_params = None
-    best_loss = float(&#x27;inf&#x27;)
-    
-    # Try 4 different initialization strategies
-    for trial in range(4):
-        init = np.zeros((T, P))
-        
+        # SVD-based coefficient initialization for numerical stability
+        init_coeffs = np.zeros((5, 5))
         for t in range(T):
-            if trial == 0:
-                # Least squares initialization
-                X_augmented = np.column_stack([X, np.ones(N)])
+            try:
+                # SVD provides better conditioning than direct least squares
+                U, s, Vt = np.linalg.svd(X, full_matrices=False)
+                # Regularize small singular values to prevent instability
+                s_reg = np.where(s &gt; 0.01 * s[0], 1.0 / s, 0.0)
+                X_pinv = Vt.T @ np.diag(s_reg) @ U.T
+                init_coeffs[t] = X_pinv @ y[:, t]
+            except:
+                # Fallback to ridge regression
                 try:
-                    lstsq_result = np.linalg.lstsq(X_augmented, y2d[:, t], rcond=None)
-                    init[t, :F] = lstsq_result[0][:F]
-                    init[t, F] = lstsq_result[0][F]
+                    XtX = X.T @ X + 0.008 * np.eye(F)
+                    Xty = X.T @ y[:, t]
+                    init_coeffs[t] = np.linalg.solve(XtX, Xty)
                 except:
-                    init[t, :F] = np.mean(y2d[:, t]) / F
-                    init[t, F] = np.mean(y2d[:, t])
-                init[t, F+1] = 0.0
+                    init_coeffs[t] = np.ones(F) * (np.mean(y[:, t]) / F)
+        
+        # Log-space exponent estimation for physically grounded initialization
+        init_exponents = np.ones(5) * 0.72
+        for f in range(F):
+            if np.std(X[:, f]) &gt; 1e-6:
+                sorted_idx = np.argsort(X[:, f])
+                x_sorted = X[sorted_idx, f]
+                y_mean_sorted = np.mean(y[sorted_idx], axis=1)
                 
+                # Log-space regression for power law estimation
+                valid_mask = x_sorted &gt; 0.05
+                if np.sum(valid_mask) &gt;= 5:
+                    x_log = np.log(x_sorted[valid_mask] + 1e-10)
+                    y_log = np.log(y_mean_sorted[valid_mask] + 1e-10)
+                    
+                    try:
+                        # Fit log(y) ~ exp * log(x) + const
+                        x_mean = np.mean(x_log)
+                        y_mean = np.mean(y_log)
+                        cov = np.sum((x_log - x_mean) * (y_log - y_mean))
+                        var = np.sum((x_log - x_mean) ** 2)
+                        
+                        if abs(var) &gt; 1e-8:
+                            exp_est = cov / var
+                            init_exponents[f] = np.clip(exp_est, 0.3, 1.4)
+                        else:
+                            init_exponents[f] = 0.72
+                    except:
+                        init_exponents[f] = 0.72
+                
+                # Additional curvature refinement
+                if len(x_sorted) &gt;= 6:
+                    n = len(x_sorted)
+                    q1, q2, q3 = n // 4, n // 2, 3 * n // 4
+                    
+                    s1 = (y_mean_sorted[q2] - y_mean_sorted[q1]) / max(x_sorted[q2] - x_sorted[q1], 1e-6)
+                    s2 = (y_mean_sorted[q3] - y_mean_sorted[q2]) / max(x_sorted[q3] - x_sorted[q2], 1e-6)
+                    
+                    # Adjust based on curvature pattern
+                    if s1 &gt; s2 * 1.25:
+                        init_exponents[f] = min(init_exponents[f], 0.65)
+                    elif s2 &gt; s1 * 1.25:
+                        init_exponents[f] = max(init_exponents[f], 1.0)
+        
+        # Robust bias initialization using trimmed mean
+        init_biases = np.zeros(5)
+        for t in range(T):
+            pred_linear = X @ init_coeffs[t]
+            residuals = y[:, t] - pred_linear
+            # Trimmed mean for outlier resistance
+            sorted_res = np.sort(residuals)
+            trim = max(1, N // 10)
+            init_biases[t] = np.mean(sorted_res[trim:-trim]) * 0.45
+        
+        init = np.concatenate([init_coeffs.ravel(), init_exponents, init_biases])
+        
+        def objective(params_flat):
+            pred = scaling_law_func(X, params_flat)
+            mse = np.mean((pred - y) ** 2)
+            
+            coeffs_part = params_flat[:25]
+            exponents_part = params_flat[25:30]
+            
+            # Balanced regularization tuned for generalization
+            reg_coeffs = 0.00045 * np.sum(coeffs_part ** 2)
+            
+            # Domain-specific target exponents
+            target_exp = np.array([0.68, 0.72, 0.75, 0.70, 0.73])
+            reg_exponents = 0.0020 * np.sum((exponents_part - target_exp) ** 2)
+            
+            return mse + reg_coeffs + reg_exponents
+        
+        # Tighter bounds for better stability
+        bounds = [(None, None)] * 25 + [(0.25, 1.8)] * 5 + [(None, None)] * 5
+        
+        # Focused 5-trial multi-start with strategic exploration
+        best_result = None
+        best_loss = float(&#x27;inf&#x27;)
+        
+        for trial in range(5):
+            if trial == 0:
+                # Use smart initialization
+                init_trial = init.copy()
             elif trial == 1:
-                # Domain-specific initialization
-                for f in range(F):
-                    domain_mask = X[:, f] &gt; 0.5
-                    if np.any(domain_mask):
-                        init[t, f] = np.mean(y2d[domain_mask, t])
-                    else:
-                        init[t, f] = np.mean(y2d[:, t])
-                init[t, F] = np.mean(y2d[:, t]) * 0.3
-                init[t, F+1] = 0.15
-                
+                # Perturb coefficients with moderate noise
+                init_trial = init.copy()
+                init_trial[:25] += np.random.randn(25) * 0.075
             elif trial == 2:
-                # Initialize based on variance structure
-                y_mean = np.mean(y2d[:, t])
-                y_std = np.std(y2d[:, t])
-                init[t, :F] = y_mean / F + np.random.randn(F) * 0.05 * y_std
-                init[t, F] = y_mean * 0.5
-                init[t, F+1] = y_std * 0.2
-                
+                # Explore different exponent values
+                init_trial = init.copy()
+                init_trial[25:30] += np.random.randn(5) * 0.10
+                init_trial[25:30] = np.clip(init_trial[25:30], 0.25, 1.8)
+            elif trial == 3:
+                # Balanced global perturbation
+                init_trial = init + np.random.randn(35) * 0.09
+                init_trial[25:30] = np.clip(init_trial[25:30], 0.25, 1.8)
             else:
-                # Random initialization with domain correlation
-                domain_corrs = np.corrcoef(X.T)
-                init[t, :F] = np.mean(y2d[:, t]) / F * (1 + 0.1 * np.random.randn(F))
-                init[t, F] = np.mean(y2d[:, t])
-                init[t, F+1] = np.random.randn() * 0.1
+                # Conservative exploration with bias focus
+                init_trial = init.copy()
+                init_trial[:25] += np.random.randn(25) * 0.05
+                init_trial[30:35] += np.random.randn(5) * 0.15
+            
+            try:
+                result = minimize(
+                    objective, 
+                    init_trial, 
+                    method=&#x27;L-BFGS-B&#x27;, 
+                    bounds=bounds, 
+                    options={&#x27;maxiter&#x27;: 1700, &#x27;ftol&#x27;: 1e-11, &#x27;gtol&#x27;: 1e-9}
+                )
+                
+                if result.fun &lt; best_loss:
+                    best_loss = result.fun
+                    best_result = result
+            except:
+                continue
         
-        # Optimize with adaptive bounds
-        y_range = np.ptp(y2d)
-        bound_scale = max(15.0, y_range * 2)
-        bounds = [(-bound_scale, bound_scale)] * (T * P)
+        params_opt = best_result.x if (best_result is not None and best_result.success) else init
         
-        result = minimize(
-            objective, 
-            init.ravel(), 
-            method=&#x27;L-BFGS-B&#x27;,
-            bounds=bounds,
-            options={&#x27;maxiter&#x27;: 2500, &#x27;ftol&#x27;: 1e-11, &#x27;gtol&#x27;: 1e-8}
-        )
+    else:
+        # Fallback for non-standard dimensions
+        P = 2 * F + 1
+        init = np.ones((T, P))
+        init[:, :F] = np.mean(y) / F
+        init[:, F:2*F] = 0.72
         
-        if result.fun &lt; best_loss:
-            best_loss = result.fun
-            best_params = result.x.reshape(T, P)
+        def objective(flat_params):
+            params = flat_params.reshape(T, P)
+            pred = scaling_law_func(X, params)
+            mse = np.mean((pred - y) ** 2)
+            reg = 0.0007 * np.sum(params ** 2)
+            return mse + reg
+        
+        result = minimize(objective, init.ravel(), method=&#x27;L-BFGS-B&#x27;)
+        params_opt = result.x.reshape(T, P) if result.success else init
+        params_opt = params_opt[0] if T == 1 else params_opt
     
-    # Fallback to differential evolution if fit is poor
-    if best_loss &gt; 0.3:
-        bound_scale = max(15.0, np.ptp(y2d) * 2)
-        bounds_list = [(-bound_scale, bound_scale)] * (T * P)
-        result_de = differential_evolution(
-            objective,
-            bounds_list,
-            maxiter=150,
-            seed=42,
-            workers=1,
-            atol=1e-10,
-            tol=1e-10
-        )
-        if result_de.fun &lt; best_loss:
-            best_params = result_de.x.reshape(T, P)
-    
-    return best_params[0] if T == 1 else best_params
+    return params_opt
 # EVOLVE-BLOCK-END</code></pre>
             </div>
           </div>
