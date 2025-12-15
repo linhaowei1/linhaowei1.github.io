@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SLD - Domain Mixture Scaling Law - gemini-cli + Gemini 2.5 Flash</title>
+    <link rel="icon" type="image/png" href="assets/sld_logo.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" rel="stylesheet" />
+    <style>
+        :root {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8f9fa;
+            --accent-primary: #2563eb;
+            --accent-secondary: #3b82f6;
+            --accent-gradient: linear-gradient(135deg, #2563eb 0%, #3b82f6 50%, #60a5fa 100%);
+            --text-primary: #1f2937;
+            --text-secondary: #4b5563;
+            --border-subtle: rgba(0, 0, 0, 0.1);
+            --glass-bg: rgba(0, 0, 0, 0.02);
+            --success: #10b981;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Sora', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            min-height: 100vh;
+            color: var(--text-primary);
+        }
+        
+        .bg-pattern {
+            display: none;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--accent-primary);
+            text-decoration: none;
+            font-size: 0.9rem;
+            margin-bottom: 1.5rem;
+            transition: color 0.2s;
+        }
+        
+        .back-link:hover {
+            color: var(--accent-secondary);
+        }
+        
+        .header {
+            background: var(--glass-bg);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            backdrop-filter: blur(10px);
+        }
+        
+        .header h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            background: var(--accent-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .meta-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+            margin-top: 1rem;
+        }
+        
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .meta-label {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+        
+        .meta-value {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .r2-badge {
+            display: inline-block;
+            padding: 0.3rem 0.6rem;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        .section-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+        
+        .runs-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .run-card {
+            background: var(--glass-bg);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            overflow: hidden;
+            transition: border-color 0.2s;
+        }
+        
+        .run-card:hover {
+            border-color: rgba(99, 102, 241, 0.3);
+        }
+        
+        .run-card.best-run {
+            border-color: var(--success);
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.1);
+        }
+        
+        .run-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 1.25rem;
+            background: rgba(255, 255, 255, 0.02);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .run-header:hover {
+            background: rgba(255, 255, 255, 0.04);
+        }
+        
+        .run-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .run-badge {
+            padding: 0.25rem 0.6rem;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-secondary);
+        }
+        
+        .run-badge.best-badge {
+            background: var(--success);
+            color: white;
+        }
+        
+        .run-label {
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+        
+        .expand-icon {
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            transition: transform 0.2s;
+        }
+        
+        .run-header.expanded .expand-icon {
+            transform: rotate(180deg);
+        }
+        
+        .run-content {
+            border-top: 1px solid var(--border-subtle);
+        }
+        
+        .code-container {
+            overflow: hidden;
+        }
+        
+        .code-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 1.25rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-bottom: 1px solid var(--border-subtle);
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+        
+        .copy-btn {
+            padding: 0.35rem 0.75rem;
+            background: rgba(99, 102, 241, 0.2);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 6px;
+            color: var(--accent-primary);
+            font-size: 0.75rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        
+        .copy-btn:hover {
+            background: rgba(99, 102, 241, 0.3);
+        }
+        
+        .code-container pre {
+            margin: 0;
+            padding: 1.25rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            line-height: 1.6;
+            overflow-x: auto;
+            background: transparent !important;
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 3rem;
+            padding-top: 2rem;
+            border-top: 1px solid var(--border-subtle);
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+        
+        .footer a {
+            color: var(--accent-primary);
+            text-decoration: none;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+            
+            .header h1 {
+                font-size: 1.25rem;
+            }
+            
+            .meta-row {
+                flex-direction: column;
+                gap: 0.75rem;
+            }
+            
+            .run-info {
+                flex-wrap: wrap;
+                gap: 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-pattern"></div>
+    
+    <div class="container">
+        <a href="sld_index.html" class="back-link">
+            ← Back to Leaderboard
+        </a>
+        
+        <div class="header">
+            <h1>Domain Mixture Scaling Law</h1>
+            <div class="meta-row">
+                <div class="meta-item">
+                    <span class="meta-label">Agent:</span>
+                    <span class="meta-value">gemini-cli</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Model:</span>
+                    <span class="meta-value">Gemini 2.5 Flash</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Best R²:</span>
+                    <span class="r2-badge" style="background-color: #006400; color: white;">
+                        0.968329
+                    </span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Mean R²:</span>
+                    <span class="meta-value">0.529597</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Min R²:</span>
+                    <span class="meta-value">-1.000000</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Runs:</span>
+                    <span class="meta-value">5</span>
+                </div>
+            </div>
+        </div>
+        
+        <h2 class="section-title">All Runs (sorted by R²)</h2>
+        
+        <div class="runs-container">
+            
+        <div class="run-card best-run">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge best-badge">Best</span>
+                    <span class="run-label">Run 1</span>
+                    <span class="r2-badge" style="background-color: #006400; color: white;">
+                        R² = 0.968329
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: block;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-0')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-0">def law(input_data: list[dict[str, float]], group: str) -&gt; list[dict[str, float]]:
+    &quot;&quot;&quot;
+    Predicts output variables based on input variables according to a discovered scaling law.
+
+    Args:
+        input_data: A list of dictionaries, where each dictionary is a single data
+                    point containing input variable names as keys and their
+                    corresponding values.
+        group: The name of the experimental group for which to make predictions.
+                The functional form of the law must be the same for all groups,
+                but the constant parameters/coefficients can differ per group.
+
+    Returns:
+        A list of dictionaries, corresponding to the input_data list, with each
+        dictionary containing the predicted output variable(s).
+    &quot;&quot;&quot;
+
+    # Fitted parameters (A, B, C) for each group and domain
+    # Structure: fitted_params[group][domain_key] = {&#x27;A&#x27;: A_val, &#x27;B&#x27;: B_val, &#x27;C&#x27;: C_val}
+    fitted_params = {
+        &#x27;70M&#x27;: {
+            &#x27;domain_1&#x27;: {&#x27;A&#x27;: 0.0488, &#x27;B&#x27;: 0.0576, &#x27;C&#x27;: 2.5662},
+            &#x27;domain_2&#x27;: {&#x27;A&#x27;: 0.0141, &#x27;B&#x27;: 0.0636, &#x27;C&#x27;: 3.5963},
+            &#x27;domain_3&#x27;: {&#x27;A&#x27;: 0.0084, &#x27;B&#x27;: 0.0155, &#x27;C&#x27;: 3.0578},
+            &#x27;domain_4&#x27;: {&#x27;A&#x27;: 0.0288, &#x27;B&#x27;: 0.0377, &#x27;C&#x27;: 1.5025},
+            &#x27;domain_5&#x27;: {&#x27;A&#x27;: 0.1127, &#x27;B&#x27;: 0.1952, &#x27;C&#x27;: 3.3529},
+        },
+        &#x27;160M&#x27;: {
+            &#x27;domain_1&#x27;: {&#x27;A&#x27;: 0.0402, &#x27;B&#x27;: 0.0519, &#x27;C&#x27;: 2.2834},
+            &#x27;domain_2&#x27;: {&#x27;A&#x27;: 0.0083, &#x27;B&#x27;: 0.0445, &#x27;C&#x27;: 3.2866},
+            &#x27;domain_3&#x27;: {&#x27;A&#x27;: 0.0073, &#x27;B&#x27;: 0.0143, &#x27;C&#x27;: 2.7768},
+            &#x27;domain_4&#x27;: {&#x27;A&#x27;: 0.0255, &#x27;B&#x27;: 0.0375, &#x27;C&#x27;: 1.2831},
+            &#x27;domain_5&#x27;: {&#x27;A&#x27;: 0.1205, &#x27;B&#x27;: 0.2034, &#x27;C&#x27;: 2.9952},
+        },
+        &#x27;305M&#x27;: {
+            &#x27;domain_1&#x27;: {&#x27;A&#x27;: 0.0374, &#x27;B&#x27;: 0.0498, &#x27;C&#x27;: 2.1469},
+            &#x27;domain_2&#x27;: {&#x27;A&#x27;: 0.0097, &#x27;B&#x27;: 0.0528, &#x27;C&#x27;: 3.1226},
+            &#x27;domain_3&#x27;: {&#x27;A&#x27;: 0.0059, &#x27;B&#x27;: 0.0117, &#x27;C&#x27;: 2.6482},
+            &#x27;domain_4&#x27;: {&#x27;A&#x27;: 0.0240, &#x27;B&#x27;: 0.0370, &#x27;C&#x27;: 1.1838},
+            &#x27;domain_5&#x27;: {&#x27;A&#x27;: 0.1097, &#x27;B&#x27;: 0.1856, &#x27;C&#x27;: 2.8383},
+        },
+        &#x27;410M&#x27;: {
+            &#x27;domain_1&#x27;: {&#x27;A&#x27;: 0.0350, &#x27;B&#x27;: 0.0476, &#x27;C&#x27;: 2.0943},
+            &#x27;domain_2&#x27;: {&#x27;A&#x27;: 0.0057, &#x27;B&#x27;: 0.0351, &#x27;C&#x27;: 3.0684},
+            &#x27;domain_3&#x27;: {&#x27;A&#x27;: 0.0059, &#x27;B&#x27;: 0.0115, &#x27;C&#x27;: 2.5829},
+            &#x27;domain_4&#x27;: {&#x27;A&#x27;: 0.0241, &#x27;B&#x27;: 0.0379, &#x27;C&#x27;: 1.1439},
+            &#x27;domain_5&#x27;: {&#x27;A&#x27;: 0.1109, &#x27;B&#x27;: 0.1828, &#x27;C&#x27;: 2.7604},
+        },
+    }
+
+    predictions = []
+
+    for data_point in input_data:
+        predicted_losses = {}
+        for i in range(1, 6):
+            prop_key = f&#x27;proportion_domain_{i}&#x27;
+            loss_key = f&#x27;loss_domain_{i}&#x27;
+            domain_key = f&#x27;domain_{i}&#x27;
+
+            if prop_key in data_point and group in fitted_params and domain_key in fitted_params[group]:
+                proportion = data_point[prop_key]
+                params = fitted_params[group][domain_key]
+                A, B, C = params[&#x27;A&#x27;], params[&#x27;B&#x27;], params[&#x27;C&#x27;]
+
+                # Apply the scaling law: Loss = C + A / (Proportion + B)
+                # Ensure Proportion + B is not zero; B is fitted to be positive, so this should be safe.
+                predicted_loss = C + A / (proportion + B)
+                predicted_losses[loss_key] = predicted_loss
+            else:
+                # If proportion data is missing or group/domain parameters are not found,
+                # we cannot make a prediction for this loss.
+                predicted_losses[loss_key] = float(&#x27;nan&#x27;) # or raise an error, or a default value
+
+        predictions.append(predicted_losses)
+
+    return predictions</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#2</span>
+                    <span class="run-label">Run 2</span>
+                    <span class="r2-badge" style="background-color: #006400; color: white;">
+                        R² = 0.968235
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-1')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-1">import json
+import os
+
+# Load the fitted parameters from the JSON file
+def load_fitted_params():
+    try:
+        # Assuming fitted_params.json is in the same directory as law.py or /app
+        # During testing, the law.py might be in a different context, so we try to be robust.
+        current_dir = os.path.dirname(__file__)
+        param_path_local = os.path.join(current_dir, &#x27;fitted_params.json&#x27;)
+        param_path_app = os.path.join(&#x27;/app&#x27;, &#x27;fitted_params.json&#x27;)
+
+        if os.path.exists(param_path_local):
+            with open(param_path_local, &#x27;r&#x27;) as f:
+                return json.load(f)
+        elif os.path.exists(param_path_app):
+            with open(param_path_app, &#x27;r&#x27;) as f:
+                return json.load(f)
+        else:
+            raise FileNotFoundError(&quot;fitted_params.json not found in current directory or /app.&quot;)
+    except Exception as e:
+        print(f&quot;Error loading fitted parameters: {e}&quot;)
+        # Fallback to empty parameters if loading fails, or raise a more specific error
+        return {}
+
+FITTED_PARAMS = load_fitted_params()
+
+def law(input_data: list[dict[str, float]], group: str) -&gt; list[dict[str, float]]:
+    &quot;&quot;&quot;
+    Predicts output variables based on input variables according to a discovered scaling law.
+
+    Args:
+        input_data: A list of dictionaries, where each dictionary is a single data
+                    point containing input variable names as keys and their
+                    corresponding values.
+        group: The name of the experimental group for which to make predictions.
+                The functional form of the law must be the same for all groups,
+                but the constant parameters/coefficients can differ per group.
+
+    Returns:
+        A list of dictionaries, corresponding to the input_data list, with each
+        dictionary containing the predicted output variable(s).
+    &quot;&quot;&quot;
+    
+    predictions = []
+    group_params = FITTED_PARAMS.get(group)
+
+    if not group_params:
+        # Handle cases where the group is not found in the fitted parameters.
+        # This could return default values, raise an error, or return None/NaN.
+        # For now, let&#x27;s return None for all predictions.
+        print(f&quot;Warning: Group &#x27;{group}&#x27; not found in fitted parameters. Returning None for losses.&quot;)
+        for _ in input_data:
+            predicted_losses = {}
+            for i in range(1, 6):
+                predicted_losses[f&#x27;loss_domain_{i}&#x27;] = None
+            predictions.append(predicted_losses)
+        return predictions
+
+    for data_point in input_data:
+        predicted_losses = {}
+        for i in range(1, 6):
+            proportion_key = f&#x27;proportion_domain_{i}&#x27;
+            loss_key = f&#x27;loss_domain_{i}&#x27;
+            
+            proportion = data_point.get(proportion_key)
+            domain_params = group_params.get(f&#x27;domain_{i}&#x27;)
+
+            if proportion is None or domain_params is None or any(p is None for p in domain_params.values()):
+                predicted_losses[loss_key] = None
+                continue
+            
+            A = domain_params[&#x27;A&#x27;]
+            k = domain_params[&#x27;k&#x27;]
+            B = domain_params[&#x27;B&#x27;]
+            
+            # Apply the scaling law: loss = A / (proportion + k) + B
+            # Ensure k is not extremely small if proportion is 0 or very small to avoid overflow
+            # We&#x27;ve bounded k to be &gt;= 0.0001 during fitting.
+            predicted_loss = A / (proportion + k) + B
+            predicted_losses[loss_key] = predicted_loss
+        predictions.append(predicted_losses)
+        
+    return predictions</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#3</span>
+                    <span class="run-label">Run 3</span>
+                    <span class="r2-badge" style="background-color: #228B22; color: white;">
+                        R² = 0.902224
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-2')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-2">import json
+import numpy as np
+
+# Global variable to store loaded parameters
+_FITTED_PARAMETERS = None
+
+def _load_parameters():
+    global _FITTED_PARAMETERS
+    if _FITTED_PARAMETERS is None:
+        try:
+            with open(&#x27;/app/fitted_parameters.json&#x27;, &#x27;r&#x27;) as f:
+                _FITTED_PARAMETERS = json.load(f)
+        except FileNotFoundError:
+            print(&quot;Error: fitted_parameters.json not found. Please run analyze_data.py first.&quot;)
+            _FITTED_PARAMETERS = {}
+    return _FITTED_PARAMETERS
+
+def law(input_data: list[dict[str, float]], group: str) -&gt; list[dict[str, float]]:
+    &quot;&quot;&quot;
+    Predicts output variables based on input variables according to a discovered scaling law.
+
+    Args:
+        input_data: A list of dictionaries, where each dictionary is a single data
+                    point containing input variable names as keys and their
+                    corresponding values.
+        group: The name of the experimental group for which to make predictions.
+                The functional form of the law must be the same for all groups,
+                but the constant parameters/coefficients can differ per group.
+
+    Returns:
+        A list of dictionaries, corresponding to the input_data list, with each
+        dictionary containing the predicted output variable(s).
+    &quot;&quot;&quot;
+    params = _load_parameters()
+
+    if group not in params:
+        # Fallback if group not found, e.g., use a default group or raise an error.
+        # For now, let&#x27;s return an empty prediction or average parameters.
+        # The problem statement implies group will be one of the known groups.
+        # If unseen group, this would be an extrapolation case.
+        print(f&quot;Warning: Group &#x27;{group}&#x27; not found in fitted parameters. Cannot make predictions.&quot;)
+        return [{&#x27;loss_domain_1&#x27;: 0.0, &#x27;loss_domain_2&#x27;: 0.0, &#x27;loss_domain_3&#x27;: 0.0, &#x27;loss_domain_4&#x27;: 0.0, &#x27;loss_domain_5&#x27;: 0.0} for _ in input_data]
+
+    group_params = params[group]
+    predictions = []
+
+    for data_point in input_data:
+        predicted_losses = {}
+        for i in range(1, 6):
+            proportion_key = f&#x27;proportion_domain_{i}&#x27;
+            loss_key = f&#x27;loss_domain_{i}&#x27;
+            domain_key = f&#x27;domain_{i}&#x27;
+
+            if proportion_key not in data_point:
+                predicted_losses[loss_key] = 0.0 # Or some default/error handling
+                continue
+
+            proportion = data_point[proportion_key]
+
+            if domain_key in group_params:
+                A = group_params[domain_key][&#x27;A&#x27;]
+                B = group_params[domain_key][&#x27;B&#x27;]
+                
+                # Apply the logarithmic scaling law
+                # Use 1e-6 as epsilon for proportions close to zero or exactly zero
+                predicted_loss = A - B * np.log(proportion + 1e-6)
+                predicted_losses[loss_key] = predicted_loss
+            else:
+                predicted_losses[loss_key] = 0.0 # Fallback if domain parameters not found
+        predictions.append(predicted_losses)
+
+    return predictions</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#4</span>
+                    <span class="run-label">Run 4</span>
+                    <span class="r2-badge" style="background-color: #228B22; color: white;">
+                        R² = 0.809195
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-3')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-3">import numpy as np
+
+def law(input_data: list[dict[str, float]], group: str) -&gt; list[dict[str, float]]:
+    &quot;&quot;&quot;
+    Predicts output variables based on input variables according to a discovered scaling law.
+
+    Args:
+        input_data: A list of dictionaries, where each dictionary is a single data
+                    point containing input variable names as keys and their
+                    corresponding values.
+        group: The name of the experimental group for which to make predictions.
+                The functional form of the law must be the same for all groups,
+                but the constant parameters/coefficients can differ per group.
+
+    Returns:
+        A list of dictionaries, corresponding to the input_data list, with each
+        dictionary containing the predicted output variable(s).
+    &quot;&quot;&quot;
+    
+    # Fitted parameters (A and B) for each group and domain
+    fitted_parameters = {
+        &quot;70M&quot;: {
+            &quot;domain_1&quot;: {&quot;A&quot;: 2.7954155842226505, &quot;B&quot;: 6.194945290313312e-07},
+            &quot;domain_2&quot;: {&quot;A&quot;: 3.666992583441158, &quot;B&quot;: 1.5143629378910318e-07},
+            &quot;domain_3&quot;: {&quot;A&quot;: 3.1770876336775062, &quot;B&quot;: 4.2355238205837483e-07},
+            &quot;domain_4&quot;: {&quot;A&quot;: 1.6957346873000834, &quot;B&quot;: 5.706010522162532e-07},
+            &quot;domain_5&quot;: {&quot;A&quot;: 3.5171284546533235, &quot;B&quot;: 4.146173044780857e-07},
+        },
+        &quot;160M&quot;: {
+            &quot;domain_1&quot;: {&quot;A&quot;: 2.4794515045367107, &quot;B&quot;: 5.809575446413638e-07},
+            &quot;domain_2&quot;: {&quot;A&quot;: 3.3325754438215687, &quot;B&quot;: 1.3956202936091392e-07},
+            &quot;domain_3&quot;: {&quot;A&quot;: 2.8819574855777637, &quot;B&quot;: 4.035983480572172e-07},
+            &quot;domain_4&quot;: {&quot;A&quot;: 1.4542888945325934, &quot;B&quot;: 5.087695900137449e-07},
+            &quot;domain_5&quot;: {&quot;A&quot;: 3.168009255701514, &quot;B&quot;: 4.2690655326847836e-07},
+        },
+        &quot;305M&quot;: {
+            &quot;domain_1&quot;: {&quot;A&quot;: 2.331439324565376, &quot;B&quot;: 5.665932970655655e-07},
+            &quot;domain_2&quot;: {&quot;A&quot;: 3.174052635323413, &quot;B&quot;: 1.3213118365722513e-07},
+            &quot;domain_3&quot;: {&quot;A&quot;: 2.737698767011762, &quot;B&quot;: 4.179249834595783e-07},
+            &quot;domain_4&quot;: {&quot;A&quot;: 1.3457382302771388, &quot;B&quot;: 4.872370934063391e-07},
+            &quot;domain_5&quot;: {&quot;A&quot;: 3.000827223421394, &quot;B&quot;: 4.3358908846628955e-07},
+        },
+        &quot;410M&quot;: {
+            &quot;domain_1&quot;: {&quot;A&quot;: 2.269862140426057, &quot;B&quot;: 5.620207432145631e-07},
+            &quot;domain_2&quot;: {&quot;A&quot;: 3.101893008310117, &quot;B&quot;: 1.2838329492243058e-07},
+            &quot;domain_3&quot;: {&quot;A&quot;: 2.6724486393426763, &quot;B&quot;: 4.2580340959834756e-07},
+            &quot;domain_4&quot;: {&quot;A&quot;: 1.3053577148261022, &quot;B&quot;: 4.74009961564549e-07},
+            &quot;domain_5&quot;: {&quot;A&quot;: 2.925409380072483, &quot;B&quot;: 4.492046744951497e-07},
+        },
+    }
+
+    epsilon = 1e-6
+    predictions = []
+
+    if group not in fitted_parameters:
+        raise ValueError(f&quot;Unknown group: {group}&quot;)
+
+    for data_point in input_data:
+        predicted_losses = {}
+        for i in range(1, 6): # Domains 1 to 5
+            proportion_key = f&#x27;proportion_domain_{i}&#x27;
+            loss_key = f&#x27;loss_domain_{i}&#x27;
+            
+            if proportion_key not in data_point:
+                # If a proportion is missing, we cannot predict its loss.
+                # Or, based on problem, assume it&#x27;s 0 if not present, or raise error.
+                # For now, let&#x27;s assume all proportions are present.
+                # If a proportion for a domain is 0 and it&#x27;s explicitly in input_data,
+                # the epsilon handles it.
+                continue 
+
+            proportion = data_point[proportion_key]
+            
+            domain_params = fitted_parameters[group][f&#x27;domain_{i}&#x27;]
+            A = domain_params[&#x27;A&#x27;]
+            B = domain_params[&#x27;B&#x27;]
+            
+            # Apply the scaling law
+            # Using np.maximum to prevent division by an extremely small or zero value, consistent with fitting.
+            predicted_loss = A + B / np.maximum(proportion + epsilon, 1e-10)
+            predicted_losses[loss_key] = predicted_loss
+        predictions.append(predicted_losses)
+    
+    return predictions</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#5</span>
+                    <span class="run-label">Run 5</span>
+                    <span class="r2-badge" style="background-color: #B22222; color: white;">
+                        R² = -1.000000
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-4')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-4">import json
+import numpy as np
+
+def law(input_data: list[dict[str, float]], group: str) -&gt; list[dict[str, float]]:
+    &quot;&quot;&quot;
+    Predicts output variables based on input variables according to a discovered scaling law.
+
+    Args:
+        input_data: A list of dictionaries, where each dictionary is a single data
+                    point containing input variable names as keys and their
+                    corresponding values.
+        group: The name of the experimental group for which to make predictions.
+                The functional form of the law must be the same for all groups,
+                but the constant parameters/coefficients can differ per group.
+
+    Returns:
+        A list of dictionaries, corresponding to the input_data list, with each
+        dictionary containing the predicted output variable(s).
+
+    &quot;&quot;&quot;    
+    epsilon = 1e-6 # Must match the epsilon used during fitting
+    
+    # Fitted parameters for each group and domain
+    _fitted_params = json.loads( + fitted_params_json_str + &#x27;&#x27;)
+
+    if group not in _fitted_params:
+        raise ValueError(f&quot;Unknown group: {{group}}&quot;)
+
+    predictions = []
+    for data_point in input_data:
+        predicted_losses = {{}}
+        for domain_idx in range(1, 6): # Domains 1 to 5
+            proportion_key = f&#x27;proportion_domain_{{domain_idx}}&#x27;
+            loss_key = f&#x27;loss_domain_{{domain_idx}}&#x27;
+            
+            if proportion_key not in data_point:
+                predicted_losses[loss_key] = float(&#x27;nan&#x27;) 
+                continue
+
+            proportion = data_point[proportion_key]
+            
+            domain_str_idx = str(domain_idx)
+            if domain_str_idx not in _fitted_params[group]:
+                predicted_losses[loss_key] = float(&#x27;nan&#x27;) 
+                continue
+
+            params = _fitted_params[group][domain_str_idx]
+            A = params[&#x27;A&#x27;]
+            B = params[&#x27;B&#x27;]
+            C = params[&#x27;C&#x27;]
+
+            if np.isnan(A) or np.isnan(B) or np.isnan(C):
+                predicted_losses[loss_key] = float(&#x27;nan&#x27;) # No valid parameters
+                continue
+
+            # Apply the scaling law, ensuring (proportion + epsilon) is positive
+            predicted_loss = A * (np.maximum(proportion + epsilon, epsilon))**B + C
+            predicted_losses[loss_key] = predicted_loss
+        predictions.append(predicted_losses)
+    return predictions</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        </div>
+        
+        <footer class="footer">
+            <p>SLDBench | <a href="https://arxiv.org/abs/2507.21184" target="_blank">arXiv:2507.21184</a> | <a href="https://github.com/linhaowei1/SLD" target="_blank">GitHub</a></p>
+        </footer>
+    </div>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script>
+        function toggleRun(header) {
+            const content = header.nextElementSibling;
+            const isExpanded = content.style.display === 'block';
+            content.style.display = isExpanded ? 'none' : 'block';
+            header.classList.toggle('expanded', !isExpanded);
+        }
+        
+        function copyCode(event, codeId) {
+            event.stopPropagation();
+            const code = document.getElementById(codeId).textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                const btn = event.target;
+                btn.textContent = 'Copied!';
+                setTimeout(() => btn.textContent = 'Copy', 2000);
+            });
+        }
+        
+        Prism.highlightAll();
+    </script>
+</body>
+</html>

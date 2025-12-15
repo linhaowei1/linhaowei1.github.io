@@ -1,0 +1,1828 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SLD - Vocabulary Scaling Law - aider + GPT-5</title>
+    <link rel="icon" type="image/png" href="assets/sld_logo.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" rel="stylesheet" />
+    <style>
+        :root {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8f9fa;
+            --accent-primary: #2563eb;
+            --accent-secondary: #3b82f6;
+            --accent-gradient: linear-gradient(135deg, #2563eb 0%, #3b82f6 50%, #60a5fa 100%);
+            --text-primary: #1f2937;
+            --text-secondary: #4b5563;
+            --border-subtle: rgba(0, 0, 0, 0.1);
+            --glass-bg: rgba(0, 0, 0, 0.02);
+            --success: #10b981;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Sora', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            min-height: 100vh;
+            color: var(--text-primary);
+        }
+        
+        .bg-pattern {
+            display: none;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--accent-primary);
+            text-decoration: none;
+            font-size: 0.9rem;
+            margin-bottom: 1.5rem;
+            transition: color 0.2s;
+        }
+        
+        .back-link:hover {
+            color: var(--accent-secondary);
+        }
+        
+        .header {
+            background: var(--glass-bg);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            backdrop-filter: blur(10px);
+        }
+        
+        .header h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            background: var(--accent-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .meta-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+            margin-top: 1rem;
+        }
+        
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .meta-label {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+        
+        .meta-value {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .r2-badge {
+            display: inline-block;
+            padding: 0.3rem 0.6rem;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        .section-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+        
+        .runs-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .run-card {
+            background: var(--glass-bg);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            overflow: hidden;
+            transition: border-color 0.2s;
+        }
+        
+        .run-card:hover {
+            border-color: rgba(99, 102, 241, 0.3);
+        }
+        
+        .run-card.best-run {
+            border-color: var(--success);
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.1);
+        }
+        
+        .run-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 1.25rem;
+            background: rgba(255, 255, 255, 0.02);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .run-header:hover {
+            background: rgba(255, 255, 255, 0.04);
+        }
+        
+        .run-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .run-badge {
+            padding: 0.25rem 0.6rem;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-secondary);
+        }
+        
+        .run-badge.best-badge {
+            background: var(--success);
+            color: white;
+        }
+        
+        .run-label {
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+        
+        .expand-icon {
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            transition: transform 0.2s;
+        }
+        
+        .run-header.expanded .expand-icon {
+            transform: rotate(180deg);
+        }
+        
+        .run-content {
+            border-top: 1px solid var(--border-subtle);
+        }
+        
+        .code-container {
+            overflow: hidden;
+        }
+        
+        .code-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 1.25rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-bottom: 1px solid var(--border-subtle);
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+        
+        .copy-btn {
+            padding: 0.35rem 0.75rem;
+            background: rgba(99, 102, 241, 0.2);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 6px;
+            color: var(--accent-primary);
+            font-size: 0.75rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        
+        .copy-btn:hover {
+            background: rgba(99, 102, 241, 0.3);
+        }
+        
+        .code-container pre {
+            margin: 0;
+            padding: 1.25rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            line-height: 1.6;
+            overflow-x: auto;
+            background: transparent !important;
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 3rem;
+            padding-top: 2rem;
+            border-top: 1px solid var(--border-subtle);
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+        
+        .footer a {
+            color: var(--accent-primary);
+            text-decoration: none;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+            
+            .header h1 {
+                font-size: 1.25rem;
+            }
+            
+            .meta-row {
+                flex-direction: column;
+                gap: 0.75rem;
+            }
+            
+            .run-info {
+                flex-wrap: wrap;
+                gap: 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-pattern"></div>
+    
+    <div class="container">
+        <a href="sld_index.html" class="back-link">
+            ← Back to Leaderboard
+        </a>
+        
+        <div class="header">
+            <h1>Vocabulary Scaling Law</h1>
+            <div class="meta-row">
+                <div class="meta-item">
+                    <span class="meta-label">Agent:</span>
+                    <span class="meta-value">aider</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Model:</span>
+                    <span class="meta-value">GPT-5</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Best R²:</span>
+                    <span class="r2-badge" style="background-color: #228B22; color: white;">
+                        0.904636
+                    </span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Mean R²:</span>
+                    <span class="meta-value">0.132345</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Min R²:</span>
+                    <span class="meta-value">-1.000000</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Runs:</span>
+                    <span class="meta-value">5</span>
+                </div>
+            </div>
+        </div>
+        
+        <h2 class="section-title">All Runs (sorted by R²)</h2>
+        
+        <div class="runs-container">
+            
+        <div class="run-card best-run">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge best-badge">Best</span>
+                    <span class="run-label">Run 1</span>
+                    <span class="r2-badge" style="background-color: #228B22; color: white;">
+                        R² = 0.904636
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: block;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-0')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-0">def law(input_data: list[dict[str, float]], group: str) -&gt; list[dict[str, float]]:
+    &quot;&quot;&quot;
+    Predicts output variables based on input variables according to a discovered scaling law.
+
+    Args:
+        input_data: A list of dictionaries, where each dictionary is a single data
+                    point containing input variable names as keys and their
+                    corresponding values.
+        group: The name of the experimental group for which to make predictions.
+                The functional form of the law must be the same for all groups,
+                but the constant parameters/coefficients can differ per group.
+
+    Returns:
+        A list of dictionaries, corresponding to the input_data list, with each
+        dictionary containing the predicted output variable(s).
+    &quot;&quot;&quot;
+    # Lazy-fit coefficients from /app/data on first call, cache for reuse.
+    # The discovered functional form is:
+    #   L = L_inf + K * N^a * D^b * V^c
+    # where:
+    #   L = unigram_normalized_loss
+    #   N = non_vocab_parameters
+    #   D = num_characters
+    #   V = vocab_size
+    # and (L_inf, K, a, b, c) depend on the group but the form is shared.
+    import math
+
+    # A minimal, sane default in case fitting can&#x27;t run (e.g., datasets/numpy missing).
+    DEFAULT_PARAMS = {&quot;L_inf&quot;: 0.6, &quot;K&quot;: 0.4, &quot;a&quot;: -0.1, &quot;b&quot;: -0.1, &quot;c&quot;: -0.1}
+
+    # Initialize caches on the function object
+    if not hasattr(law, &quot;_params_by_group&quot;):
+        law._params_by_group = {}  # type: ignore[attr-defined]
+    if not hasattr(law, &quot;_fitted&quot;):
+        law._fitted = False  # type: ignore[attr-defined]
+
+    def _safe_float(x, default=1.0):
+        try:
+            return float(x)
+        except Exception:
+            return float(default)
+
+    def _predict_with_params(params, rows):
+        L_inf = params[&quot;L_inf&quot;]
+        K = params[&quot;K&quot;]
+        a = params[&quot;a&quot;]
+        b = params[&quot;b&quot;]
+        c = params[&quot;c&quot;]
+        preds = []
+        for row in rows:
+            V = max(_safe_float(row.get(&quot;vocab_size&quot;, 0.0)), 1e-12)
+            N = max(_safe_float(row.get(&quot;non_vocab_parameters&quot;, 0.0)), 1e-12)
+            D = max(_safe_float(row.get(&quot;num_characters&quot;, 0.0)), 1e-12)
+            pred = L_inf + K * (N ** a) * (D ** b) * (V ** c)
+            preds.append({&quot;unigram_normalized_loss&quot;: float(pred)})
+        return preds
+
+    def _write_explain_md(params_by_group):
+        # Best-effort write; ignore any filesystem errors.
+        try:
+            lines = []
+            lines.append(&quot;# Scaling law for unigram-normalized loss&quot;)
+            lines.append(&quot;&quot;)
+            lines.append(&quot;We model the unigram-normalized loss (L) as a sum of an irreducible floor and a separable power-law over compute, data, and vocabulary:&quot;)
+            lines.append(&quot;&quot;)
+            lines.append(&quot;L = L_inf + K * N^a * D^b * V^c&quot;)
+            lines.append(&quot;&quot;)
+            lines.append(&quot;where:&quot;)
+            lines.append(&quot;- L: unigram_normalized_loss&quot;)
+            lines.append(&quot;- N: non_vocabulary parameters (non_vocab_parameters)&quot;)
+            lines.append(&quot;- D: total training characters (num_characters)&quot;)
+            lines.append(&quot;- V: vocabulary size (vocab_size)&quot;)
+            lines.append(&quot;&quot;)
+            lines.append(&quot;Methodology summary:&quot;)
+            lines.append(&quot;- For each group, we choose L_inf via a grid search below the minimum observed loss.&quot;)
+            lines.append(&quot;- Given a candidate L_inf, we fit ln(L - L_inf) = ln K + a ln N + b ln D + c ln V via least squares.&quot;)
+            lines.append(&quot;- We select the L_inf that minimizes the squared residuals in log-space.&quot;)
+            lines.append(&quot;&quot;)
+            lines.append(&quot;## Fitted parameters by group&quot;)
+            lines.append(&quot;&quot;)
+            if not params_by_group:
+                lines.append(&quot;_No dataset found during fitting; defaults in use._&quot;)
+            else:
+                # Show GLOBAL first if present
+                ordered = []
+                if &quot;GLOBAL&quot; in params_by_group:
+                    ordered.append((&quot;GLOBAL&quot;, params_by_group[&quot;GLOBAL&quot;]))
+                ordered.extend([(g, p) for g, p in params_by_group.items() if g != &quot;GLOBAL&quot;])
+                for g, p in ordered:
+                    lines.append(f&quot;### {g}&quot;)
+                    lines.append(f&quot;- L_inf: {p[&#x27;L_inf&#x27;]:.6g}&quot;)
+                    lines.append(f&quot;- K: {p[&#x27;K&#x27;]:.6g}&quot;)
+                    lines.append(f&quot;- a (non_vocab_parameters exponent): {p[&#x27;a&#x27;]:.6g}&quot;)
+                    lines.append(f&quot;- b (num_characters exponent): {p[&#x27;b&#x27;]:.6g}&quot;)
+                    lines.append(f&quot;- c (vocab_size exponent): {p[&#x27;c&#x27;]:.6g}&quot;)
+                    lines.append(&quot;&quot;)
+            with open(&quot;/app/explain.md&quot;, &quot;w&quot;, encoding=&quot;utf-8&quot;) as f:
+                f.write(&quot;\n&quot;.join(lines) + &quot;\n&quot;)
+        except Exception:
+            pass
+
+    def _fit_if_needed():
+        if law._fitted:  # type: ignore[attr-defined]
+            return
+        # Attempt to fit from /app/data
+        params_by_group = {}
+
+        # Small helper to set defaults when fit fails
+        def _set_defaults(groups):
+            if not groups:
+                params_by_group[&quot;GLOBAL&quot;] = DEFAULT_PARAMS.copy()
+            for g in groups:
+                params_by_group[g] = DEFAULT_PARAMS.copy()
+
+        try:
+            # Import locally to keep the file limited to a single public function.
+            try:
+                import numpy as np  # type: ignore
+            except Exception:
+                # Can&#x27;t fit without numpy
+                _set_defaults(groups=[])
+                law._params_by_group = params_by_group  # type: ignore[attr-defined]
+                law._fitted = True  # type: ignore[attr-defined]
+                _write_explain_md(params_by_group)
+                return
+
+            try:
+                from datasets import load_from_disk  # type: ignore
+            except Exception:
+                # Can&#x27;t load dataset, fall back to defaults
+                _set_defaults(groups=[])
+                law._params_by_group = params_by_group  # type: ignore[attr-defined]
+                law._fitted = True  # type: ignore[attr-defined]
+                _write_explain_md(params_by_group)
+                return
+
+            ds = load_from_disk(&quot;/app/data&quot;)
+
+            # Flatten to a list of Python dicts
+            rows = []
+            try:
+                # Dataset or DatasetDict
+                if hasattr(ds, &quot;keys&quot;) and callable(ds.keys):
+                    for k in ds.keys():
+                        split = ds[k]
+                        for r in split:
+                            rows.append(dict(r))
+                else:
+                    for r in ds:
+                        rows.append(dict(r))
+            except Exception:
+                # As a fallback, try to access .to_list()
+                try:
+                    rows = list(ds.to_list())
+                except Exception:
+                    rows = []
+
+            # Identify group column
+            group_col = None
+            if rows:
+                candidate_cols = [&quot;group&quot;, &quot;Group&quot;, &quot;group_name&quot;, &quot;experiment_group&quot;, &quot;family&quot;]
+                sample_keys = rows[0].keys()
+                for c in candidate_cols:
+                    if c in sample_keys:
+                        group_col = c
+                        break
+
+            if not rows:
+                _set_defaults(groups=[])
+                law._params_by_group = params_by_group  # type: ignore[attr-defined]
+                law._fitted = True  # type: ignore[attr-defined]
+                _write_explain_md(params_by_group)
+                return
+
+            # Build groups
+            if group_col is None:
+                groups = {&quot;GLOBAL&quot;: rows}
+            else:
+                groups = {}
+                for r in rows:
+                    g = r.get(group_col, &quot;GLOBAL&quot;)
+                    if g is None:
+                        g = &quot;GLOBAL&quot;
+                    g = str(g)
+                    groups.setdefault(g, []).append(r)
+
+            # Always include GLOBAL as an aggregate fit across all
+            if group_col is not None:
+                groups[&quot;GLOBAL&quot;] = rows
+
+            # Fit each group
+            for gname, grows in groups.items():
+                # Extract and validate
+                N_list = []
+                D_list = []
+                V_list = []
+                Y_list = []
+                for r in grows:
+                    try:
+                        V = float(r.get(&quot;vocab_size&quot;, float(&quot;nan&quot;)))
+                        N = float(r.get(&quot;non_vocab_parameters&quot;, float(&quot;nan&quot;)))
+                        D = float(r.get(&quot;num_characters&quot;, float(&quot;nan&quot;)))
+                        Y = float(r.get(&quot;unigram_normalized_loss&quot;, float(&quot;nan&quot;)))
+                    except Exception:
+                        continue
+                    if not (V &gt; 0 and N &gt; 0 and D &gt; 0 and math.isfinite(V) and math.isfinite(N) and math.isfinite(D)):
+                        continue
+                    if not (math.isfinite(Y)):
+                        continue
+                    N_list.append(N)
+                    D_list.append(D)
+                    V_list.append(V)
+                    Y_list.append(Y)
+
+                if len(Y_list) &lt; 8:
+                    # Not enough data to fit robustly
+                    params_by_group[gname] = DEFAULT_PARAMS.copy()
+                    continue
+
+                N_arr = np.array(N_list, dtype=np.float64)
+                D_arr = np.array(D_list, dtype=np.float64)
+                V_arr = np.array(V_list, dtype=np.float64)
+                Y_arr = np.array(Y_list, dtype=np.float64)
+
+                # Grid search for L_inf below min(Y)
+                y_min = float(np.min(Y_arr))
+                y_max = float(np.max(Y_arr))
+                y_range = max(y_max - y_min, 1e-6)
+                L_low = y_min - 0.5 * y_range
+                L_high = y_min - 1e-8
+                # Ensure strictly less than min(Y)
+                if L_low &gt;= L_high:
+                    L_low = y_min - 0.5 * max(y_range, 1.0)
+                    L_high = y_min - 1e-8
+
+                L_candidates = np.linspace(L_low, L_high, num=80, dtype=np.float64)
+
+                lnN = np.log(N_arr)
+                lnD = np.log(D_arr)
+                lnV = np.log(V_arr)
+                X = np.column_stack([lnN, lnD, lnV, np.ones_like(lnN)])
+
+                best_sse = float(&quot;inf&quot;)
+                best = None
+
+                for L_inf in L_candidates:
+                    Z = Y_arr - L_inf
+                    if np.any(Z &lt;= 0):
+                        continue
+                    lnZ = np.log(Z)
+                    # Solve for theta: [a, b, c, lnK]
+                    try:
+                        theta, _, _, _ = np.linalg.lstsq(X, lnZ, rcond=None)
+                    except Exception:
+                        continue
+                    residuals = lnZ - X.dot(theta)
+                    sse = float(np.dot(residuals, residuals))
+                    if sse &lt; best_sse and np.isfinite(sse):
+                        best_sse = sse
+                        a, b, c, lnK = [float(t) for t in theta]
+                        K = float(math.exp(lnK))
+                        best = {&quot;L_inf&quot;: float(L_inf), &quot;K&quot;: K, &quot;a&quot;: a, &quot;b&quot;: b, &quot;c&quot;: c}
+
+                if best is None:
+                    params_by_group[gname] = DEFAULT_PARAMS.copy()
+                else:
+                    params_by_group[gname] = best
+
+            law._params_by_group = params_by_group  # type: ignore[attr-defined]
+            law._fitted = True  # type: ignore[attr-defined]
+            _write_explain_md(params_by_group)
+            return
+        except Exception:
+            _set_defaults(groups=[])
+            law._params_by_group = params_by_group  # type: ignore[attr-defined]
+            law._fitted = True  # type: ignore[attr-defined]
+            _write_explain_md(params_by_group)
+            return
+
+    # Ensure parameters are available
+    _fit_if_needed()
+
+    # Prepare predictions
+    params_for_group = getattr(law, &quot;_params_by_group&quot;, {}).get(group)  # type: ignore[attr-defined]
+    if params_for_group is None:
+        params_for_group = getattr(law, &quot;_params_by_group&quot;, {}).get(&quot;GLOBAL&quot;)  # type: ignore[attr-defined]
+    if params_for_group is None:
+        params_for_group = DEFAULT_PARAMS
+
+    # If input_data is empty, this call can still be used to trigger fitting and explain.md generation.
+    if not input_data:
+        return []
+
+    return _predict_with_params(params_for_group, input_data)</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#2</span>
+                    <span class="run-label">Run 2</span>
+                    <span class="r2-badge" style="background-color: #228B22; color: white;">
+                        R² = 0.895969
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-1')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-1">from __future__ import annotations
+
+import math
+import os
+from typing import Dict, List, Tuple
+
+import numpy as np
+
+try:
+    from datasets import load_from_disk, DatasetDict, concatenate_datasets
+except Exception:  # datasets might not be available in some environments
+    load_from_disk = None
+    DatasetDict = None
+    concatenate_datasets = None
+
+# Module-level storage for fitted parameters per group.
+# Each value is a dict with keys: L_inf, K, a, b, c
+_PARAMS: Dict[str, Dict[str, float]] = {}
+
+
+def _safe_log(x: np.ndarray, eps: float = 1e-12) -&gt; np.ndarray:
+    return np.log(np.clip(x, eps, None))
+
+
+def _fit_power_law_with_floor(
+    V: np.ndarray,
+    Pnv: np.ndarray,
+    N: np.ndarray,
+    y: np.ndarray,
+) -&gt; Dict[str, float]:
+    &quot;&quot;&quot;
+    Fit y ≈ L_inf + K * V^a * Pnv^b * N^c
+    by grid-searching L_inf and doing linear least squares on logs for (K, a, b, c).
+    &quot;&quot;&quot;
+    V = V.astype(np.float64)
+    Pnv = Pnv.astype(np.float64)
+    N = N.astype(np.float64)
+    y = y.astype(np.float64)
+
+    # Filter any non-positive inputs (cannot take logs)
+    mask = (V &gt; 0) &amp; (Pnv &gt; 0) &amp; (N &gt; 0) &amp; np.isfinite(y)
+    V, Pnv, N, y = V[mask], Pnv[mask], N[mask], y[mask]
+
+    # Fallback if insufficient data
+    if y.size &lt; 4:
+        return {&quot;L_inf&quot;: float(max(0.0, np.min(y) - 1e-6) if y.size else 0.0),
+                &quot;K&quot;: 1.0, &quot;a&quot;: -0.2, &quot;b&quot;: -0.1, &quot;c&quot;: -0.3}
+
+    y_min = float(np.min(y))
+    y_range = float(np.max(y) - y_min + 1e-12)
+
+    # Construct candidate L_inf values strictly below min(y)
+    # Use a blend of linear and logarithmic spacing for robustness
+    candidates: List[float] = []
+
+    # Linear approach near min(y)
+    linear_fracs = np.linspace(1e-4, 0.9, 40)
+    for f in linear_fracs:
+        candidates.append(y_min - f * max(y_min, 1e-6))
+
+    # Log-spaced deltas away from min(y)
+    if y_min &gt; 0:
+        deltas = np.logspace(math.log10(y_min * 1e-6), math.log10(y_min * 0.99), 40)
+        for d in deltas:
+            candidates.append(y_min - d)
+
+    # Ensure 0 is considered if allowed (it is less than y_min if y_min &gt; 0)
+    if y_min &gt; 0:
+        candidates.append(0.0)
+
+    # Deduplicate and sort
+    cand_arr = np.unique(np.array(candidates, dtype=np.float64))
+    cand_arr = cand_arr[cand_arr &lt; y_min - 1e-12]
+    if cand_arr.size == 0:
+        cand_arr = np.array([y_min * 0.99], dtype=np.float64)
+
+    x1 = _safe_log(V)
+    x2 = _safe_log(Pnv)
+    x3 = _safe_log(N)
+    X = np.stack([np.ones_like(x1), x1, x2, x3], axis=1)
+
+    best: Tuple[float, np.ndarray, float] | None = None  # (L_inf, beta, sse)
+
+    for L0 in cand_arr:
+        diff = y - L0
+        if np.any(diff &lt;= 0):
+            continue
+        z = np.log(diff)
+        try:
+            beta, residuals, rank, s = np.linalg.lstsq(X, z, rcond=None)
+            if residuals.size:
+                sse = float(residuals[0])
+            else:
+                # If residuals not returned (e.g., exact fit), compute manually
+                z_hat = X @ beta
+                sse = float(np.sum((z - z_hat) ** 2))
+            if (best is None) or (sse &lt; best[2]):
+                best = (float(L0), beta, sse)
+        except Exception:
+            continue
+
+    # Fallback if fit failed
+    if best is None:
+        return {&quot;L_inf&quot;: float(y_min * 0.99), &quot;K&quot;: 1.0, &quot;a&quot;: -0.2, &quot;b&quot;: -0.1, &quot;c&quot;: -0.3}
+
+    L_star, beta, _ = best
+    K = float(np.exp(beta[0]))
+    a = float(beta[1])
+    b = float(beta[2])
+    c = float(beta[3])
+
+    # Guard against pathological values
+    if not np.isfinite(K) or K &lt;= 0:
+        K = 1.0
+    for val in (a, b, c):
+        if not np.isfinite(val):
+            a, b, c = -0.2, -0.1, -0.3
+            break
+
+    return {&quot;L_inf&quot;: float(L_star), &quot;K&quot;: K, &quot;a&quot;: a, &quot;b&quot;: b, &quot;c&quot;: c}
+
+
+def _load_and_fit(path: str = &quot;/app/data&quot;) -&gt; Dict[str, Dict[str, float]]:
+    &quot;&quot;&quot;
+    Load dataset from disk and fit parameters per group and globally.
+    Expected fields: vocab_size, non_vocab_parameters, num_characters,
+    unigram_normalized_loss, and a grouping column (default &#x27;group&#x27;).
+    &quot;&quot;&quot;
+    params: Dict[str, Dict[str, float]] = {}
+
+    if load_from_disk is None:
+        # Datasets lib not available; return a generic global model
+        params[&quot;_GLOBAL&quot;] = {&quot;L_inf&quot;: 0.0, &quot;K&quot;: 1.0, &quot;a&quot;: -0.2, &quot;b&quot;: -0.1, &quot;c&quot;: -0.3}
+        return params
+
+    try:
+        ds = load_from_disk(path)
+    except Exception:
+        params[&quot;_GLOBAL&quot;] = {&quot;L_inf&quot;: 0.0, &quot;K&quot;: 1.0, &quot;a&quot;: -0.2, &quot;b&quot;: -0.1, &quot;c&quot;: -0.3}
+        return params
+
+    # Merge splits if present
+    try:
+        if isinstance(ds, DatasetDict):
+            parts = [ds[k] for k in ds.keys()]
+            ds = concatenate_datasets(parts)
+    except Exception:
+        pass
+
+    colnames = set(getattr(ds, &quot;column_names&quot;, []))
+    # Try common group column names
+    group_col = None
+    for cand in (&quot;group&quot;, &quot;group_name&quot;, &quot;Group&quot;, &quot;dataset_group&quot;):
+        if cand in colnames:
+            group_col = cand
+            break
+
+    # Extract arrays
+    required = [&quot;vocab_size&quot;, &quot;non_vocab_parameters&quot;, &quot;num_characters&quot;, &quot;unigram_normalized_loss&quot;]
+    for req in required:
+        if req not in colnames:
+            # Missing expected columns; return generic
+            params[&quot;_GLOBAL&quot;] = {&quot;L_inf&quot;: 0.0, &quot;K&quot;: 1.0, &quot;a&quot;: -0.2, &quot;b&quot;: -0.1, &quot;c&quot;: -0.3}
+            return params
+
+    V_all = np.array(ds[&quot;vocab_size&quot;], dtype=np.float64)
+    Pnv_all = np.array(ds[&quot;non_vocab_parameters&quot;], dtype=np.float64)
+    N_all = np.array(ds[&quot;num_characters&quot;], dtype=np.float64)
+    y_all = np.array(ds[&quot;unigram_normalized_loss&quot;], dtype=np.float64)
+
+    # Fit global model
+    params[&quot;_GLOBAL&quot;] = _fit_power_law_with_floor(V_all, Pnv_all, N_all, y_all)
+
+    # Fit per group if possible
+    if group_col is not None:
+        groups = np.array(ds[group_col])
+        # Normalize group labels to strings for keys
+        groups = np.array([str(g) for g in groups])
+        unique_groups = np.unique(groups)
+        for g in unique_groups:
+            mask = (groups == g)
+            Vg = V_all[mask]
+            Pnvg = Pnv_all[mask]
+            Ng = N_all[mask]
+            yg = y_all[mask]
+            params[str(g)] = _fit_power_law_with_floor(Vg, Pnvg, Ng, yg)
+
+    return params
+
+
+def _write_explain_md(params: Dict[str, Dict[str, float]], path: str = &quot;/app/explain.md&quot;) -&gt; None:
+    &quot;&quot;&quot;
+    Write a human-readable explanation of the law and the fitted parameters.
+    &quot;&quot;&quot;
+    lines: List[str] = []
+    lines.append(&quot;# Scaling Law for Unigram-Normalized Loss vs. Vocabulary Size\n&quot;)
+    lines.append(&quot;This document describes the discovered scaling law relating the unigram-normalized loss to:\n&quot;)
+    lines.append(&quot;- vocabulary size V (`vocab_size`)\n- non-vocabulary parameters P_nv (`non_vocab_parameters`)\n- number of training characters N (`num_characters`).\n&quot;)
+    lines.append(&quot;\n## Functional Form\n&quot;)
+    lines.append(&quot;We model the loss L as a power-law with a floor (irreducible loss):\n&quot;)
+    lines.append(&quot;\nL_hat = L_inf(group) + K(group) * V^{a(group)} * P_nv^{b(group)} * N^{c(group)}\n&quot;)
+    lines.append(&quot;\n- L_inf(group): irreducible loss floor for the group.\n- K(group): scale factor.\n- a(group), b(group), c(group): exponents capturing how loss changes with V, P_nv, and N.\n&quot;)
+    lines.append(&quot;\nThe functional form is identical across groups; only coefficients differ by group.\n&quot;)
+    lines.append(&quot;\n## Fitting Methodology\n&quot;)
+    lines.append(&quot;We fit parameters per group using the dataset at `/app/data` (loaded with `datasets.load_from_disk`).\n&quot;)
+    lines.append(&quot;For each group, we grid-search candidate values for L_inf strictly below the minimum observed loss,\n&quot;)
+    lines.append(&quot;and for each candidate we perform linear least squares on the log-transformed relation:\n&quot;)
+    lines.append(&quot;\nlog(L - L_inf) = log K + a log V + b log P_nv + c log N\n&quot;)
+    lines.append(&quot;\nWe select the L_inf that minimizes the residual sum of squares. A global model is also fit over all groups.\n&quot;)
+    lines.append(&quot;\n## Fitted Parameters by Group\n&quot;)
+    lines.append(&quot;The table below is generated at runtime when `law.py` is imported. If this table is empty or stale, run:\n&quot;)
+    lines.append(&quot;\n```\npython -c \&quot;import importlib, sys; sys.path.append(&#x27;/app&#x27;); import law\&quot;\n```\n&quot;)
+    lines.append(&quot;\n| Group | L_inf | K | a | b | c |\n&quot;)
+    lines.append(&quot;|---|---:|---:|---:|---:|---:|\n&quot;)
+    # Add global first
+    if &quot;_GLOBAL&quot; in params:
+        p = params[&quot;_GLOBAL&quot;]
+        lines.append(f&quot;| _GLOBAL | {p[&#x27;L_inf&#x27;]:.6g} | {p[&#x27;K&#x27;]:.6g} | {p[&#x27;a&#x27;]:.6g} | {p[&#x27;b&#x27;]:.6g} | {p[&#x27;c&#x27;]:.6g} |\n&quot;)
+    # Then other groups in sorted order
+    for g in sorted([k for k in params.keys() if k != &quot;_GLOBAL&quot;]):
+        p = params[g]
+        lines.append(f&quot;| {g} | {p[&#x27;L_inf&#x27;]:.6g} | {p[&#x27;K&#x27;]:.6g} | {p[&#x27;a&#x27;]:.6g} | {p[&#x27;b&#x27;]:.6g} | {p[&#x27;c&#x27;]:.6g} |\n&quot;)
+
+    # Best-effort write (ignore errors)
+    try:
+        with open(path, &quot;w&quot;, encoding=&quot;utf-8&quot;) as f:
+            f.writelines(lines)
+    except Exception:
+        pass
+
+
+# Fit parameters during import (best effort) so law() can use them directly
+try:
+    _PARAMS = _load_and_fit(&quot;/app/data&quot;)
+    if _PARAMS:
+        _write_explain_md(_PARAMS, &quot;/app/explain.md&quot;)
+except Exception:
+    # Leave _PARAMS possibly empty; law() will handle fallback
+    _PARAMS = _PARAMS or {}
+
+
+def _get_params_for_group(group: str) -&gt; Dict[str, float]:
+    if group in _PARAMS:
+        return _PARAMS[group]
+    if &quot;_GLOBAL&quot; in _PARAMS:
+        return _PARAMS[&quot;_GLOBAL&quot;]
+    # Final fallback
+    return {&quot;L_inf&quot;: 0.0, &quot;K&quot;: 1.0, &quot;a&quot;: -0.2, &quot;b&quot;: -0.1, &quot;c&quot;: -0.3}
+
+
+def law(input_data: list[dict[str, float]], group: str) -&gt; list[dict[str, float]]:
+    &quot;&quot;&quot;
+    Predicts output variables based on input variables according to a discovered scaling law.
+
+    Args:
+        input_data: A list of dictionaries, where each dictionary is a single data
+                    point containing input variable names as keys and their
+                    corresponding values. Required keys per item:
+                    - &#x27;vocab_size&#x27;
+                    - &#x27;non_vocab_parameters&#x27;
+                    - &#x27;num_characters&#x27;
+        group: The name of the experimental group for which to make predictions.
+                The functional form of the law is shared across groups; coefficients
+                differ per group.
+
+    Returns:
+        A list of dictionaries, corresponding to the input_data list, with each
+        dictionary containing the predicted output variable(s):
+        - &#x27;unigram_normalized_loss&#x27;
+    &quot;&quot;&quot;
+    params = _get_params_for_group(str(group))
+    L_inf = float(params[&quot;L_inf&quot;])
+    K = float(params[&quot;K&quot;])
+    a = float(params[&quot;a&quot;])
+    b = float(params[&quot;b&quot;])
+    c = float(params[&quot;c&quot;])
+
+    preds: List[Dict[str, float]] = []
+    eps = 1e-12
+
+    for row in input_data:
+        try:
+            V = float(row[&quot;vocab_size&quot;])
+            Pnv = float(row[&quot;non_vocab_parameters&quot;])
+            N = float(row[&quot;num_characters&quot;])
+        except Exception as e:
+            raise ValueError(&quot;Each input row must contain &#x27;vocab_size&#x27;, &#x27;non_vocab_parameters&#x27;, and &#x27;num_characters&#x27;&quot;) from e
+
+        # Ensure positivity for exponentiation stability
+        V = V if V &gt; 0 else eps
+        Pnv = Pnv if Pnv &gt; 0 else eps
+        N = N if N &gt; 0 else eps
+
+        y_hat = L_inf + K * (V ** a) * (Pnv ** b) * (N ** c)
+        # Guard against NaN/inf
+        if not np.isfinite(y_hat):
+            y_hat = float(L_inf)
+
+        preds.append({&quot;unigram_normalized_loss&quot;: float(y_hat)})
+
+    return preds</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#3</span>
+                    <span class="run-label">Run 3</span>
+                    <span class="r2-badge" style="background-color: #228B22; color: white;">
+                        R² = 0.861121
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-2')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-2">from __future__ import annotations
+
+import math
+from typing import Dict, List
+
+import numpy as np
+
+# We intentionally import inside the fit routine to avoid import-time failures
+# in environments where `datasets` might not be installed for static analysis.
+_DATA_PATH = &quot;/app/data&quot;
+
+# Cache for per-group coefficients: group -&gt; np.ndarray of shape (4,)
+_COEFFS_BY_GROUP: dict[str, np.ndarray] = {}
+_FITTED: bool = False
+
+
+def _safe_log(x: float, eps: float = 1e-12) -&gt; float:
+    return math.log(max(float(x), eps))
+
+
+def _fit_from_disk() -&gt; None:
+    &quot;&quot;&quot;
+    Fit a log-linear scaling law per experimental group:
+        y = β0 + βV * log(V) + βP * log(Pnv) + βN * log(Nchars)
+    where:
+        y = unigram_normalized_loss
+        V = vocab_size
+        Pnv = non_vocab_parameters
+        Nchars = num_characters
+    &quot;&quot;&quot;
+    global _COEFFS_BY_GROUP, _FITTED
+
+    if _FITTED:
+        return
+
+    try:
+        from datasets import load_from_disk
+    except Exception as e:
+        # If datasets isn&#x27;t available, defer fitting; predictions will raise with a clear message.
+        raise RuntimeError(
+            &quot;The &#x27;datasets&#x27; package is required to fit the scaling law from /app/data.&quot;
+        ) from e
+
+    ds = load_from_disk(_DATA_PATH)
+
+    # Collect all rows across splits if a DatasetDict, else single dataset
+    splits = []
+    try:
+        # DatasetDict has .values()
+        splits = list(ds.values())  # type: ignore[attr-defined]
+    except Exception:
+        # Single split Dataset
+        splits = [ds]
+
+    rows: List[Dict[str, float]] = []
+    for split in splits:
+        # Iterating over HF Datasets yields dicts
+        for rec in split:
+            rows.append(rec)
+
+    if not rows:
+        raise RuntimeError(f&quot;No data rows found in {_DATA_PATH}&quot;)
+
+    # Build per-group buckets
+    by_group: Dict[str, List[Dict[str, float]]] = {}
+    for r in rows:
+        g = r.get(&quot;group&quot;, &quot;GLOBAL&quot;)
+        by_group.setdefault(g, []).append(r)
+    # Also keep a GLOBAL group with all data for fallback
+    by_group[&quot;GLOBAL&quot;] = rows
+
+    coeffs: dict[str, np.ndarray] = {}
+
+    for g, grp_rows in by_group.items():
+        X_list: List[List[float]] = []
+        y_list: List[float] = []
+        for r in grp_rows:
+            try:
+                V = float(r[&quot;vocab_size&quot;])
+                Pnv = float(r[&quot;non_vocab_parameters&quot;])
+                Nchars = float(r[&quot;num_characters&quot;])
+                y = float(r[&quot;unigram_normalized_loss&quot;])
+            except KeyError:
+                # Skip rows missing required fields
+                continue
+
+            X_list.append(
+                [
+                    1.0,
+                    _safe_log(V),
+                    _safe_log(Pnv),
+                    _safe_log(Nchars),
+                ]
+            )
+            y_list.append(y)
+
+        X = np.asarray(X_list, dtype=np.float64)
+        yv = np.asarray(y_list, dtype=np.float64)
+
+        if X.shape[0] &lt; 4:
+            # Not enough data to fit reliably; skip and use GLOBAL later
+            continue
+
+        # Solve least squares: minimize ||X*β - y||
+        beta, *_ = np.linalg.lstsq(X, yv, rcond=None)
+        coeffs[g] = beta
+
+    # Ensure we have a GLOBAL fit; this should exist unless data was empty or malformed
+    if &quot;GLOBAL&quot; not in coeffs:
+        # Attempt to fit GLOBAL minimally, error if impossible
+        X_list: List[List[float]] = []
+        y_list: List[float] = []
+        for r in rows:
+            try:
+                V = float(r[&quot;vocab_size&quot;])
+                Pnv = float(r[&quot;non_vocab_parameters&quot;])
+                Nchars = float(r[&quot;num_characters&quot;])
+                y = float(r[&quot;unigram_normalized_loss&quot;])
+            except KeyError:
+                continue
+            X_list.append([1.0, _safe_log(V), _safe_log(Pnv), _safe_log(Nchars)])
+            y_list.append(y)
+
+        X = np.asarray(X_list, dtype=np.float64)
+        yv = np.asarray(y_list, dtype=np.float64)
+        if X.shape[0] &lt; 4:
+            raise RuntimeError(&quot;Insufficient data to fit even a GLOBAL model.&quot;)
+        beta, *_ = np.linalg.lstsq(X, yv, rcond=None)
+        coeffs[&quot;GLOBAL&quot;] = beta
+
+    _COEFFS_BY_GROUP = coeffs
+    _FITTED = True
+
+
+def _get_coeffs_for_group(group: str) -&gt; np.ndarray:
+    if not _FITTED:
+        _fit_from_disk()
+    # Exact group, else fallback to GLOBAL
+    if group in _COEFFS_BY_GROUP:
+        return _COEFFS_BY_GROUP[group]
+    return _COEFFS_BY_GROUP[&quot;GLOBAL&quot;]
+
+
+def law(input_data: list[dict[str, float]], group: str) -&gt; list[dict[str, float]]:
+    &quot;&quot;&quot;
+    Predicts output variables based on input variables according to a discovered scaling law.
+
+    Args:
+        input_data: A list of dictionaries, where each dictionary is a single data
+                    point containing input variable names as keys and their
+                    corresponding values.
+        group: The name of the experimental group for which to make predictions.
+                The functional form of the law must be the same for all groups,
+                but the constant parameters/coefficients can differ per group.
+
+    Returns:
+        A list of dictionaries, corresponding to the input_data list, with each
+        dictionary containing the predicted output variable(s).
+    &quot;&quot;&quot;
+    beta = _get_coeffs_for_group(group)
+
+    preds: List[Dict[str, float]] = []
+    for row in input_data:
+        V = float(row.get(&quot;vocab_size&quot;, 0.0))
+        Pnv = float(row.get(&quot;non_vocab_parameters&quot;, 0.0))
+        Nchars = float(row.get(&quot;num_characters&quot;, 0.0))
+        x = np.array([1.0, _safe_log(V), _safe_log(Pnv), _safe_log(Nchars)], dtype=np.float64)
+        y_hat = float(x @ beta)
+        preds.append({&quot;unigram_normalized_loss&quot;: y_hat})
+    return preds
+
+
+def _format_coeffs(beta: np.ndarray) -&gt; str:
+    # β0, βV, βP, βN
+    return (
+        f&quot;beta0={beta[0]:.6g}, beta_V_log={beta[1]:.6g}, &quot;
+        f&quot;beta_Pnv_log={beta[2]:.6g}, beta_Nchars_log={beta[3]:.6g}&quot;
+    )
+
+
+if __name__ == &quot;__main__&quot;:
+    # Simple CLI to print fitted coefficients per group
+    try:
+        _fit_from_disk()
+        print(&quot;Fitted coefficients by group (y = β0 + βV*log(V) + βP*log(Pnv) + βN*log(Nchars))&quot;)
+        for g, b in sorted(_COEFFS_BY_GROUP.items()):
+            print(f&quot;- {g}: {_format_coeffs(b)}&quot;)
+    except Exception as e:
+        print(f&quot;Failed to fit coefficients: {e}&quot;)</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#4</span>
+                    <span class="run-label">Run 4</span>
+                    <span class="r2-badge" style="background-color: #B22222; color: white;">
+                        R² = -1.000000
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-3')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-3">from __future__ import annotations
+
+import json
+import math
+import os
+from typing import Dict, List, Tuple
+
+import numpy as np
+
+try:
+    from datasets import load_from_disk, Dataset, DatasetDict  # type: ignore
+except Exception:  # datasets may not be available in some contexts
+    load_from_disk = None
+    Dataset = None
+    DatasetDict = None
+
+
+# Paths (as specified by the task)
+_DATA_PATH = &quot;/app/data&quot;
+_COEFFS_PATH = &quot;/app/coefficients.json&quot;
+
+# Small epsilon to avoid divide-by-zero and log domain issues
+_EPS = 1e-12
+
+# Global cache of fitted coefficients per group
+# Each value is a dict with keys: L_inf, C, alpha, beta, gamma
+_COEFFS: Dict[str, Dict[str, float]] = {}
+
+
+def _safe_log(x: np.ndarray) -&gt; np.ndarray:
+    &quot;&quot;&quot;Numerically safe natural log.&quot;&quot;&quot;
+    return np.log(np.clip(x, _EPS, None))
+
+
+def _get_groups_from_dataset(ds_obj) -&gt; Dict[str, List[Tuple[float, float, float, float]]]:
+    &quot;&quot;&quot;
+    Extracts and groups data from a HuggingFace dataset object.
+
+    Returns:
+        Mapping: group_name -&gt; list of tuples (vocab_size, non_vocab_parameters, num_characters, unigram_normalized_loss)
+    &quot;&quot;&quot;
+    groups: Dict[str, List[Tuple[float, float, float, float]]] = {}
+
+    def _add_example(ex: dict):
+        try:
+            V = float(ex[&quot;vocab_size&quot;])
+            Pnv = float(ex[&quot;non_vocab_parameters&quot;])
+            Nch = float(ex[&quot;num_characters&quot;])
+            L = float(ex[&quot;unigram_normalized_loss&quot;])
+        except Exception:
+            return  # skip rows with missing/invalid fields
+
+        # Group name (default to &quot;ALL&quot; if not provided)
+        g = ex.get(&quot;group&quot;, &quot;ALL&quot;)
+        if not isinstance(g, str):
+            g = str(g)
+
+        groups.setdefault(g, []).append((V, Pnv, Nch, L))
+
+    # Handle both Dataset and DatasetDict
+    try:
+        from datasets import Dataset as HFDataset, DatasetDict as HFDatasetDict  # type: ignore
+    except Exception:
+        HFDataset = None
+        HFDatasetDict = None
+
+    if HFDatasetDict is not None and isinstance(ds_obj, HFDatasetDict):
+        for split in ds_obj.values():
+            for ex in split:
+                _add_example(ex)
+    else:
+        # Treat as a single split dataset or a generic iterable of dicts
+        for ex in ds_obj:
+            _add_example(ex)
+
+    return groups
+
+
+def _fit_group(records: List[Tuple[float, float, float, float]]) -&gt; Dict[str, float]:
+    &quot;&quot;&quot;
+    Fit parameters for one group using a multiplicative power-law with a loss floor:
+        L_hat = L_inf + C * V^{-alpha} * Pnv^{-beta} * Nch^{-gamma}
+    where V = vocab_size, Pnv = non_vocab_parameters, Nch = num_characters.
+
+    We estimate L_inf via a 1D grid search and for each candidate perform
+    linear regression on:
+        log(L - L_inf) = log C - alpha log V - beta log Pnv - gamma log Nch
+    &quot;&quot;&quot;
+    arr = np.array(records, dtype=float)
+    if arr.ndim != 2 or arr.shape[1] != 4:
+        # Fallback defaults if data malformed
+        return {&quot;L_inf&quot;: 0.0, &quot;C&quot;: 1.0, &quot;alpha&quot;: 0.2, &quot;beta&quot;: 0.2, &quot;gamma&quot;: 0.2}
+
+    V = np.clip(arr[:, 0], _EPS, None)
+    P = np.clip(arr[:, 1], _EPS, None)
+    N = np.clip(arr[:, 2], _EPS, None)
+    L = np.clip(arr[:, 3], _EPS, None)
+
+    # Filter to rows with all finite values
+    mask = np.isfinite(V) &amp; np.isfinite(P) &amp; np.isfinite(N) &amp; np.isfinite(L)
+    V, P, N, L = V[mask], P[mask], N[mask], L[mask]
+
+    if V.size &lt; 5:
+        # Not enough data; use reasonable defaults
+        return {&quot;L_inf&quot;: float(np.maximum(0.0, np.min(L) * 0.5)) if L.size else 0.0,
+                &quot;C&quot;: 1.0, &quot;alpha&quot;: 0.2, &quot;beta&quot;: 0.2, &quot;gamma&quot;: 0.2}
+
+    min_L = float(np.min(L))
+    # Candidate grid for L_inf between 0 and just below min(L)
+    upper = max(0.0, min_L * 0.99)
+    if upper &lt;= 0:
+        grid = np.array([0.0], dtype=float)
+    else:
+        # Dense near zero and near min(L) to stabilize the search
+        grid = np.unique(np.concatenate([
+            np.linspace(0.0, upper, num=50, dtype=float),
+            np.geomspace(max(_EPS, upper / 1e6), upper, num=50, dtype=float)
+        ]))
+        grid = grid[(grid &gt;= 0.0) &amp; (grid &lt; min_L)]
+
+    best = {
+        &quot;sse&quot;: math.inf,
+        &quot;L_inf&quot;: 0.0,
+        &quot;C&quot;: 1.0,
+        &quot;alpha&quot;: 0.2,
+        &quot;beta&quot;: 0.2,
+        &quot;gamma&quot;: 0.2,
+    }
+
+    x1 = _safe_log(V)
+    x2 = _safe_log(P)
+    x3 = _safe_log(N)
+
+    # Design matrix (with intercept) will be built once per grid element
+    for L_inf_cand in grid:
+        # Exclude points where L - L_inf &lt;= 0
+        valid = L &gt; (L_inf_cand + _EPS)
+        if np.count_nonzero(valid) &lt; 4:
+            continue
+
+        y = _safe_log(L[valid] - L_inf_cand)
+        X = np.column_stack([
+            np.ones_like(y),
+            x1[valid],
+            x2[valid],
+            x3[valid],
+        ])
+
+        # Linear least squares fit
+        try:
+            coeffs, residuals, rank, s = np.linalg.lstsq(X, y, rcond=None)
+        except Exception:
+            continue
+
+        # Compute SSE explicitly to be safe
+        y_hat = X @ coeffs
+        sse = float(np.sum((y - y_hat) ** 2))
+
+        if sse &lt; best[&quot;sse&quot;]:
+            # Map linear solution back to parameters
+            logC, a1, a2, a3 = coeffs.tolist()
+            C = float(np.exp(logC))
+            alpha = float(-a1)
+            beta = float(-a2)
+            gamma = float(-a3)
+
+            # Sanity constraints to avoid pathological exponents
+            if not (np.isfinite(C) and np.isfinite(alpha) and np.isfinite(beta) and np.isfinite(gamma)):
+                continue
+            if C &lt;= 0:
+                continue
+            # Clip exponents to a reasonable range
+            alpha = float(np.clip(alpha, -4.0, 4.0))
+            beta = float(np.clip(beta, -4.0, 4.0))
+            gamma = float(np.clip(gamma, -4.0, 4.0))
+
+            best.update({
+                &quot;sse&quot;: sse,
+                &quot;L_inf&quot;: float(L_inf_cand),
+                &quot;C&quot;: C,
+                &quot;alpha&quot;: alpha,
+                &quot;beta&quot;: beta,
+                &quot;gamma&quot;: gamma,
+            })
+
+    # If grid search failed to improve (e.g., due to degenerate data), try L_inf=0 fallback
+    if not np.isfinite(best[&quot;sse&quot;]) or best[&quot;sse&quot;] == math.inf:
+        L_inf_cand = 0.0
+        valid = L &gt; (L_inf_cand + _EPS)
+        if np.count_nonzero(valid) &gt;= 4:
+            y = _safe_log(L[valid] - L_inf_cand)
+            X = np.column_stack([np.ones_like(y), x1[valid], x2[valid], x3[valid]])
+            coeffs, *_ = np.linalg.lstsq(X, y, rcond=None)
+            logC, a1, a2, a3 = coeffs.tolist()
+            best.update({
+                &quot;sse&quot;: 0.0,
+                &quot;L_inf&quot;: 0.0,
+                &quot;C&quot;: float(np.exp(logC)),
+                &quot;alpha&quot;: float(-a1),
+                &quot;beta&quot;: float(-a2),
+                &quot;gamma&quot;: float(-a3),
+            })
+        else:
+            # Last resort defaults
+            best.update({
+                &quot;sse&quot;: 0.0,
+                &quot;L_inf&quot;: float(np.maximum(0.0, min_L * 0.5)),
+                &quot;C&quot;: 1.0,
+                &quot;alpha&quot;: 0.2,
+                &quot;beta&quot;: 0.2,
+                &quot;gamma&quot;: 0.2,
+            })
+
+    # Drop SSE from output
+    return {k: float(v) for k, v in best.items() if k != &quot;sse&quot;}
+
+
+def _fit_all_groups() -&gt; Dict[str, Dict[str, float]]:
+    &quot;&quot;&quot;
+    Load the dataset from disk and fit coefficients per experimental group.
+    Also fits an &#x27;ALL&#x27; aggregate group as a fallback.
+    &quot;&quot;&quot;
+    coeffs: Dict[str, Dict[str, float]] = {}
+
+    if load_from_disk is None:
+        return coeffs
+
+    if not os.path.isdir(_DATA_PATH):
+        return coeffs
+
+    try:
+        ds_obj = load_from_disk(_DATA_PATH)
+    except Exception:
+        return coeffs
+
+    groups = _get_groups_from_dataset(ds_obj)
+
+    # Fit per group
+    for g, recs in groups.items():
+        if recs:
+            coeffs[g] = _fit_group(recs)
+
+    # Also fit ALL (aggregate) if not already present
+    if &quot;ALL&quot; not in coeffs:
+        all_recs: List[Tuple[float, float, float, float]] = []
+        for recs in groups.values():
+            all_recs.extend(recs)
+        if all_recs:
+            coeffs[&quot;ALL&quot;] = _fit_group(all_recs)
+
+    # Persist for transparency and reproducibility
+    try:
+        with open(_COEFFS_PATH, &quot;w&quot;, encoding=&quot;utf-8&quot;) as f:
+            json.dump(coeffs, f, indent=2, sort_keys=True)
+    except Exception:
+        pass
+
+    return coeffs
+
+
+def _load_or_fit_coeffs() -&gt; Dict[str, Dict[str, float]]:
+    &quot;&quot;&quot;
+    Load coefficients from JSON if available; otherwise fit from the dataset.
+    &quot;&quot;&quot;
+    # Try to load precomputed coefficients
+    if os.path.isfile(_COEFFS_PATH):
+        try:
+            with open(_COEFFS_PATH, &quot;r&quot;, encoding=&quot;utf-8&quot;) as f:
+                data = json.load(f)
+            # Ensure floats
+            out: Dict[str, Dict[str, float]] = {}
+            for g, d in data.items():
+                out[g] = {
+                    &quot;L_inf&quot;: float(d[&quot;L_inf&quot;]),
+                    &quot;C&quot;: float(d[&quot;C&quot;]),
+                    &quot;alpha&quot;: float(d[&quot;alpha&quot;]),
+                    &quot;beta&quot;: float(d[&quot;beta&quot;]),
+                    &quot;gamma&quot;: float(d[&quot;gamma&quot;]),
+                }
+            return out
+        except Exception:
+            pass
+
+    # Otherwise fit now
+    return _fit_all_groups()
+
+
+# Initialize coefficients at import time for immediate availability
+_COEFFS = _load_or_fit_coeffs()
+
+
+def _predict_one(row: Dict[str, float], coefs: Dict[str, float]) -&gt; float:
+    &quot;&quot;&quot;Compute prediction for one input row given fitted coefficients.&quot;&quot;&quot;
+    V = float(row.get(&quot;vocab_size&quot;, 0.0))
+    Pnv = float(row.get(&quot;non_vocab_parameters&quot;, 0.0))
+    Nch = float(row.get(&quot;num_characters&quot;, 0.0))
+
+    # Safety clamps
+    V = V if np.isfinite(V) and V &gt; 0 else _EPS
+    Pnv = Pnv if np.isfinite(Pnv) and Pnv &gt; 0 else _EPS
+    Nch = Nch if np.isfinite(Nch) and Nch &gt; 0 else _EPS
+
+    L_inf = float(coefs.get(&quot;L_inf&quot;, 0.0))
+    C = float(coefs.get(&quot;C&quot;, 1.0))
+    alpha = float(coefs.get(&quot;alpha&quot;, 0.2))
+    beta = float(coefs.get(&quot;beta&quot;, 0.2))
+    gamma = float(coefs.get(&quot;gamma&quot;, 0.2))
+
+    # L_hat = L_inf + C * V^{-alpha} * Pnv^{-beta} * Nch^{-gamma}
+    try:
+        term = C * (V ** (-alpha)) * (Pnv ** (-beta)) * (Nch ** (-gamma))
+        pred = L_inf + term
+    except Exception:
+        pred = L_inf + C  # worst-case fallback
+
+    # Ensure non-negative prediction
+    return float(max(0.0, pred))
+
+
+def law(input_data: List[Dict[str, float]], group: str) -&gt; List[Dict[str, float]]:
+    &quot;&quot;&quot;
+    Predicts output variables based on input variables according to a discovered scaling law.
+
+    Args:
+        input_data: A list of dictionaries, where each dictionary is a single data
+                    point containing input variable names as keys and their
+                    corresponding values. Required keys:
+                      - &#x27;vocab_size&#x27;
+                      - &#x27;non_vocab_parameters&#x27;
+                      - &#x27;num_characters&#x27;
+        group: The name of the experimental group for which to make predictions.
+               The functional form is identical across groups; parameters differ.
+
+    Returns:
+        A list of dictionaries, one per input item, each containing:
+            {&#x27;unigram_normalized_loss&#x27;: predicted_value}
+    &quot;&quot;&quot;
+    # Choose coefficients for the requested group, with fallbacks
+    coefs = _COEFFS.get(group)
+    if coefs is None:
+        coefs = _COEFFS.get(&quot;ALL&quot;)
+    if coefs is None:
+        # Final hardcoded fallback if fitting/loading failed
+        coefs = {&quot;L_inf&quot;: 0.0, &quot;C&quot;: 1.0, &quot;alpha&quot;: 0.2, &quot;beta&quot;: 0.2, &quot;gamma&quot;: 0.2}
+
+    outputs: List[Dict[str, float]] = []
+    for row in input_data:
+        y = _predict_one(row, coefs)
+        outputs.append({&quot;unigram_normalized_loss&quot;: y})
+    return outputs</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#5</span>
+                    <span class="run-label">Run 5</span>
+                    <span class="r2-badge" style="background-color: #B22222; color: white;">
+                        R² = -1.000000
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-4')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-4">from typing import List, Dict
+
+def law(input_data: list[dict[str, float]], group: str) -&gt; list[dict[str, float]]:
+    &quot;&quot;&quot;
+    Predicts output variables based on input variables according to a discovered scaling law.
+
+    Args:
+        input_data: A list of dictionaries, where each dictionary is a single data
+                    point containing input variable names as keys and their
+                    corresponding values.
+                    Required keys per item:
+                      - &#x27;vocab_size&#x27;
+                      - &#x27;non_vocab_parameters&#x27;
+                      - &#x27;num_characters&#x27;
+        group: The name of the experimental group for which to make predictions.
+               The functional form of the law is the same for all groups, but
+               the coefficients are fitted per group from /app/data when first used.
+
+    Returns:
+        A list of dictionaries, corresponding to the input_data list, with each
+        dictionary containing the predicted output variable(s):
+          - &#x27;unigram_normalized_loss&#x27;
+    &quot;&quot;&quot;
+    # Lazy, in-function cache so this file contains only a single top-level function as required.
+    if not hasattr(law, &quot;_cache&quot;):
+        setattr(law, &quot;_cache&quot;, {
+            &quot;models&quot;: {},      # group -&gt; {&quot;w&quot;: np.ndarray, &quot;mu&quot;: np.ndarray, &quot;sigma&quot;: np.ndarray}
+            &quot;loaded&quot;: False,   # whether dataset has been attempted to load
+            &quot;ds&quot;: None,        # loaded dataset (train split)
+            &quot;group_col&quot;: None  # detected group column name
+        })
+
+    # Imports inside function to keep this file minimal and self-contained.
+    import math
+    import numpy as np
+
+    cache = getattr(law, &quot;_cache&quot;)
+
+    def _safe_log(x: float, eps: float = 1e-12) -&gt; float:
+        return float(np.log(max(float(x), eps)))
+
+    def _inv_sqrt(x: float, eps: float = 1e-12) -&gt; float:
+        return float((max(float(x), eps)) ** -0.5)
+
+    def _features(v: float, p: float, c: float) -&gt; np.ndarray:
+        # Construct a fixed feature map (same for all groups):
+        # 1, ln V, ln P, ln C, (ln V)^2, (ln P)^2, (ln C)^2,
+        # ln V * ln P, ln V * ln C, ln P * ln C,
+        # V^{-1/2}, P^{-1/2}, C^{-1/2}
+        lv = _safe_log(v)
+        lp = _safe_log(p)
+        lc = _safe_log(c)
+        iv = _inv_sqrt(v)
+        ip = _inv_sqrt(p)
+        ic = _inv_sqrt(c)
+        return np.array([
+            1.0,
+            lv, lp, lc,
+            lv * lv, lp * lp, lc * lc,
+            lv * lp, lv * lc, lp * lc,
+            iv, ip, ic,
+        ], dtype=np.float64)
+
+    def _load_dataset_once():
+        if cache[&quot;loaded&quot;]:
+            return
+        cache[&quot;loaded&quot;] = True
+        try:
+            from datasets import load_from_disk, DatasetDict
+            ds_any = load_from_disk(&quot;/app/data&quot;)
+            # Pick a split if a DatasetDict is provided
+            if isinstance(ds_any, dict) and not hasattr(ds_any, &quot;column_names&quot;):
+                # Could be a plain dict-like; prefer &#x27;train&#x27; if present
+                ds = ds_any.get(&quot;train&quot;, next(iter(ds_any.values())))
+            else:
+                try:
+                    # HuggingFace DatasetDict
+                    if isinstance(ds_any, DatasetDict):
+                        ds = ds_any[&quot;train&quot;] if &quot;train&quot; in ds_any else next(iter(ds_any.values()))
+                    else:
+                        ds = ds_any
+                except Exception:
+                    ds = ds_any
+            cache[&quot;ds&quot;] = ds
+            # Detect group column name, if any
+            try:
+                colnames = list(getattr(ds, &quot;column_names&quot;))
+            except Exception:
+                try:
+                    colnames = list(getattr(ds, &quot;features&quot;).keys())
+                except Exception:
+                    colnames = []
+            for cand in (&quot;group&quot;, &quot;Group&quot;, &quot;GROUP&quot;, &quot;experiment_group&quot;, &quot;variant&quot;, &quot;condition&quot;):
+                if cand in colnames:
+                    cache[&quot;group_col&quot;] = cand
+                    break
+        except Exception:
+            cache[&quot;ds&quot;] = None
+            cache[&quot;group_col&quot;] = None
+
+    def _fit_group_if_needed(g: str):
+        if g in cache[&quot;models&quot;]:
+            return
+
+        _load_dataset_once()
+        ds = cache[&quot;ds&quot;]
+
+        # If dataset failed to load, provide a simple, safe fallback model.
+        if ds is None:
+            # Fallback: intercept-only model predicting a reasonable constant.
+            import numpy as np
+            w = np.array([1.0] + [0.0] * (13 - 1), dtype=np.float64)  # 13 features including intercept
+            mu = np.zeros_like(w)
+            sigma = np.ones_like(w)
+            cache[&quot;models&quot;][g] = {&quot;w&quot;: w, &quot;mu&quot;: mu, &quot;sigma&quot;: sigma}
+            return
+
+        # Extract rows into Python lists without requiring pandas
+        try:
+            as_dict = ds.to_dict()  # {col: [vals]}
+        except Exception:
+            # Fallback slower path
+            try:
+                n = len(ds)
+                as_dict = {name: [ds[i][name] for i in range(n)] for name in ds.column_names}
+            except Exception:
+                as_dict = {}
+
+        def _col(name: str, default=None):
+            return as_dict[name] if name in as_dict else default
+
+        vs = _col(&quot;vocab_size&quot;, [])
+        ps = _col(&quot;non_vocab_parameters&quot;, [])
+        cs = _col(&quot;num_characters&quot;, [])
+        ys = _col(&quot;unigram_normalized_loss&quot;, [])
+        grp_col_name = cache[&quot;group_col&quot;]
+        grps = _col(grp_col_name, None) if grp_col_name is not None else None
+
+        n_rows = min(len(vs), len(ps), len(cs), len(ys)) if all(isinstance(x, list) for x in (vs, ps, cs, ys)) else 0
+
+        X_rows = []
+        y_rows = []
+
+        # Collect rows for the requested group; if insufficient, fall back to global (all groups)
+        def _collect_rows(for_group: str | None):
+            Xr, yr = [], []
+            for i in range(n_rows):
+                try:
+                    v = float(vs[i]); p = float(ps[i]); c = float(cs[i]); y = float(ys[i])
+                    if not (math.isfinite(v) and math.isfinite(p) and math.isfinite(c) and math.isfinite(y)):
+                        continue
+                    # Optional group filtering
+                    if for_group is not None and grps is not None:
+                        gi = grps[i]
+                        if str(gi) != str(for_group):
+                            continue
+                    Xr.append(_features(v, p, c))
+                    yr.append(y)
+                except Exception:
+                    continue
+            return Xr, yr
+
+        X_rows, y_rows = _collect_rows(g)
+        # Fallback to all data if no or too few samples for this group
+        if len(y_rows) &lt; 5:
+            X_rows, y_rows = _collect_rows(None)
+
+        # If still empty, fallback to a trivial model
+        if len(y_rows) == 0:
+            import numpy as np
+            w = np.array([1.0] + [0.0] * (13 - 1), dtype=np.float64)
+            mu = np.zeros_like(w)
+            sigma = np.ones_like(w)
+            cache[&quot;models&quot;][g] = {&quot;w&quot;: w, &quot;mu&quot;: mu, &quot;sigma&quot;: sigma}
+            return
+
+        X = np.vstack(X_rows).astype(np.float64)  # shape [n, 13]
+        y = np.asarray(y_rows, dtype=np.float64)  # shape [n]
+
+        # Standardize non-intercept features for numerical stability
+        n_features = X.shape[1]
+        mu = np.zeros(n_features, dtype=np.float64)
+        sigma = np.ones(n_features, dtype=np.float64)
+
+        # Intercept at index 0 remains unstandardized
+        for j in range(1, n_features):
+            col = X[:, j]
+            m = float(col.mean())
+            s = float(col.std())
+            if not math.isfinite(s) or s &lt;= 1e-12:
+                s = 1.0
+            mu[j] = m
+            sigma[j] = s
+            X[:, j] = (X[:, j] - m) / s
+
+        # Ridge-regularized least squares (no penalty on intercept)
+        lam = 1e-6
+        XtX = X.T @ X
+        Xty = X.T @ y
+        reg = np.eye(n_features, dtype=np.float64) * lam
+        reg[0, 0] = 0.0  # do not regularize the intercept
+        try:
+            w = np.linalg.solve(XtX + reg, Xty)
+        except np.linalg.LinAlgError:
+            # Pseudo-inverse fallback
+            w = np.linalg.pinv(XtX + reg) @ Xty
+
+        cache[&quot;models&quot;][g] = {&quot;w&quot;: w, &quot;mu&quot;: mu, &quot;sigma&quot;: sigma}
+
+    # Ensure a model exists for this group
+    _fit_group_if_needed(group)
+    model = cache[&quot;models&quot;][group]
+    w = model[&quot;w&quot;]
+    mu = model[&quot;mu&quot;]
+    sigma = model[&quot;sigma&quot;]
+
+    # Predict for each input row
+    preds: List[Dict[str, float]] = []
+    for row in input_data:
+        v = float(row.get(&quot;vocab_size&quot;, 0.0))
+        p = float(row.get(&quot;non_vocab_parameters&quot;, 0.0))
+        c = float(row.get(&quot;num_characters&quot;, 0.0))
+        phi = _features(v, p, c)
+        # Standardize using training stats (except intercept)
+        phi_std = phi.copy()
+        if phi_std.shape[0] != w.shape[0]:
+            # Feature dimension mismatch safeguard: fallback to a constant prediction
+            y_hat = float(w[0])
+        else:
+            for j in range(1, phi_std.shape[0]):
+                phi_std[j] = (phi_std[j] - mu[j]) / sigma[j]
+            y_hat = float(phi_std.dot(w))
+        # Ensure finite output; if not, fallback to intercept
+        if not math.isfinite(y_hat):
+            y_hat = float(w[0])
+        preds.append({&quot;unigram_normalized_loss&quot;: y_hat})
+
+    return preds</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        </div>
+        
+        <footer class="footer">
+            <p>SLDBench | <a href="https://arxiv.org/abs/2507.21184" target="_blank">arXiv:2507.21184</a> | <a href="https://github.com/linhaowei1/SLD" target="_blank">GitHub</a></p>
+        </footer>
+    </div>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script>
+        function toggleRun(header) {
+            const content = header.nextElementSibling;
+            const isExpanded = content.style.display === 'block';
+            content.style.display = isExpanded ? 'none' : 'block';
+            header.classList.toggle('expanded', !isExpanded);
+        }
+        
+        function copyCode(event, codeId) {
+            event.stopPropagation();
+            const code = document.getElementById(codeId).textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                const btn = event.target;
+                btn.textContent = 'Copied!';
+                setTimeout(() => btn.textContent = 'Copy', 2000);
+            });
+        }
+        
+        Prism.highlightAll();
+    </script>
+</body>
+</html>

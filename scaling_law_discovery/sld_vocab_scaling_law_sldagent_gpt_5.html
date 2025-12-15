@@ -1,0 +1,1064 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SLD - Vocabulary Scaling Law - SLDAgent + GPT-5</title>
+    <link rel="icon" type="image/png" href="assets/sld_logo.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" rel="stylesheet" />
+    <style>
+        :root {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8f9fa;
+            --accent-primary: #2563eb;
+            --accent-secondary: #3b82f6;
+            --accent-gradient: linear-gradient(135deg, #2563eb 0%, #3b82f6 50%, #60a5fa 100%);
+            --text-primary: #1f2937;
+            --text-secondary: #4b5563;
+            --border-subtle: rgba(0, 0, 0, 0.1);
+            --glass-bg: rgba(0, 0, 0, 0.02);
+            --success: #10b981;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Sora', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            min-height: 100vh;
+            color: var(--text-primary);
+        }
+        
+        .bg-pattern {
+            display: none;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--accent-primary);
+            text-decoration: none;
+            font-size: 0.9rem;
+            margin-bottom: 1.5rem;
+            transition: color 0.2s;
+        }
+        
+        .back-link:hover {
+            color: var(--accent-secondary);
+        }
+        
+        .header {
+            background: var(--glass-bg);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            backdrop-filter: blur(10px);
+        }
+        
+        .header h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            background: var(--accent-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .meta-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+            margin-top: 1rem;
+        }
+        
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .meta-label {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+        
+        .meta-value {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .r2-badge {
+            display: inline-block;
+            padding: 0.3rem 0.6rem;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        .section-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+        
+        .runs-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .run-card {
+            background: var(--glass-bg);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            overflow: hidden;
+            transition: border-color 0.2s;
+        }
+        
+        .run-card:hover {
+            border-color: rgba(99, 102, 241, 0.3);
+        }
+        
+        .run-card.best-run {
+            border-color: var(--success);
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.1);
+        }
+        
+        .run-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 1.25rem;
+            background: rgba(255, 255, 255, 0.02);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .run-header:hover {
+            background: rgba(255, 255, 255, 0.04);
+        }
+        
+        .run-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .run-badge {
+            padding: 0.25rem 0.6rem;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-secondary);
+        }
+        
+        .run-badge.best-badge {
+            background: var(--success);
+            color: white;
+        }
+        
+        .run-label {
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+        
+        .expand-icon {
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            transition: transform 0.2s;
+        }
+        
+        .run-header.expanded .expand-icon {
+            transform: rotate(180deg);
+        }
+        
+        .run-content {
+            border-top: 1px solid var(--border-subtle);
+        }
+        
+        .code-container {
+            overflow: hidden;
+        }
+        
+        .code-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 1.25rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-bottom: 1px solid var(--border-subtle);
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+        
+        .copy-btn {
+            padding: 0.35rem 0.75rem;
+            background: rgba(99, 102, 241, 0.2);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 6px;
+            color: var(--accent-primary);
+            font-size: 0.75rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        
+        .copy-btn:hover {
+            background: rgba(99, 102, 241, 0.3);
+        }
+        
+        .code-container pre {
+            margin: 0;
+            padding: 1.25rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            line-height: 1.6;
+            overflow-x: auto;
+            background: transparent !important;
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 3rem;
+            padding-top: 2rem;
+            border-top: 1px solid var(--border-subtle);
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+        
+        .footer a {
+            color: var(--accent-primary);
+            text-decoration: none;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+            
+            .header h1 {
+                font-size: 1.25rem;
+            }
+            
+            .meta-row {
+                flex-direction: column;
+                gap: 0.75rem;
+            }
+            
+            .run-info {
+                flex-wrap: wrap;
+                gap: 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-pattern"></div>
+    
+    <div class="container">
+        <a href="sld_index.html" class="back-link">
+            ← Back to Leaderboard
+        </a>
+        
+        <div class="header">
+            <h1>Vocabulary Scaling Law</h1>
+            <div class="meta-row">
+                <div class="meta-item">
+                    <span class="meta-label">Agent:</span>
+                    <span class="meta-value">SLDAgent</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Model:</span>
+                    <span class="meta-value">GPT-5</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Best R²:</span>
+                    <span class="r2-badge" style="background-color: #006400; color: white;">
+                        0.989298
+                    </span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Mean R²:</span>
+                    <span class="meta-value">0.987696</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Min R²:</span>
+                    <span class="meta-value">0.985422</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Runs:</span>
+                    <span class="meta-value">5</span>
+                </div>
+            </div>
+        </div>
+        
+        <h2 class="section-title">All Runs (sorted by R²)</h2>
+        
+        <div class="runs-container">
+            
+        <div class="run-card best-run">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge best-badge">Best</span>
+                    <span class="run-label">Run 1</span>
+                    <span class="r2-badge" style="background-color: #006400; color: white;">
+                        R² = 0.989298
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: block;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-0')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-0"># EVOLVE-BLOCK-START
+import numpy as np
+from scipy.optimize import minimize
+
+_P0, _C0, _V0 = 1e8, 1e10, 1e4
+
+def scaling_law_func(data_points, params):
+    X = np.atleast_2d(np.asarray(data_points, float))
+    if X.shape[1] != 3:
+        raise ValueError(&quot;data_points must be (N,3)&quot;)
+    p = np.clip(X[:, 0], 1.0, None)
+    v = np.clip(X[:, 1], 1.0, None)
+    c = np.clip(X[:, 2], 1.0, None)
+    xp = np.log(p/_P0)
+    xv = np.log(v/_V0)
+    xc = np.log(c/_C0)
+
+    th = np.asarray(params, float)
+    if th.ndim == 1:
+        th = th[None, :]
+    if th.shape[1] &lt; 7:
+        th = np.pad(th, ((0, 0), (0, 7 - th.shape[1])), constant_values=0.0)
+    th = th[:, :7]
+
+    L0 = th[:, 0]
+    A = np.maximum(th[:, 1], 1e-8)
+    ap = th[:, 2]
+    ac = th[:, 3]
+    q = np.maximum(th[:, 4], 1e-8)
+    xstar = th[:, 5]
+    b = th[:, 6]
+
+    Z = ap[None, :] * xp[:, None] + ac[None, :] * xc[:, None] - q[None, :] * (xv[:, None] - xstar[None, :])**2 + b[None, :]
+    Y = L0[None, :] + A[None, :] / (1.0 + np.exp(np.clip(Z, -50.0, 50.0)))
+    return Y[:, 0] if Y.shape[1] == 1 else Y
+
+def fit_scaling_law(data_points, loss_values):
+    X = np.atleast_2d(np.asarray(data_points, float))
+    y = np.asarray(loss_values, float).ravel()
+    if X.shape[1] != 3:
+        raise ValueError(&quot;data_points must be (N,3)&quot;)
+
+    p = np.clip(X[:, 0], 1.0, None)
+    v = np.clip(X[:, 1], 1.0, None)
+    c = np.clip(X[:, 2], 1.0, None)
+    xp = np.log(p/_P0)
+    xv = np.log(v/_V0)
+    xc = np.log(c/_C0)
+
+    ymin, ymax = float(np.min(y)), float(np.max(y))
+    L0 = ymin
+    A0 = max(ymax - ymin, 0.5)
+    t = np.clip((y - L0) / A0, 1e-4, 1 - 1e-4)
+    z = np.log(1.0 / t - 1.0)
+
+    F = np.column_stack([xp, xc, xv**2, xv, np.ones_like(xp)])
+    try:
+        w, *_ = np.linalg.lstsq(F, z, rcond=None)
+    except np.linalg.LinAlgError:
+        w = np.zeros(5)
+
+    ap, ac = w[0], w[1]
+    q = max(-w[2], 1e-8)
+    xstar = (w[3] / (2.0 * q)) if q &gt; 1e-8 else 0.0
+    b = w[4] + q * xstar * xstar
+
+    init = np.array([L0, A0, ap, ac, q, xstar, b], float)
+    bnds = [(-20.0, 5.0), (1e-8, 50.0), (-6.0, 6.0), (-6.0, 6.0), (1e-8, 6.0), (-6.0, 6.0), (-10.0, 10.0)]
+
+    def huber(r, d=0.5):
+        a = np.abs(r)
+        return np.where(a &lt;= d, 0.5*r*r, d*(a - 0.5*d))
+
+    def obj(th):
+        pred = scaling_law_func(X, th)
+        r = pred - y
+        reg = 1e-6 * (th[2]**2 + th[3]**2 + th[4]**2 + th[5]**2 + th[6]**2 + 0.1*th[1]**2)
+        return np.mean(huber(r)) + reg
+
+    rng = np.random.default_rng(0)
+    best_val, best_th = np.inf, init
+    for k in range(8):
+        th0 = init.copy()
+        if k:
+            th0[0] += rng.normal(0, 0.2)              # L0
+            th0[1] *= np.exp(rng.normal(0, 0.2))      # A
+            th0[2:4] += rng.normal(0, 0.4, 2)         # ap, ac
+            th0[4] *= np.exp(rng.normal(0, 0.3))      # q
+            th0[5] += rng.normal(0, 0.5)              # xstar
+            th0[6] += rng.normal(0, 0.4)              # b
+        th0 = np.clip(th0, [b[0] for b in bnds], [b[1] for b in bnds])
+        res = minimize(obj, th0, method=&quot;L-BFGS-B&quot;, bounds=bnds, options={&quot;maxiter&quot;: 500})
+        val, thx = (res.fun, res.x) if res.success else (obj(th0), th0)
+        if val &lt; best_val:
+            best_val, best_th = val, thx
+
+    return best_th
+# EVOLVE-BLOCK-END</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#2</span>
+                    <span class="run-label">Run 3</span>
+                    <span class="r2-badge" style="background-color: #006400; color: white;">
+                        R² = 0.988460
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-1')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-1"># EVOLVE-BLOCK-START
+import numpy as np
+from scipy.optimize import minimize
+
+# Fixed reference scales (constants for numerical stability, not input-dependent)
+_P_REF = 1e8
+_C_REF = 1e10
+_V_REF = 32768.0
+
+def _sp(z):
+    z = np.asarray(z, dtype=np.float64)
+    y = np.empty_like(z)
+    m = z &gt; 20.0
+    y[m] = z[m]
+    y[~m] = np.log1p(np.exp(z[~m]))
+    return y
+
+def _predict_single(X, p):
+    # params: [L_inf, a_raw, alpha_raw, b_raw, beta_raw, phi_raw, w_raw] (≤7)
+    L_inf = float(p[0])
+    a     = _sp(p[1]); alpha = _sp(p[2])
+    b     = _sp(p[3]); beta  = _sp(p[4])
+    phi   = 0.8 * np.tanh(p[5]) if len(p) &gt; 5 else 0.0
+    w     = _sp(p[6]) if len(p) &gt; 6 else 0.0
+
+    P = np.clip(np.asarray(X[:,0], dtype=np.float64), 1.0, None)
+    V = np.clip(np.asarray(X[:,1], dtype=np.float64), 1.0, None)
+    C = np.clip(np.asarray(X[:,2], dtype=np.float64), 1.0, None)
+
+    lP = np.log(P) - np.log(_P_REF)
+    lC = np.log(C) - np.log(_C_REF)
+    lV = np.log(V) - np.log(_V_REF)
+    lV = np.clip(lV, -3.0, 3.0)  # stabilize extremes of vocab effects
+
+    # Regime combiner: smooth-min (power mean with q=2) of parameter/data-limited terms
+    sP = a * np.exp(-alpha * lP)
+    sC = b * np.exp(-beta  * (lC + phi * lV))
+    inv_q = 0.5  # q = 2
+    mix = (np.power(sP, -2.0) + np.power(sC, -2.0))**(-inv_q)
+
+    # U-shaped vocab penalty with data+model-dependent shrink and learned center via phi
+    shrink = np.exp(-0.5 * (alpha * lP + beta * lC))
+    vpen = w * shrink * (lV + 0.5 * phi) * (lV + 0.5 * phi)
+
+    return L_inf + mix + vpen
+
+def scaling_law_func(data_points, params):
+    X = np.atleast_2d(np.asarray(data_points))
+    p = np.asarray(params, dtype=np.float64)
+    if p.ndim == 1:
+        return _predict_single(X, p)
+    return np.stack([_predict_single(X, p[i]) for i in range(p.shape[0])], axis=1)
+
+def fit_scaling_law(data_points, loss_values):
+    X = np.atleast_2d(np.asarray(data_points))
+    y = np.asarray(loss_values, dtype=np.float64).ravel()
+    assert X.shape[1] == 3, &quot;Expected data_points with 3 features&quot;
+
+    med = np.median(y)
+    mad = np.median(np.abs(y - med)) + 1e-8
+    delta = max(1e-3, 1.35 * mad)
+
+    def huber(r):
+        a = np.abs(r)
+        return np.where(a &lt;= delta, 0.5 * r * r, delta * (a - 0.5 * delta))
+
+    def objective(p):
+        r = scaling_law_func(X, p) - y
+        loss = np.mean(huber(r))
+        # Mild regularization to improve stability/generalization
+        a = _sp(p[1]); b = _sp(p[3]); w = _sp(p[6])
+        alpha = _sp(p[2]); beta = _sp(p[4]); phi = 0.8 * np.tanh(p[5])
+        reg = 1e-4*(alpha**2 + beta**2) + 5e-5*(phi**2) + 1e-6*(a + b) + 5e-6*w + 1e-6*(p[0] - med)**2
+        return loss + reg
+
+    def sp_inv(x):
+        x = float(max(x, 1e-12))
+        return np.log(np.expm1(x))
+
+    y_min = np.percentile(y, 2.0)
+    amp = max(abs(np.mean(y) - y_min), 0.1)
+    base = np.array([
+        y_min,           # L_inf
+        sp_inv(amp/2),   # a_raw
+        sp_inv(0.3),     # alpha_raw
+        sp_inv(amp/2),   # b_raw
+        sp_inv(0.3),     # beta_raw
+        0.15,            # phi_raw
+        sp_inv(0.05*amp) # w_raw
+    ], dtype=np.float64)
+
+    rng = np.random.RandomState(42)
+    inits = [
+        base,
+        base + np.array([0.0, 0.2, -0.1, 0.2, -0.1, 0.2, -0.2]),
+        base + np.array([0.3, -0.2, 0.2, -0.2, 0.2, -0.2, 0.1])
+    ]
+    for _ in range(5):
+        j = rng.normal(0, 0.24, size=7); j[0] = rng.normal(0, 0.45)
+        inits.append(base + j)
+
+    bounds = [
+        (-10.0, 2.0),   # L_inf (Lossu observed range)
+        (-8.0, 10.0),   # a_raw
+        (-6.0, 6.0),    # alpha_raw
+        (-8.0, 10.0),   # b_raw
+        (-6.0, 6.0),    # beta_raw
+        (-2.0, 2.0),    # phi_raw (tanh-bounded internally)
+        (-12.0, 10.0)   # w_raw
+    ]
+
+    best_p, best_val = None, np.inf
+    for init in inits:
+        res = minimize(objective, init, method=&#x27;L-BFGS-B&#x27;, bounds=bounds)
+        p_opt = res.x if res.success else init
+        val = objective(p_opt)
+        if val &lt; best_val:
+            best_val, best_p = val, p_opt
+    return best_p
+# EVOLVE-BLOCK-END</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#3</span>
+                    <span class="run-label">Run 2</span>
+                    <span class="r2-badge" style="background-color: #006400; color: white;">
+                        R² = 0.988253
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-2')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-2"># EVOLVE-BLOCK-START
+&quot;&quot;&quot;
+Scaling law for unigram-normalized loss across parameters, data, and vocabulary.
+
+Model (7 params):
+    Let Pn = P_non_vocab / P0
+        Vn = vocab_size   / V0
+        Cn = num_characters / C0
+        Deff = Cn * Vn^(-k)
+    Lossu = L_inf + A * Pn^(-a) + B * Deff^(-b) + C * (Pn^(-a)) * (Deff^(-b))
+
+Notes:
+- Captures diminishing returns of parameters and data with interaction.
+- Vocabulary affects effective data via exponent k, modeling tokenization trade-offs.
+- Fixed scales stabilize numerics and aid cross-dataset generalization.
+
+Fitting:
+- Bounded L-BFGS-B with multi-start inits chosen from priors and data heuristics.
+- Supports single or multiple target columns in loss_values.
+&quot;&quot;&quot;
+import numpy as np
+from scipy.optimize import minimize
+
+# Fixed scales (do not depend on input data)
+_P0 = 1e8      # ~100M non-vocab params
+_C0 = 1e10     # ~10B characters
+_V0 = 32000.0  # common vocab reference
+_EPS = 1e-12
+
+def scaling_law_func(data_points, params):
+    X = np.atleast_2d(np.asarray(data_points, dtype=float))
+    Pn = np.maximum(X[:, 0], _EPS) / _P0
+    Vn = np.maximum(X[:, 1], 1.0)   / _V0
+    Cn = np.maximum(X[:, 2], _EPS) / _C0
+
+    par = np.asarray(params, dtype=float)
+    if par.ndim == 1:
+        # Ensure exactly 7 parameters
+        if par.size &lt; 7:
+            p = np.pad(par, (0, 7 - par.size))
+        else:
+            p = par[:7]
+        L_inf, A, a, B, b, Cc, k = p
+        Deff = Cn * (Vn ** (-max(k, 0.0)))
+        Pa = Pn ** (-max(a, _EPS))
+        Db = Deff ** (-max(b, _EPS))
+        return L_inf + A * Pa + B * Db + Cc * Pa * Db
+    else:
+        T = par.shape[0]
+        out = np.empty((X.shape[0], T), dtype=float)
+        for t in range(T):
+            p = par[t]
+            if p.size &lt; 7:
+                p = np.pad(p, (0, 7 - p.size))
+            else:
+                p = p[:7]
+            L_inf, A, a, B, b, Cc, k = p
+            Deff = Cn * (Vn ** (-max(k, 0.0)))
+            Pa = Pn ** (-max(a, _EPS))
+            Db = Deff ** (-max(b, _EPS))
+            out[:, t] = L_inf + A * Pa + B * Db + Cc * Pa * Db
+        return out
+
+def fit_scaling_law(data_points, loss_values):
+    X = np.atleast_2d(np.asarray(data_points, dtype=float))
+    y = np.asarray(loss_values, dtype=float)
+    y2d = y[:, None] if y.ndim == 1 else y
+    N, T = y2d.shape
+
+    bounds = [
+        (-10.0, 1.0),   # L_inf
+        (-10.0, 10.0),  # A
+        (1e-4, 3.0),    # a &gt; 0
+        (-10.0, 10.0),  # B
+        (1e-4, 3.0),    # b &gt; 0
+        (-10.0, 10.0),  # C (interaction)
+        (0.0, 1.0),     # k &gt;= 0
+    ]
+
+    Pn = np.maximum(X[:, 0], _EPS) / _P0
+    Vn = np.maximum(X[:, 1], 1.0)   / _V0
+    Cn = np.maximum(X[:, 2], _EPS) / _C0
+
+    rng = np.random.default_rng(42)
+
+    def obj(p, yt):
+        pred = scaling_law_func(X, p)
+        if pred.ndim &gt; 1:
+            pred = pred[:, 0]
+        return float(np.mean((pred - yt) ** 2))
+
+    def init_guesses(yt):
+        # Heuristic amplitudes from spread of y
+        spread = float(np.ptp(yt)) if np.ptp(yt) &gt; 1e-9 else 1.0
+        L0 = float(np.min(yt) - 0.1)
+        seeds = [
+            np.array([L0,  1.0*spread, 0.3,  1.0*spread, 0.3,  0.0, 0.2]),
+            np.array([L0, -0.5*spread, 0.5,  0.8*spread, 0.4,  0.3, 0.1]),
+            np.array([L0,  0.8*spread, 0.2, -0.8*spread, 0.6, -0.4, 0.3]),
+        ]
+        for _ in range(5):
+            seeds.append(np.array([
+                rng.uniform(-6.0, -0.3),
+                rng.uniform(-3.0, 3.0),
+                rng.uniform(0.05, 0.9),
+                rng.uniform(-3.0, 3.0),
+                rng.uniform(0.05, 0.9),
+                rng.uniform(-3.0, 3.0),
+                rng.uniform(0.0, 0.6)
+            ], dtype=float))
+        return seeds
+
+    params_all = np.zeros((T, 7), dtype=float)
+    for t in range(T):
+        yt = y2d[:, t]
+        best_f = np.inf
+        best_p = None
+        for p0 in init_guesses(yt):
+            res = minimize(lambda p: obj(p, yt), p0, method=&quot;L-BFGS-B&quot;, bounds=bounds, options={&#x27;maxiter&#x27;: 500})
+            p_opt = res.x if res.success else p0
+            f = obj(p_opt, yt)
+            if f &lt; best_f:
+                best_f, best_p = f, p_opt
+        params_all[t] = best_p
+
+    return params_all[0] if T == 1 else params_all
+# EVOLVE-BLOCK-END</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#4</span>
+                    <span class="run-label">Run 5</span>
+                    <span class="r2-badge" style="background-color: #006400; color: white;">
+                        R² = 0.987048
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-3')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-3"># EVOLVE-BLOCK-START
+import numpy as np
+from scipy.optimize import least_squares
+
+# Fixed normalizations for stability (not data-dependent)
+_P0 = 1e8
+_C0 = 1e10
+_EPS = 1.0
+_PHI_SCALE = 0.1  # bounds |phi| &lt;= 0.1 via tanh for stability
+
+def _sp(x):
+    ax = np.abs(x)
+    return np.log1p(np.exp(-ax)) + np.maximum(x, 0.0)
+
+def _spi(y):
+    y = np.maximum(y, 1e-12)
+    return np.log(np.expm1(y))
+
+def _sg(z):
+    z = np.clip(z, -60.0, 60.0)
+    return 1.0 / (1.0 + np.exp(-z))
+
+def scaling_law_func(data_points, params):
+    &quot;&quot;&quot;
+    Lossu = L + exp(-alpha * lnS) * (A + B * (lnV - v0)^2)
+    lnS = theta*ln(P/P0) + (1-theta)*ln(C/C0) + phi*lnV, with phi = PHI_SCALE * tanh(phi_raw).
+    Params: [L, A_raw, alpha_raw, theta_raw, B_raw, phi_raw, v0]
+    &quot;&quot;&quot;
+    X = np.atleast_2d(np.asarray(data_points, dtype=float))
+    if X.shape[1] != 3:
+        raise ValueError(&quot;data_points must have 3 columns: [P_non_vocab, vocab_size, num_characters]&quot;)
+    P = np.clip(X[:, 0], _EPS, np.inf)
+    V = np.clip(X[:, 1], _EPS, np.inf)
+    C = np.clip(X[:, 2], _EPS, np.inf)
+
+    p = np.asarray(params, dtype=float)
+    if p.ndim == 1:
+        p = p[None, :]
+    if p.shape[1] != 7:
+        raise ValueError(&quot;params must have 7 values per target&quot;)
+
+    L     = p[:, 0]
+    A     = _sp(p[:, 1])
+    alpha = _sp(p[:, 2])
+    theta = _sg(p[:, 3])
+    B     = _sp(p[:, 4])
+    phi   = _PHI_SCALE * np.tanh(p[:, 5])
+    v0    = p[:, 6]
+
+    lnP = np.log(P / _P0)[None, :]
+    lnC = np.log(C / _C0)[None, :]
+    lnV = np.log(V)[None, :]
+
+    lnS = theta[:, None] * lnP + (1.0 - theta)[:, None] * lnC + phi[:, None] * lnV
+    z = -alpha[:, None] * lnS
+    z = np.clip(z, -60.0, 60.0)
+    decay = np.exp(z)
+    vocab_quad = (lnV - v0[:, None])**2
+
+    pred = (L[:, None] + decay * (A[:, None] + B[:, None] * vocab_quad)).T
+    return pred[:, 0] if pred.shape[1] == 1 else pred
+
+def fit_scaling_law(data_points, loss_values):
+    &quot;&quot;&quot;
+    Robust fit of 7-parameter model using soft_l1 least squares.
+    - Reweights samples to balance across vocab sizes.
+    - Light regularization on alpha, phi, and v0 to stabilize extremes.
+    &quot;&quot;&quot;
+    X = np.atleast_2d(np.asarray(data_points, dtype=float))
+    y = np.asarray(loss_values, dtype=float)
+    if X.shape[1] != 3:
+        raise ValueError(&quot;data_points must have 3 columns: [P_non_vocab, vocab_size, num_characters]&quot;)
+
+    Y = y[:, None] if y.ndim == 1 else y
+    N, T = Y.shape
+
+    lnV = np.log(np.clip(X[:, 1], _EPS, np.inf))
+    v0_init = float(np.median(lnV)) if np.isfinite(lnV).all() else float(np.mean(lnV))
+
+    # Balance contributions across vocab sizes
+    V_vals = np.clip(X[:, 1], _EPS, np.inf)
+    uniq, counts = np.unique(V_vals, return_counts=True)
+    w_map = {u: c for u, c in zip(uniq, counts)}
+    w = np.array([1.0 / np.sqrt(w_map[v]) for v in V_vals], dtype=float)
+    w /= np.mean(w)
+
+    L0 = np.min(Y, axis=0) - 0.1
+    amp = np.maximum(np.median(np.abs(Y - L0), axis=0), 0.05)
+    a0, t0 = 0.3, 0.5
+    B0 = np.maximum(0.5 * amp, 0.02)
+
+    p0 = np.zeros((T, 7), dtype=float)
+    p0[:, 0] = L0.ravel()
+    p0[:, 1] = _spi(amp.ravel())
+    p0[:, 2] = _spi(np.full(T, a0))
+    p0[:, 3] = np.log(t0 / (1.0 - t0))
+    p0[:, 4] = _spi(B0.ravel())
+    p0[:, 5] = 0.0  # phi_raw init -&gt; phi ~ 0
+    p0[:, 6] = v0_init
+
+    y_std = np.maximum(np.std(Y, axis=0), 1e-6)
+
+    alpha_ref = 0.3
+    phi_ref = 0.0
+    v_ref = v0_init
+    reg_a, reg_phi, reg_v = 0.05, 0.02, 0.01
+
+    def residuals(flat_params):
+        params = flat_params.reshape(T, 7)
+        pred = scaling_law_func(X, params)
+        if pred.ndim == 1:
+            pred = pred[:, None]
+        res = (pred - Y) / y_std[None, :]
+        res = (w[:, None] * res).ravel()
+        # Regularize alpha towards 0.3, phi towards 0, and v0 towards median lnV
+        a = _sp(params[:, 2]) - alpha_ref
+        phi = _PHI_SCALE * np.tanh(params[:, 5]) - phi_ref
+        v = params[:, 6] - v_ref
+        reg = np.concatenate([reg_a * a, reg_phi * phi, reg_v * v])
+        return np.concatenate([res, reg])
+
+    out = least_squares(residuals, p0.ravel(), method=&#x27;trf&#x27;, loss=&#x27;soft_l1&#x27;, f_scale=1.0, max_nfev=6000)
+    p_opt = out.x.reshape(T, 7)
+    return p_opt[0] if T == 1 else p_opt
+# EVOLVE-BLOCK-END</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#5</span>
+                    <span class="run-label">Run 4</span>
+                    <span class="r2-badge" style="background-color: #006400; color: white;">
+                        R² = 0.985422
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-4')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-4"># EVOLVE-BLOCK-START
+import numpy as np
+from scipy.optimize import minimize
+
+# Fixed reference scales (not data-dependent)
+_P0, _V0, _C0 = 1e8, 32768.0, 1e10
+
+def _softplus(x):
+    return np.log1p(np.exp(-np.abs(x))) + np.maximum(x, 0.0)
+
+def _inv_softplus(y, eps=1e-12):
+    y = np.maximum(y, eps)
+    return np.where(y &gt; 20, y, np.log(np.expm1(y)))
+
+def _sigmoid(x):
+    return 1.0 / (1.0 + np.exp(-x))
+
+def scaling_law_func(data_points, params):
+    &quot;&quot;&quot;
+    7-parameter law with synergistic P,C improvement and vocab optimum:
+    L = L_inf
+        + A * (exp(-a*log(P/P0)) + exp(-a*log(C/C0)))^rho
+        + c_v * ( log(V) - (v0 + vP*log(P/P0) + vC*log(C/C0)) )^2
+
+    params = [L_inf, v0, vP, vC, A_, a_, c_v_]
+    where A = softplus(A_), a = softplus(a_), c_v = softplus(c_v_), rho=0.7 fixed.
+    &quot;&quot;&quot;
+    X = np.atleast_2d(np.asarray(data_points, dtype=float))
+    P, V, C = X[:, 0], X[:, 1], X[:, 2]
+    p = np.log(np.clip(P / _P0, 1e-12, 1e12))
+    c = np.log(np.clip(C / _C0, 1e-12, 1e12))
+    lv = np.log(np.clip(V, 1.0, 1e12))
+
+    L_inf, v0, vP, vC, A_, a_, cv_ = np.asarray(params, dtype=float)
+    A = _softplus(A_)
+    a = _softplus(a_)
+    c_v = _softplus(cv_)
+
+    eP = np.exp(-a * p)
+    eC = np.exp(-a * c)
+    s = np.clip(eP + eC, 1e-300, np.inf)
+    rho = 0.7
+    pc = np.exp(rho * np.log(s))  # (eP + eC)^rho
+
+    lv_star = v0 + vP * p + vC * c
+    return L_inf + A * pc + c_v * (lv - lv_star) ** 2
+
+def fit_scaling_law(data_points, loss_values):
+    X = np.atleast_2d(np.asarray(data_points, dtype=float))
+    y = np.asarray(loss_values, dtype=float).reshape(-1)
+    P, V, C = X[:, 0], X[:, 1], X[:, 2]
+    p = np.log(np.clip(P / _P0, 1e-12, 1e12))
+    c = np.log(np.clip(C / _C0, 1e-12, 1e12))
+    lv = np.log(np.clip(V, 1.0, 1e12))
+
+    # Robust initializations
+    L_inf0 = float(np.min(y) - 0.05)
+    spread = float(max(np.std(y), 1e-3))
+    # Ridge regression for vocab optimum init: lv ~ [1, p, c]
+    Phi = np.stack([np.ones_like(p), p, c], axis=1)
+    lam = 1e-3
+    H = Phi.T @ Phi + lam * np.eye(3)
+    theta = np.linalg.solve(H, Phi.T @ lv)
+    v0_0, vP0, vC0 = map(float, theta)
+    A0, a0, c_v0 = max(spread, 0.1), 0.35, max(0.05 * spread, 1e-3)
+
+    init = np.array([
+        L_inf0, v0_0, vP0, vC0,
+        _inv_softplus(A0), _inv_softplus(a0), _inv_softplus(c_v0)
+    ], dtype=float)
+
+    def huber_grad(r, d=0.25):
+        a = np.abs(r)
+        return np.where(a &lt;= d, r, d * np.sign(r))
+
+    def huber_val(r, d=0.25):
+        a = np.abs(r)
+        return np.where(a &lt;= d, 0.5 * r * r, d * (a - 0.5 * d))
+
+    def pred_and_jac(theta):
+        L_inf, v0, vP, vC, A_, a_, cv_ = theta
+        A = _softplus(A_); a = _softplus(a_); cv = _softplus(cv_)
+        sA = _sigmoid(A_); sa = _sigmoid(a_); scv = _sigmoid(cv_)
+        eP = np.exp(-a * p); eC = np.exp(-a * c)
+        ssum = np.clip(eP + eC, 1e-300, np.inf)
+        rho = 0.7
+        pc = np.exp(rho * np.log(ssum))
+        # d pc / d a
+        dlogsum_da = - (p * eP + c * eC) / ssum
+        dpc_da = pc * rho * dlogsum_da
+
+        mu = v0 + vP * p + vC * c
+        diff = lv - mu
+        pred = L_inf + A * pc + cv * diff**2
+
+        J = np.empty((p.size, 7), dtype=float)
+        J[:, 0] = 1.0                              # d/d L_inf
+        J[:, 1] = -2.0 * cv * diff                 # d/d v0
+        J[:, 2] = -2.0 * cv * diff * p             # d/d vP
+        J[:, 3] = -2.0 * cv * diff * c             # d/d vC
+        J[:, 4] = sA * pc                          # d/d A_
+        J[:, 5] = sa * A * dpc_da                  # d/d a_
+        J[:, 6] = scv * (diff**2)                  # d/d cv_
+        return pred, J
+
+    def obj_and_grad(theta):
+        pred, J = pred_and_jac(theta)
+        r = pred - y
+        val = np.mean(huber_val(r))
+        g = huber_grad(r)
+        grad = (J * g[:, None]).mean(axis=0)
+        # tiny L2 regularization on vocab-location slopes for stability
+        reg = 1e-6 * np.array([0, theta[1], theta[2], theta[3], 0, 0, 0], dtype=float)
+        return val + 0.5 * 1e-6 * (theta[1]**2 + theta[2]**2 + theta[3]**2), grad + reg
+
+    def obj(theta): return obj_and_grad(theta)[0]
+    def jac(theta): return obj_and_grad(theta)[1]
+
+    best_p, best_f = init, obj(init)
+    rng = np.random.default_rng(42)
+    for _ in range(7):
+        jitter = np.array([
+            rng.normal(0, 0.06),  # L_inf
+            rng.normal(0, 0.20),  # v0
+            rng.normal(0, 0.05),  # vP
+            rng.normal(0, 0.07),  # vC
+            rng.normal(0, 0.22),  # A_
+            rng.normal(0, 0.16),  # a_
+            rng.normal(0, 0.18),  # cv_
+        ])
+        p0 = init + jitter
+        res = minimize(obj, p0, method=&quot;L-BFGS-B&quot;, jac=jac, options=dict(maxiter=900))
+        if res.success and res.fun &lt; best_f:
+            best_p, best_f = res.x, res.fun
+
+    res = minimize(obj, best_p, method=&quot;L-BFGS-B&quot;, jac=jac, options=dict(maxiter=2500))
+    return res.x if res.success else best_p
+# EVOLVE-BLOCK-END</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        </div>
+        
+        <footer class="footer">
+            <p>SLDBench | <a href="https://arxiv.org/abs/2507.21184" target="_blank">arXiv:2507.21184</a> | <a href="https://github.com/linhaowei1/SLD" target="_blank">GitHub</a></p>
+        </footer>
+    </div>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script>
+        function toggleRun(header) {
+            const content = header.nextElementSibling;
+            const isExpanded = content.style.display === 'block';
+            content.style.display = isExpanded ? 'none' : 'block';
+            header.classList.toggle('expanded', !isExpanded);
+        }
+        
+        function copyCode(event, codeId) {
+            event.stopPropagation();
+            const code = document.getElementById(codeId).textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                const btn = event.target;
+                btn.textContent = 'Copied!';
+                setTimeout(() => btn.textContent = 'Copy', 2000);
+            });
+        }
+        
+        Prism.highlightAll();
+    </script>
+</body>
+</html>

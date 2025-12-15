@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SLD - Domain Mixture Scaling Law - SLDAgent + o4-mini</title>
+    <link rel="icon" type="image/png" href="assets/sld_logo.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" rel="stylesheet" />
+    <style>
+        :root {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8f9fa;
+            --accent-primary: #2563eb;
+            --accent-secondary: #3b82f6;
+            --accent-gradient: linear-gradient(135deg, #2563eb 0%, #3b82f6 50%, #60a5fa 100%);
+            --text-primary: #1f2937;
+            --text-secondary: #4b5563;
+            --border-subtle: rgba(0, 0, 0, 0.1);
+            --glass-bg: rgba(0, 0, 0, 0.02);
+            --success: #10b981;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Sora', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            min-height: 100vh;
+            color: var(--text-primary);
+        }
+        
+        .bg-pattern {
+            display: none;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--accent-primary);
+            text-decoration: none;
+            font-size: 0.9rem;
+            margin-bottom: 1.5rem;
+            transition: color 0.2s;
+        }
+        
+        .back-link:hover {
+            color: var(--accent-secondary);
+        }
+        
+        .header {
+            background: var(--glass-bg);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            backdrop-filter: blur(10px);
+        }
+        
+        .header h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            background: var(--accent-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .meta-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+            margin-top: 1rem;
+        }
+        
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .meta-label {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+        
+        .meta-value {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .r2-badge {
+            display: inline-block;
+            padding: 0.3rem 0.6rem;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        .section-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+        
+        .runs-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .run-card {
+            background: var(--glass-bg);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            overflow: hidden;
+            transition: border-color 0.2s;
+        }
+        
+        .run-card:hover {
+            border-color: rgba(99, 102, 241, 0.3);
+        }
+        
+        .run-card.best-run {
+            border-color: var(--success);
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.1);
+        }
+        
+        .run-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 1.25rem;
+            background: rgba(255, 255, 255, 0.02);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .run-header:hover {
+            background: rgba(255, 255, 255, 0.04);
+        }
+        
+        .run-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .run-badge {
+            padding: 0.25rem 0.6rem;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-secondary);
+        }
+        
+        .run-badge.best-badge {
+            background: var(--success);
+            color: white;
+        }
+        
+        .run-label {
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+        
+        .expand-icon {
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            transition: transform 0.2s;
+        }
+        
+        .run-header.expanded .expand-icon {
+            transform: rotate(180deg);
+        }
+        
+        .run-content {
+            border-top: 1px solid var(--border-subtle);
+        }
+        
+        .code-container {
+            overflow: hidden;
+        }
+        
+        .code-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 1.25rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-bottom: 1px solid var(--border-subtle);
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+        
+        .copy-btn {
+            padding: 0.35rem 0.75rem;
+            background: rgba(99, 102, 241, 0.2);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 6px;
+            color: var(--accent-primary);
+            font-size: 0.75rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        
+        .copy-btn:hover {
+            background: rgba(99, 102, 241, 0.3);
+        }
+        
+        .code-container pre {
+            margin: 0;
+            padding: 1.25rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            line-height: 1.6;
+            overflow-x: auto;
+            background: transparent !important;
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 3rem;
+            padding-top: 2rem;
+            border-top: 1px solid var(--border-subtle);
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+        
+        .footer a {
+            color: var(--accent-primary);
+            text-decoration: none;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+            
+            .header h1 {
+                font-size: 1.25rem;
+            }
+            
+            .meta-row {
+                flex-direction: column;
+                gap: 0.75rem;
+            }
+            
+            .run-info {
+                flex-wrap: wrap;
+                gap: 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-pattern"></div>
+    
+    <div class="container">
+        <a href="sld_index.html" class="back-link">
+            ← Back to Leaderboard
+        </a>
+        
+        <div class="header">
+            <h1>Domain Mixture Scaling Law</h1>
+            <div class="meta-row">
+                <div class="meta-item">
+                    <span class="meta-label">Agent:</span>
+                    <span class="meta-value">SLDAgent</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Model:</span>
+                    <span class="meta-value">o4-mini</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Best R²:</span>
+                    <span class="r2-badge" style="background-color: #006400; color: white;">
+                        0.991800
+                    </span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Mean R²:</span>
+                    <span class="meta-value">0.979157</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Min R²:</span>
+                    <span class="meta-value">0.949590</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Runs:</span>
+                    <span class="meta-value">5</span>
+                </div>
+            </div>
+        </div>
+        
+        <h2 class="section-title">All Runs (sorted by R²)</h2>
+        
+        <div class="runs-container">
+            
+        <div class="run-card best-run">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge best-badge">Best</span>
+                    <span class="run-label">Run 4</span>
+                    <span class="r2-badge" style="background-color: #006400; color: white;">
+                        R² = 0.991800
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: block;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-0')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-0">import numpy as np
+
+def scaling_law_func(data_points, params):
+    &quot;&quot;&quot;
+    Predict 5-domain losses from mixture proportions using 7 features per domain
+    (35 parameters total):
+      1) bias
+      2) log(p_j + ε)
+      3) p_j
+      4) sqrt(p_j + ε)
+      5) p_j * (1 - p_j)
+      6) mixture entropy H
+      7) H^2
+    This replaces the p_j^2 feature with sqrt(p_j) for better mid‐range modeling
+    and retains entropy‐based cross‐domain coupling.
+    &quot;&quot;&quot;
+    X = np.asarray(data_points, dtype=float)
+    N, D = X.shape
+    assert D == 5, &quot;Expected input shape (N,5)&quot;
+    
+    p = np.asarray(params, dtype=float).ravel()
+    assert p.size == 35, &quot;Parameter vector must have length 35&quot;
+    W = p.reshape(5, 7)  # weights: one row per domain, one column per feature
+    
+    eps = 1e-8
+    # feature precomputations
+    logX   = np.log(X + eps)                             # (N,5)
+    H      = -np.sum(X * logX, axis=1, keepdims=True)    # (N,1) entropy
+    H2     = H * H                                       # (N,1)
+    sqrtX  = np.sqrt(X + eps)                            # (N,5)
+    crossX = X * (1.0 - X)                                # (N,5) p_j*(1-p_j)
+    
+    # build predictions
+    preds = np.zeros((N, 5), dtype=float)
+    for j in range(5):
+        # slice out domain‐specific features
+        pj_log   = logX[:,   j:j+1]  # (N,1)
+        pj       = X[:,      j:j+1]  # (N,1)
+        pj_sqrt  = sqrtX[:,   j:j+1]  # (N,1)
+        pj_cross = crossX[:,    j:j+1]  # (N,1)
+        
+        # assemble feature matrix F_j: (N,7)
+        F = np.hstack([
+            np.ones((N, 1)),    # bias
+            pj_log,             # log p_j
+            pj,                 # p_j
+            pj_sqrt,            # sqrt(p_j)
+            pj_cross,           # p_j*(1-p_j)
+            H,                  # entropy
+            H2                  # entropy^2
+        ])
+        preds[:, j] = F.dot(W[j])
+    
+    return preds
+
+
+def fit_scaling_law(data_points, loss_values):
+    &quot;&quot;&quot;
+    Fit the 35 parameters by per‐domain ridge regression in closed form.
+    Uses the same feature set as in scaling_law_func.
+    &quot;&quot;&quot;
+    X = np.asarray(data_points, dtype=float)
+    y = np.asarray(loss_values, dtype=float)
+    N, D = X.shape
+    assert D == 5, &quot;Expected input shape (N,5)&quot;
+    
+    # ensure y is (N,5)
+    if y.ndim == 1:
+        y = y[:, None]
+    assert y.shape == (N, 5), &quot;Expected loss_values shape (N,5)&quot;
+    
+    eps = 1e-8
+    # regularization (reduced slightly for tighter fit)
+    reg = 1e-4
+    
+    # precompute shared features
+    logX   = np.log(X + eps)                             # (N,5)
+    H      = -np.sum(X * logX, axis=1, keepdims=True)    # (N,1)
+    H2     = H * H                                       # (N,1)
+    sqrtX  = np.sqrt(X + eps)                            # (N,5)
+    crossX = X * (1.0 - X)                                # (N,5)
+    
+    # allocate weights
+    W = np.zeros((5, 7), dtype=float)
+    I7 = np.eye(7, dtype=float)
+    
+    # solve per domain
+    for j in range(5):
+        pj_log   = logX[:,   j:j+1]  # (N,1)
+        pj       = X[:,      j:j+1]  # (N,1)
+        pj_sqrt  = sqrtX[:,   j:j+1]  # (N,1)
+        pj_cross = crossX[:,    j:j+1]  # (N,1)
+        
+        F = np.hstack([
+            np.ones((N, 1)),    # bias
+            pj_log,             # log p_j
+            pj,                 # p_j
+            pj_sqrt,            # sqrt(p_j)
+            pj_cross,           # p_j*(1-p_j)
+            H,                  # entropy
+            H2                  # entropy^2
+        ])  # (N,7)
+        
+        # ridge regression: (F^T F + reg I) w = F^T y
+        A = F.T.dot(F) + reg * I7
+        b = F.T.dot(y[:, j])
+        W[j] = np.linalg.solve(A, b)
+    
+    return W.ravel()  # length 35</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#2</span>
+                    <span class="run-label">Run 2</span>
+                    <span class="r2-badge" style="background-color: #006400; color: white;">
+                        R² = 0.991126
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-1')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-1">import numpy as n
+
+def scaling_law_func(X,p):
+ p=p.ravel();e=n.log(X+1e-6);d=n.log(1-X+1e-6);h=-n.sum(X*e,1);m=len(X)
+ O=n.empty((m,5))
+ for j in range(5):
+  l=e[:,j]
+  F=n.c_[n.ones(m),l,d[:,j],h,l**2,h**2]
+  O[:,j]=F.dot(p[j*6:(j+1)*6])
+ return O
+
+def fit_scaling_law(X,Y):
+ e=n.log(X+1e-6);d=n.log(1-X+1e-6);h=-n.sum(X*e,1);m=len(X);P=n.zeros(30)
+ for j in range(5):
+  l=e[:,j]
+  F=n.c_[n.ones(m),l,d[:,j],h,l**2,h**2]
+  P[j*6:(j+1)*6]=n.linalg.solve(F.T@F+1e-6*n.eye(6),F.T@Y[:,j])
+ return P</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#3</span>
+                    <span class="run-label">Run 3</span>
+                    <span class="r2-badge" style="background-color: #006400; color: white;">
+                        R² = 0.988685
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-2')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-2">import numpy as np
+
+# EVOLVE-BLOCK-START
+def scaling_law_func(data_points, params):
+    &quot;&quot;&quot;
+    Predict multi-domain losses from 5-d mixture proportions using:
+      y_j = sum_i W[j,i] * p_i  +  gamma[j] * sqrt(p_j)  +  b[j]
+    where we pack parameters as:
+      - W: 5×5 weight matrix       (25 params)
+      - gamma: 5-d vector          ( 5 params)
+      - b: 5-d bias                ( 5 params)
+    Total = 35 parameters.
+    &quot;&quot;&quot;
+    X = np.asarray(data_points, dtype=float)
+    N, F = X.shape
+    assert F == 5, &quot;Expected 5 mixture proportions&quot;
+
+    p = np.asarray(params, dtype=float).ravel()
+    assert p.size == 35, f&quot;Expected 35 parameters, got {p.size}&quot;
+
+    # unpack
+    W_lin = p[:25].reshape(5, 5)
+    gamma = p[25:30]
+    b     = p[30:35]
+
+    # linear part
+    lin = X.dot(W_lin.T)               # (N,5)
+    # non-linear sqrt effect per domain
+    sqrt_eff = np.sqrt(X) * gamma      # broadcast to (N,5)
+
+    return lin + sqrt_eff + b
+# EVOLVE-BLOCK-END
+
+def fit_scaling_law(data_points, loss_values):
+    &quot;&quot;&quot;
+    Fit the above 35-param model with a two-stage procedure:
+      1) initialize by small‐ridge per-domain least squares
+      2) refine each domain via IRLS with Huber-like weights
+    This yields robustness to outliers and tighter fit.
+    &quot;&quot;&quot;
+    X = np.asarray(data_points, dtype=float)
+    y = np.asarray(loss_values, dtype=float)
+    N, F = X.shape
+    assert F == 5, &quot;Expected 5 mixture proportions&quot;
+    if y.ndim == 1:
+        y = y[:, None]
+    assert y.shape == (N, 5), &quot;Expected loss_values shape (N,5)&quot;
+
+    # parameters to estimate
+    W_lin = np.zeros((5, 5), dtype=float)
+    gamma = np.zeros(5, dtype=float)
+    b     = np.zeros(5, dtype=float)
+
+    # ridge factor for stability
+    lam = 1e-6 * N
+    # IRLS iterations
+    max_iter = 5
+
+    # fit each domain separately
+    for j in range(5):
+        # build design: [p1..p5, sqrt(p_j), 1]
+        sqrt_col = np.sqrt(X[:, j:j+1])               # (N,1)
+        Phi = np.hstack((X, sqrt_col, np.ones((N, 1))))  # (N,7)
+        yj  = y[:, j]
+
+        # 1) initial ridge LS
+        G = Phi.T.dot(Phi) + lam * np.eye(Phi.shape[1])
+        v = Phi.T.dot(yj)
+        theta = np.linalg.solve(G, v)
+
+        # 2) IRLS refinement (Huber‐style weights)
+        for _ in range(max_iter):
+            resid = Phi.dot(theta) - yj
+            med   = np.median(resid)
+            mad   = np.median(np.abs(resid - med)) + 1e-6
+            k     = 1.345 * mad
+            # Huber weights: w=1 if |r|&lt;=k else k/|r|
+            absr = np.abs(resid)
+            w    = np.where(absr &lt;= k, 1.0, k / absr)
+
+            # weighted normal equations
+            Wphi = Phi * w[:, None]
+            Gw   = Wphi.T.dot(Phi) + lam * np.eye(Phi.shape[1])
+            vw   = Wphi.T.dot(yj)
+            theta = np.linalg.solve(Gw, vw)
+
+        # unpack domain params
+        W_lin[j, :] = theta[:5]
+        gamma[j]    = theta[5]
+        b[j]        = theta[6]
+
+    # flatten into length‐35 vector
+    return np.concatenate((W_lin.ravel(), gamma, b))</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#4</span>
+                    <span class="run-label">Run 1</span>
+                    <span class="r2-badge" style="background-color: #006400; color: white;">
+                        R² = 0.974583
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-3')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-3">import numpy as np
+from scipy.optimize import minimize
+
+# EVOLVE-BLOCK-START
+def scaling_law_func(data_points, params):
+    &quot;&quot;&quot;
+    Predict multi-domain losses (5 outputs) from 5-domain mixture proportions
+    using a shared‐exponent power transform + per‐domain linear weights + bias.
+    Total params = 5 alphas + 5×5 weights + 5 biases = 35.
+    &quot;&quot;&quot;
+    X = np.asarray(data_points, dtype=float)
+    if X.ndim == 1:
+        X = X[None, :]
+    N, F = X.shape
+    assert F == 5, f&quot;Expected 5 mixture proportions, got {F}&quot;
+    p = params.ravel()
+    # unpack
+    alphas = p[0:F]                          # (5,)
+    W_flat = p[F:F + F*F]                   # (25,)
+    bias   = p[F + F*F:F + F*F + F]         # (5,)
+    W = W_flat.reshape(5, 5)                # (5 outputs × 5 features)
+    # safe power transform (handles zeros via small epsilon)
+    eps = 1e-8
+    G = np.exp(np.log(X + eps) * alphas)    # (N,5)
+    # linear mixing + bias
+    preds = G.dot(W.T) + bias[None, :]
+    return preds
+
+def fit_scaling_law(data_points, loss_values):
+    &quot;&quot;&quot;
+    Fit the 35 parameters by minimizing a regularized MSE over all 5 domains.
+    Returns optimized flat parameter vector of length 35.
+    &quot;&quot;&quot;
+    X = np.asarray(data_points, dtype=float)
+    y = np.asarray(loss_values, dtype=float)
+    if X.ndim == 1:
+        X = X[None, :]
+    if y.ndim == 1:
+        y = y[None, :]
+    N, F = X.shape
+    T = y.shape[1]
+    assert F == 5 and T == 5, &quot;Expected 5 mixture proportions and 5 loss dims&quot;
+    # initialize: alphas=1, W=identity, bias=mean per-domain loss
+    alphas0 = np.ones(F, dtype=float)
+    W0 = np.eye(T, F, dtype=float)
+    bias0 = np.mean(y, axis=0)
+    init_params = np.concatenate([alphas0, W0.ravel(), bias0])
+    # bounds: alphas in [0,5], weights in [-5,5], bias free
+    bounds = [(0.0, 5.0)] * F + [(-5.0, 5.0)] * (F*F) + [(None, None)] * T
+    # small L2 regularization for stability
+    reg_alpha = 1e-3
+    reg_W     = 1e-3
+
+    def objective(p):
+        pred = scaling_law_func(X, p)
+        mse  = np.mean((pred - y)**2)
+        a = p[:F]
+        w = p[F:F + F*F]
+        # encourage alphas ≈1 and weights ≈0
+        penalty = reg_alpha * np.sum((a - 1.0)**2) + reg_W * np.sum(w**2)
+        return mse + penalty
+
+    res = minimize(
+        objective,
+        init_params,
+        method=&#x27;L-BFGS-B&#x27;,
+        bounds=bounds,
+        options={&#x27;maxiter&#x27;: 2000, &#x27;ftol&#x27;: 1e-9}
+    )
+    return res.x if res.success else init_params
+# EVOLVE-BLOCK-END</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#5</span>
+                    <span class="run-label">Run 5</span>
+                    <span class="r2-badge" style="background-color: #228B22; color: white;">
+                        R² = 0.949590
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-4')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-4">import numpy as np
+
+# EVOLVE-BLOCK-START
+
+def scaling_law_func(data_points, params):
+    &quot;&quot;&quot;
+    Quadratic-per-domain scaling law:
+      For each domain j:
+        pred[:,j] = X @ a_j + (X[:,j]**2)*d_j + b_j
+    where a_j is a 5-vector, d_j is a scalar weight on the j-th squared input,
+    and b_j is a bias.  Total parameters = 5*(5 + 1 + 1) = 35.
+    &quot;&quot;&quot;
+    X = np.atleast_2d(data_points).astype(float)
+    N, D = X.shape
+    assert D == 5, &quot;Expected 5 domain proportions&quot;
+    p = params.ravel()
+    assert p.size == 35, &quot;Expected 35 parameters&quot;
+    pred = np.zeros((N, 5), dtype=float)
+    # unpack and compute per-domain prediction
+    for j in range(5):
+        base = j * 7
+        a_j = p[base:base+5]       # linear weights for domain j
+        d_j = p[base+5]            # squared-term weight for domain j
+        b_j = p[base+6]            # bias for domain j
+        pred[:, j] = X.dot(a_j) + (X[:, j]**2) * d_j + b_j
+    return pred
+
+def fit_scaling_law(data_points, loss_values):
+    &quot;&quot;&quot;
+    Fit the quadratic-per-domain model via ridge‐regularized least squares.
+    For each domain j, design matrix is [X, X[:,j]**2, 1] of shape (N,7).
+    Solve (D^T D + λI) θ = D^T y for θ of length 7, then pack into params.
+    &quot;&quot;&quot;
+    X = np.atleast_2d(data_points).astype(float)
+    Y = np.atleast_2d(loss_values).astype(float)
+    N, D = X.shape
+    assert D == 5 and Y.shape == (N, 5)
+    X2 = X * X
+    lam = 1e-6
+    params = np.zeros(35, dtype=float)
+    for j in range(5):
+        # build per-domain design matrix (N,7)
+        Xj2 = X2[:, j:j+1]
+        Dmat = np.hstack((X, Xj2, np.ones((N, 1), dtype=float)))
+        yj = Y[:, j]
+        # normal equations with ridge on all but bias
+        G = Dmat.T.dot(Dmat)
+        for k in range(6):
+            G[k, k] += lam
+        rhs = Dmat.T.dot(yj)
+        theta = np.linalg.solve(G, rhs)
+        # pack parameters
+        base = j * 7
+        params[base:base+5] = theta[:5]
+        params[base+5]      = theta[5]
+        params[base+6]      = theta[6]
+    return params
+
+# EVOLVE-BLOCK-END</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        </div>
+        
+        <footer class="footer">
+            <p>SLDBench | <a href="https://arxiv.org/abs/2507.21184" target="_blank">arXiv:2507.21184</a> | <a href="https://github.com/linhaowei1/SLD" target="_blank">GitHub</a></p>
+        </footer>
+    </div>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script>
+        function toggleRun(header) {
+            const content = header.nextElementSibling;
+            const isExpanded = content.style.display === 'block';
+            content.style.display = isExpanded ? 'none' : 'block';
+            header.classList.toggle('expanded', !isExpanded);
+        }
+        
+        function copyCode(event, codeId) {
+            event.stopPropagation();
+            const code = document.getElementById(codeId).textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                const btn = event.target;
+                btn.textContent = 'Copied!';
+                setTimeout(() => btn.textContent = 'Copy', 2000);
+            });
+        }
+        
+        Prism.highlightAll();
+    </script>
+</body>
+</html>

@@ -1,0 +1,1584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SLD - SFT Scaling Law - mini-swe-agent + GPT-5</title>
+    <link rel="icon" type="image/png" href="assets/sld_logo.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" rel="stylesheet" />
+    <style>
+        :root {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8f9fa;
+            --accent-primary: #2563eb;
+            --accent-secondary: #3b82f6;
+            --accent-gradient: linear-gradient(135deg, #2563eb 0%, #3b82f6 50%, #60a5fa 100%);
+            --text-primary: #1f2937;
+            --text-secondary: #4b5563;
+            --border-subtle: rgba(0, 0, 0, 0.1);
+            --glass-bg: rgba(0, 0, 0, 0.02);
+            --success: #10b981;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Sora', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            min-height: 100vh;
+            color: var(--text-primary);
+        }
+        
+        .bg-pattern {
+            display: none;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--accent-primary);
+            text-decoration: none;
+            font-size: 0.9rem;
+            margin-bottom: 1.5rem;
+            transition: color 0.2s;
+        }
+        
+        .back-link:hover {
+            color: var(--accent-secondary);
+        }
+        
+        .header {
+            background: var(--glass-bg);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            backdrop-filter: blur(10px);
+        }
+        
+        .header h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            background: var(--accent-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .meta-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+            margin-top: 1rem;
+        }
+        
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .meta-label {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+        
+        .meta-value {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .r2-badge {
+            display: inline-block;
+            padding: 0.3rem 0.6rem;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        .section-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+        
+        .runs-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .run-card {
+            background: var(--glass-bg);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            overflow: hidden;
+            transition: border-color 0.2s;
+        }
+        
+        .run-card:hover {
+            border-color: rgba(99, 102, 241, 0.3);
+        }
+        
+        .run-card.best-run {
+            border-color: var(--success);
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.1);
+        }
+        
+        .run-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 1.25rem;
+            background: rgba(255, 255, 255, 0.02);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .run-header:hover {
+            background: rgba(255, 255, 255, 0.04);
+        }
+        
+        .run-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .run-badge {
+            padding: 0.25rem 0.6rem;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-secondary);
+        }
+        
+        .run-badge.best-badge {
+            background: var(--success);
+            color: white;
+        }
+        
+        .run-label {
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+        
+        .expand-icon {
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            transition: transform 0.2s;
+        }
+        
+        .run-header.expanded .expand-icon {
+            transform: rotate(180deg);
+        }
+        
+        .run-content {
+            border-top: 1px solid var(--border-subtle);
+        }
+        
+        .code-container {
+            overflow: hidden;
+        }
+        
+        .code-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 1.25rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-bottom: 1px solid var(--border-subtle);
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+        
+        .copy-btn {
+            padding: 0.35rem 0.75rem;
+            background: rgba(99, 102, 241, 0.2);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 6px;
+            color: var(--accent-primary);
+            font-size: 0.75rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        
+        .copy-btn:hover {
+            background: rgba(99, 102, 241, 0.3);
+        }
+        
+        .code-container pre {
+            margin: 0;
+            padding: 1.25rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            line-height: 1.6;
+            overflow-x: auto;
+            background: transparent !important;
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 3rem;
+            padding-top: 2rem;
+            border-top: 1px solid var(--border-subtle);
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+        
+        .footer a {
+            color: var(--accent-primary);
+            text-decoration: none;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+            
+            .header h1 {
+                font-size: 1.25rem;
+            }
+            
+            .meta-row {
+                flex-direction: column;
+                gap: 0.75rem;
+            }
+            
+            .run-info {
+                flex-wrap: wrap;
+                gap: 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-pattern"></div>
+    
+    <div class="container">
+        <a href="sld_index.html" class="back-link">
+            ← Back to Leaderboard
+        </a>
+        
+        <div class="header">
+            <h1>SFT Scaling Law</h1>
+            <div class="meta-row">
+                <div class="meta-item">
+                    <span class="meta-label">Agent:</span>
+                    <span class="meta-value">mini-swe-agent</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Model:</span>
+                    <span class="meta-value">GPT-5</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Best R²:</span>
+                    <span class="r2-badge" style="background-color: #006400; color: white;">
+                        0.971228
+                    </span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Mean R²:</span>
+                    <span class="meta-value">0.852816</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Min R²:</span>
+                    <span class="meta-value">0.721476</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Runs:</span>
+                    <span class="meta-value">5</span>
+                </div>
+            </div>
+        </div>
+        
+        <h2 class="section-title">All Runs (sorted by R²)</h2>
+        
+        <div class="runs-container">
+            
+        <div class="run-card best-run">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge best-badge">Best</span>
+                    <span class="run-label">Run 1</span>
+                    <span class="r2-badge" style="background-color: #006400; color: white;">
+                        R² = 0.971228
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: block;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-0')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-0">from __future__ import annotations
+import math
+from typing import List, Dict
+
+# Learned parameters for each group for the scaling law:
+# sft_loss = c + a * (sft_data_size + x0) ** (-b)
+_PARAMS = {
+    &quot;(&#x27;MBZUAI/LaMini-GPT-124M&#x27;, &#x27;flan&#x27;)&quot;: {&#x27;c&#x27;: 1.564269587, &#x27;a&#x27;: 87.98498619, &#x27;b&#x27;: 0.3824763366, &#x27;x0&#x27;: 10000},
+    &quot;(&#x27;MBZUAI/LaMini-GPT-124M&#x27;, &#x27;gigaword&#x27;)&quot;: {&#x27;c&#x27;: 0.4837739236, &#x27;a&#x27;: 59.71925558, &#x27;b&#x27;: 0.3416696269, &#x27;x0&#x27;: 10000},
+    &quot;(&#x27;MBZUAI/LaMini-GPT-124M&#x27;, &#x27;wikiword&#x27;)&quot;: {&#x27;c&#x27;: 1.048831887, &#x27;a&#x27;: 5.997674903, &#x27;b&#x27;: 0.1826307524, &#x27;x0&#x27;: 1584.893192},
+    &quot;(&#x27;MBZUAI/LaMini-GPT-774M&#x27;, &#x27;flan&#x27;)&quot;: {&#x27;c&#x27;: 1.307240186, &#x27;a&#x27;: 41.76904713, &#x27;b&#x27;: 0.3242540963, &#x27;x0&#x27;: 10000},
+    &quot;(&#x27;MBZUAI/LaMini-GPT-774M&#x27;, &#x27;gigaword&#x27;)&quot;: {&#x27;c&#x27;: 0.6260466467, &#x27;a&#x27;: 104.8492498, &#x27;b&#x27;: 0.4259772459, &#x27;x0&#x27;: 10000},
+    &quot;(&#x27;MBZUAI/LaMini-GPT-774M&#x27;, &#x27;wikiword&#x27;)&quot;: {&#x27;c&#x27;: 0.846386623, &#x27;a&#x27;: 2.652869033, &#x27;b&#x27;: 0.116385829, &#x27;x0&#x27;: 251.1886431},
+    &quot;(&#x27;cerebras/Cerebras-GPT-1.3B&#x27;, &#x27;flan&#x27;)&quot;: {&#x27;c&#x27;: 1.371608086, &#x27;a&#x27;: 5.177573316, &#x27;b&#x27;: 0.1776235759, &#x27;x0&#x27;: 1584.893192},
+    &quot;(&#x27;cerebras/Cerebras-GPT-1.3B&#x27;, &#x27;gigaword&#x27;)&quot;: {&#x27;c&#x27;: 0.1373163055, &#x27;a&#x27;: 7.12887961, &#x27;b&#x27;: 0.137700517, &#x27;x0&#x27;: 1584.893192},
+    &quot;(&#x27;cerebras/Cerebras-GPT-1.3B&#x27;, &#x27;wikiword&#x27;)&quot;: {&#x27;c&#x27;: 1.084408809, &#x27;a&#x27;: 3.972975118, &#x27;b&#x27;: 0.1537142579, &#x27;x0&#x27;: 1584.893192},
+    &quot;(&#x27;cerebras/Cerebras-GPT-256M&#x27;, &#x27;flan&#x27;)&quot;: {&#x27;c&#x27;: 1.265501879, &#x27;a&#x27;: 5.42406848, &#x27;b&#x27;: 0.127521399, &#x27;x0&#x27;: 1584.893192},
+    &quot;(&#x27;cerebras/Cerebras-GPT-256M&#x27;, &#x27;gigaword&#x27;)&quot;: {&#x27;c&#x27;: 0, &#x27;a&#x27;: 8.979116797, &#x27;b&#x27;: 0.1512820373, &#x27;x0&#x27;: 1584.893192},
+    &quot;(&#x27;cerebras/Cerebras-GPT-256M&#x27;, &#x27;wikiword&#x27;)&quot;: {&#x27;c&#x27;: 0.7785420197, &#x27;a&#x27;: 4.614099641, &#x27;b&#x27;: 0.1157775285, &#x27;x0&#x27;: 251.1886431},
+    &quot;(&#x27;facebook/bart-base&#x27;, &#x27;flan&#x27;)&quot;: {&#x27;c&#x27;: 0.3645941746, &#x27;a&#x27;: 10.54850589, &#x27;b&#x27;: 0.1400599591, &#x27;x0&#x27;: 1584.893192},
+    &quot;(&#x27;facebook/bart-base&#x27;, &#x27;gigaword&#x27;)&quot;: {&#x27;c&#x27;: 0.8022925003, &#x27;a&#x27;: 558.1446562, &#x27;b&#x27;: 0.5859135735, &#x27;x0&#x27;: 10000},
+    &quot;(&#x27;facebook/bart-base&#x27;, &#x27;wikiword&#x27;)&quot;: {&#x27;c&#x27;: 0.9874219716, &#x27;a&#x27;: 8.509733939, &#x27;b&#x27;: 0.2138652817, &#x27;x0&#x27;: 251.1886431},
+    &quot;(&#x27;facebook/bart-large&#x27;, &#x27;flan&#x27;)&quot;: {&#x27;c&#x27;: 0.6377771789, &#x27;a&#x27;: 5.525963949, &#x27;b&#x27;: 0.1123388906, &#x27;x0&#x27;: 251.1886431},
+    &quot;(&#x27;facebook/bart-large&#x27;, &#x27;gigaword&#x27;)&quot;: {&#x27;c&#x27;: 0.8135473126, &#x27;a&#x27;: 1721.147572, &#x27;b&#x27;: 0.7131843465, &#x27;x0&#x27;: 10000},
+    &quot;(&#x27;facebook/bart-large&#x27;, &#x27;wikiword&#x27;)&quot;: {&#x27;c&#x27;: 0.7826410482, &#x27;a&#x27;: 2.626828832, &#x27;b&#x27;: 0.1156186513, &#x27;x0&#x27;: 0},
+    &quot;(&#x27;facebook/opt-1.3b&#x27;, &#x27;flan&#x27;)&quot;: {&#x27;c&#x27;: 1.268665971, &#x27;a&#x27;: 4.437107393, &#x27;b&#x27;: 0.182582469, &#x27;x0&#x27;: 1584.893192},
+    &quot;(&#x27;facebook/opt-1.3b&#x27;, &#x27;gigaword&#x27;)&quot;: {&#x27;c&#x27;: 0.1162159713, &#x27;a&#x27;: 9.303401005, &#x27;b&#x27;: 0.1692837743, &#x27;x0&#x27;: 1584.893192},
+    &quot;(&#x27;facebook/opt-1.3b&#x27;, &#x27;wikiword&#x27;)&quot;: {&#x27;c&#x27;: 0.9604445677, &#x27;a&#x27;: 1.854993681, &#x27;b&#x27;: 0.1160700451, &#x27;x0&#x27;: 251.1886431},
+    &quot;(&#x27;facebook/opt-350m&#x27;, &#x27;flan&#x27;)&quot;: {&#x27;c&#x27;: 0.9725591969, &#x27;a&#x27;: 5.931693964, &#x27;b&#x27;: 0.1327214077, &#x27;x0&#x27;: 1584.893192},
+    &quot;(&#x27;facebook/opt-350m&#x27;, &#x27;gigaword&#x27;)&quot;: {&#x27;c&#x27;: 0, &#x27;a&#x27;: 12.90265068, &#x27;b&#x27;: 0.189106158, &#x27;x0&#x27;: 1584.893192},
+    &quot;(&#x27;facebook/opt-350m&#x27;, &#x27;wikiword&#x27;)&quot;: {&#x27;c&#x27;: 0.8957143243, &#x27;a&#x27;: 2.994444891, &#x27;b&#x27;: 0.1136282614, &#x27;x0&#x27;: 251.1886431},
+    &quot;(&#x27;facebook/opt-6.7b&#x27;, &#x27;flan&#x27;)&quot;: {&#x27;c&#x27;: 1.517869515, &#x27;a&#x27;: 0.9931489165, &#x27;b&#x27;: 0.1126229971, &#x27;x0&#x27;: 251.1886431},
+    &quot;(&#x27;facebook/opt-6.7b&#x27;, &#x27;gigaword&#x27;)&quot;: {&#x27;c&#x27;: 1.723087933, &#x27;a&#x27;: 7.567498663, &#x27;b&#x27;: 0.3652711781, &#x27;x0&#x27;: 10000},
+    &quot;(&#x27;facebook/opt-6.7b&#x27;, &#x27;wikiword&#x27;)&quot;: {&#x27;c&#x27;: 0.9976291701, &#x27;a&#x27;: 1.409723211, &#x27;b&#x27;: 0.1163785758, &#x27;x0&#x27;: 251.1886431},
+    &quot;(&#x27;google/mt5-base&#x27;, &#x27;flan&#x27;)&quot;: {&#x27;c&#x27;: 0.9909552392, &#x27;a&#x27;: 4.597987709, &#x27;b&#x27;: 0.1175021959, &#x27;x0&#x27;: 251.1886431},
+    &quot;(&#x27;google/mt5-base&#x27;, &#x27;gigaword&#x27;)&quot;: {&#x27;c&#x27;: 1.738144527, &#x27;a&#x27;: 3.077069792, &#x27;b&#x27;: 0.1368078084, &#x27;x0&#x27;: 1584.893192},
+    &quot;(&#x27;google/mt5-base&#x27;, &#x27;wikiword&#x27;)&quot;: {&#x27;c&#x27;: 0.2199407554, &#x27;a&#x27;: 5.398032721, &#x27;b&#x27;: 0.1182095443, &#x27;x0&#x27;: 251.1886431},
+    &quot;(&#x27;google/mt5-large&#x27;, &#x27;flan&#x27;)&quot;: {&#x27;c&#x27;: 1.434152687, &#x27;a&#x27;: 6.288948252, &#x27;b&#x27;: 0.2299434479, &#x27;x0&#x27;: 1584.893192},
+    &quot;(&#x27;google/mt5-large&#x27;, &#x27;gigaword&#x27;)&quot;: {&#x27;c&#x27;: 1.900891986, &#x27;a&#x27;: 23.65735527, &#x27;b&#x27;: 0.3546820123, &#x27;x0&#x27;: 10000},
+    &quot;(&#x27;google/mt5-large&#x27;, &#x27;wikiword&#x27;)&quot;: {&#x27;c&#x27;: 0.5457049924, &#x27;a&#x27;: 4.193880429, &#x27;b&#x27;: 0.1210634752, &#x27;x0&#x27;: 251.1886431},
+    &quot;(&#x27;gpt2&#x27;, &#x27;flan&#x27;)&quot;: {&#x27;c&#x27;: 1.490922453, &#x27;a&#x27;: 75.32900687, &#x27;b&#x27;: 0.3578463194, &#x27;x0&#x27;: 10000},
+    &quot;(&#x27;gpt2&#x27;, &#x27;gigaword&#x27;)&quot;: {&#x27;c&#x27;: 0.8476347336, &#x27;a&#x27;: 301.256379, &#x27;b&#x27;: 0.5329780156, &#x27;x0&#x27;: 10000},
+    &quot;(&#x27;gpt2&#x27;, &#x27;wikiword&#x27;)&quot;: {&#x27;c&#x27;: 1.203279469, &#x27;a&#x27;: 7.999141793, &#x27;b&#x27;: 0.2296289159, &#x27;x0&#x27;: 1584.893192},
+    &quot;(&#x27;t5-base&#x27;, &#x27;flan&#x27;)&quot;: {&#x27;c&#x27;: 0.9738756683, &#x27;a&#x27;: 4.331690322, &#x27;b&#x27;: 0.132221776, &#x27;x0&#x27;: 1584.893192},
+    &quot;(&#x27;t5-base&#x27;, &#x27;gigaword&#x27;)&quot;: {&#x27;c&#x27;: 0.4284101849, &#x27;a&#x27;: 1.864584477, &#x27;b&#x27;: 0.1734356468, &#x27;x0&#x27;: 6.30957344},
+    &quot;(&#x27;t5-base&#x27;, &#x27;wikiword&#x27;)&quot;: {&#x27;c&#x27;: 1.001935901, &#x27;a&#x27;: 3.053731805, &#x27;b&#x27;: 0.1909571108, &#x27;x0&#x27;: 1584.893192},
+    &quot;(&#x27;t5-small&#x27;, &#x27;flan&#x27;)&quot;: {&#x27;c&#x27;: 1.142977987, &#x27;a&#x27;: 4.981709663, &#x27;b&#x27;: 0.135803553, &#x27;x0&#x27;: 1584.893192},
+    &quot;(&#x27;t5-small&#x27;, &#x27;gigaword&#x27;)&quot;: {&#x27;c&#x27;: 0.5884135339, &#x27;a&#x27;: 2.844380432, &#x27;b&#x27;: 0.2363651475, &#x27;x0&#x27;: 251.1886431},
+    &quot;(&#x27;t5-small&#x27;, &#x27;wikiword&#x27;)&quot;: {&#x27;c&#x27;: 1.083657457, &#x27;a&#x27;: 4.090656387, &#x27;b&#x27;: 0.1910050169, &#x27;x0&#x27;: 1584.893192},
+}
+
+# Fallback parameters (mean across groups) used if an unseen group is provided
+_FALLBACK = {&quot;c&quot;:0.9272686752852628,&quot;a&quot;:74.88410175959388,&quot;b&quot;:0.22081211328758815,&quot;x0&quot;:3132.110732274286}
+
+def _predict_one(n: float, p: dict[str, float]) -&gt; float:
+    n = float(n)
+    c = float(p.get(&quot;c&quot;, 0.0))
+    a = float(p.get(&quot;a&quot;, 1.0))
+    b = float(p.get(&quot;b&quot;, 0.5))
+    x0 = float(p.get(&quot;x0&quot;, 0.0))
+    # Guard for non-positive n: treat as 0
+    if not math.isfinite(n) or n &lt; 0:
+        n = 0.0
+    return c + a * (n + x0) ** (-b)
+
+def law(input_data: list[dict[str, float]], group: str) -&gt; list[dict[str, float]]:
+    &quot;&quot;&quot;
+    Predicts output variables based on input variables according to a discovered scaling law.
+
+    Args:
+        input_data: A list of dictionaries, where each dictionary is a single data
+                    point containing input variable names as keys and their
+                    corresponding values.
+        group: The name of the experimental group for which to make predictions.
+                The functional form of the law must be the same for all groups,
+                but the constant parameters/coefficients can differ per group.
+
+    Returns:
+        A list of dictionaries, corresponding to the input_data list, with each
+        dictionary containing the predicted output variable(s).
+    &quot;&quot;&quot;
+    params = _PARAMS.get(group, _FALLBACK)
+    out: list[dict[str, float]] = []
+    for item in input_data:
+        # Expect &#x27;sft_data_size&#x27; as the driver variable
+        n = item.get(&quot;sft_data_size&quot;)
+        if n is None:
+            # Try common aliases just in case
+            n = item.get(&quot;N&quot;, item.get(&quot;n&quot;, 0.0))
+        yhat = _predict_one(n, params)
+        out.append({&quot;sft_loss&quot;: float(yhat)})
+    return out</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#2</span>
+                    <span class="run-label">Run 2</span>
+                    <span class="r2-badge" style="background-color: #228B22; color: white;">
+                        R² = 0.888404
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-1')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-1"># Auto-generated scaling law for SFT loss vs data size
+# Formula: sft_loss(N) = L_inf + A * N^(-alpha)
+# Parameters are fitted per group on the provided dataset.
+
+from typing import List, Dict
+
+PARAMS: dict[str, dict[str, float]] = {
+  &quot;(&#x27;MBZUAI/LaMini-GPT-124M&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;Linf&quot;: 0.2644679126412921,
+    &quot;A&quot;: 7.392902084513029,
+    &quot;alpha&quot;: 0.09772835598361189
+  },
+  &quot;(&#x27;MBZUAI/LaMini-GPT-774M&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;Linf&quot;: 0.43759395405594725,
+    &quot;A&quot;: 5.531413145210734,
+    &quot;alpha&quot;: 0.09388832717900626
+  },
+  &quot;(&#x27;cerebras/Cerebras-GPT-256M&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;Linf&quot;: 1.1472914221264334,
+    &quot;A&quot;: 3.795974200154351,
+    &quot;alpha&quot;: 0.08774296186718188
+  },
+  &quot;(&#x27;cerebras/Cerebras-GPT-1.3B&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;Linf&quot;: 1.0622036781516453,
+    &quot;A&quot;: 3.0715307151683127,
+    &quot;alpha&quot;: 0.09823047544844718
+  },
+  &quot;(&#x27;facebook/bart-base&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;Linf&quot;: 0.15379230840362768,
+    &quot;A&quot;: 7.116640444912342,
+    &quot;alpha&quot;: 0.09669213314391904
+  },
+  &quot;(&#x27;facebook/bart-large&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;Linf&quot;: 0.48584141551531856,
+    &quot;A&quot;: 5.014098914743766,
+    &quot;alpha&quot;: 0.09512578812569872
+  },
+  &quot;(&#x27;facebook/opt-1.3b&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;Linf&quot;: 0.9741057484295051,
+    &quot;A&quot;: 2.5825359769036993,
+    &quot;alpha&quot;: 0.09681201597062883
+  },
+  &quot;(&#x27;facebook/opt-350m&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;Linf&quot;: 0.848643995048443,
+    &quot;A&quot;: 4.077856456099283,
+    &quot;alpha&quot;: 0.09121613844113714
+  },
+  &quot;(&#x27;facebook/opt-6.7b&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;Linf&quot;: 1.4899158103248278,
+    &quot;A&quot;: 0.9025795550681525,
+    &quot;alpha&quot;: 0.09537760187157074
+  },
+  &quot;(&#x27;gpt2&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;Linf&quot;: 0.21870910496088403,
+    &quot;A&quot;: 7.684950255452461,
+    &quot;alpha&quot;: 0.09703407026496974
+  },
+  &quot;(&#x27;t5-base&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;Linf&quot;: 0.8812008838577184,
+    &quot;A&quot;: 3.0096014573710135,
+    &quot;alpha&quot;: 0.09170378077307463
+  },
+  &quot;(&#x27;t5-small&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;Linf&quot;: 1.0386471794947751,
+    &quot;A&quot;: 3.426027780307913,
+    &quot;alpha&quot;: 0.09425842276668721
+  },
+  &quot;(&#x27;google/mt5-base&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;Linf&quot;: 0.8687155691785333,
+    &quot;A&quot;: 4.14230239210097,
+    &quot;alpha&quot;: 0.09945773996866068
+  },
+  &quot;(&#x27;google/mt5-large&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;Linf&quot;: 0.9728333303560993,
+    &quot;A&quot;: 2.8951405820618747,
+    &quot;alpha&quot;: 0.0994449930593957
+  },
+  &quot;(&#x27;MBZUAI/LaMini-GPT-124M&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;Linf&quot;: -0.4567897703724608,
+    &quot;A&quot;: 6.853428489126484,
+    &quot;alpha&quot;: 0.10181381322441063
+  },
+  &quot;(&#x27;MBZUAI/LaMini-GPT-774M&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;Linf&quot;: -0.42935635602180255,
+    &quot;A&quot;: 6.151009176850955,
+    &quot;alpha&quot;: 0.1038374012172193
+  },
+  &quot;(&#x27;cerebras/Cerebras-GPT-256M&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;Linf&quot;: -0.26614613775260576,
+    &quot;A&quot;: 5.792272468065782,
+    &quot;alpha&quot;: 0.09844696669260672
+  },
+  &quot;(&#x27;cerebras/Cerebras-GPT-1.3B&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;Linf&quot;: -0.010002282397518769,
+    &quot;A&quot;: 4.859797353275681,
+    &quot;alpha&quot;: 0.09525580361484658
+  },
+  &quot;(&#x27;facebook/bart-base&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;Linf&quot;: -0.9984903017327353,
+    &quot;A&quot;: 8.510739423060306,
+    &quot;alpha&quot;: 0.10554630719642306
+  },
+  &quot;(&#x27;facebook/bart-large&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;Linf&quot;: -1.0736871011852702,
+    &quot;A&quot;: 8.425514404986941,
+    &quot;alpha&quot;: 0.10737344387236608
+  },
+  &quot;(&#x27;facebook/opt-1.3b&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;Linf&quot;: -0.27696534696465847,
+    &quot;A&quot;: 5.673848264697922,
+    &quot;alpha&quot;: 0.10268168921870761
+  },
+  &quot;(&#x27;facebook/opt-350m&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;Linf&quot;: -0.6807447105738882,
+    &quot;A&quot;: 7.190031773836993,
+    &quot;alpha&quot;: 0.10375543896859384
+  },
+  &quot;(&#x27;facebook/opt-6.7b&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;Linf&quot;: 1.6072111101801454,
+    &quot;A&quot;: 0.7236059283739782,
+    &quot;alpha&quot;: 0.09922385277336458
+  },
+  &quot;(&#x27;gpt2&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;Linf&quot;: -0.6244255837265738,
+    &quot;A&quot;: 7.189854871198778,
+    &quot;alpha&quot;: 0.10372952717809261
+  },
+  &quot;(&#x27;t5-base&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;Linf&quot;: 0.13235370541888736,
+    &quot;A&quot;: 1.6829180686329805,
+    &quot;alpha&quot;: 0.09721255441041499
+  },
+  &quot;(&#x27;t5-small&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;Linf&quot;: 0.23584916358105795,
+    &quot;A&quot;: 1.7482817915517455,
+    &quot;alpha&quot;: 0.10149881529338796
+  },
+  &quot;(&#x27;google/mt5-base&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;Linf&quot;: 1.6747833275590822,
+    &quot;A&quot;: 2.102174310233926,
+    &quot;alpha&quot;: 0.09464789431169726
+  },
+  &quot;(&#x27;google/mt5-large&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;Linf&quot;: 1.487844720370509,
+    &quot;A&quot;: 2.475132952553586,
+    &quot;alpha&quot;: 0.09621416453798393
+  },
+  &quot;(&#x27;MBZUAI/LaMini-GPT-124M&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;Linf&quot;: 0.649809905727861,
+    &quot;A&quot;: 3.4886667687707806,
+    &quot;alpha&quot;: 0.09671367952481208
+  },
+  &quot;(&#x27;MBZUAI/LaMini-GPT-774M&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;Linf&quot;: 0.7744533276207425,
+    &quot;A&quot;: 2.397110707298485,
+    &quot;alpha&quot;: 0.0985784748438589
+  },
+  &quot;(&#x27;cerebras/Cerebras-GPT-256M&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;Linf&quot;: 0.6527501355366048,
+    &quot;A&quot;: 4.172713150671879,
+    &quot;alpha&quot;: 0.09805474351303752
+  },
+  &quot;(&#x27;cerebras/Cerebras-GPT-1.3B&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;Linf&quot;: 0.9119378489893127,
+    &quot;A&quot;: 2.587920259576489,
+    &quot;alpha&quot;: 0.09589627115811068
+  },
+  &quot;(&#x27;facebook/bart-base&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;Linf&quot;: -0.02833468290713781,
+    &quot;A&quot;: 5.828239751140302,
+    &quot;alpha&quot;: 0.10449269492583729
+  },
+  &quot;(&#x27;facebook/bart-large&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;Linf&quot;: 0.5956038597493062,
+    &quot;A&quot;: 2.6528660591119273,
+    &quot;alpha&quot;: 0.0957153366743184
+  },
+  &quot;(&#x27;facebook/opt-1.3b&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;Linf&quot;: 0.9094528391371892,
+    &quot;A&quot;: 1.6787189787975223,
+    &quot;alpha&quot;: 0.0983368205391434
+  },
+  &quot;(&#x27;facebook/opt-350m&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;Linf&quot;: 0.8109548933586989,
+    &quot;A&quot;: 2.7232908330556858,
+    &quot;alpha&quot;: 0.09634969340031328
+  },
+  &quot;(&#x27;facebook/opt-6.7b&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;Linf&quot;: 0.9589016638350853,
+    &quot;A&quot;: 1.2766691408885675,
+    &quot;alpha&quot;: 0.09871035838369577
+  },
+  &quot;(&#x27;gpt2&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;Linf&quot;: 0.6125135065620836,
+    &quot;A&quot;: 3.6943704466210443,
+    &quot;alpha&quot;: 0.09930774608957725
+  },
+  &quot;(&#x27;t5-base&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;Linf&quot;: 0.787324793500978,
+    &quot;A&quot;: 1.711734510517094,
+    &quot;alpha&quot;: 0.09693028358929047
+  },
+  &quot;(&#x27;t5-small&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;Linf&quot;: 0.801560693099266,
+    &quot;A&quot;: 2.2866597170318412,
+    &quot;alpha&quot;: 0.09729548662578053
+  },
+  &quot;(&#x27;google/mt5-base&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;Linf&quot;: 0.07602277288787551,
+    &quot;A&quot;: 4.861077329303588,
+    &quot;alpha&quot;: 0.10005253831788846
+  },
+  &quot;(&#x27;google/mt5-large&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;Linf&quot;: 0.38490261778168056,
+    &quot;A&quot;: 3.7826744174681144,
+    &quot;alpha&quot;: 0.09921917188340773
+  },
+  &quot;default&quot;: {
+    &quot;Linf&quot;: -2.758689901713578,
+    &quot;A&quot;: 6.6021114932519085,
+    &quot;alpha&quot;: 0.05
+  }
+}
+
+def _predict_one(n: float, p: dict[str, float]) -&gt; float:
+    # Safeguards
+    if n is None:
+        return float(&quot;nan&quot;)
+    try:
+        x = float(n)
+    except Exception:
+        return float(&quot;nan&quot;)
+    if not (x &gt; 0.0) or not (x == x):
+        # x &lt;= 0 or NaN
+        x = 1.0
+    L_inf = p.get(&quot;Linf&quot;, 0.0)
+    A = p.get(&quot;A&quot;, 1.0)
+    alpha = p.get(&quot;alpha&quot;, 0.5)
+    # Compute prediction
+    return L_inf + A * (x ** (-alpha))
+
+def law(input_data: List[Dict[str, float]], group: str) -&gt; List[Dict[str, float]]:
+    &quot;&quot;&quot;
+    Predicts output variables based on input variables according to a discovered scaling law.
+
+    Args:
+        input_data: A list of dictionaries, where each dictionary is a single data
+                    point containing input variable names as keys and their
+                    corresponding values.
+        group: The name of the experimental group for which to make predictions.
+                The functional form of the law must be the same for all groups,
+                but the constant parameters/coefficients can differ per group.
+
+    Returns:
+        A list of dictionaries, corresponding to the input_data list, with each
+        dictionary containing the predicted output variable(s).
+    &quot;&quot;&quot;
+    p = PARAMS.get(group, PARAMS.get(&quot;default&quot;, {&quot;Linf&quot;: 0.0, &quot;A&quot;: 1.0, &quot;alpha&quot;: 0.5}))
+    outputs: List[Dict[str, float]] = []
+    for row in input_data:
+        n = None
+        if isinstance(row, dict):
+            # standard key
+            if &quot;sft_data_size&quot; in row:
+                n = row[&quot;sft_data_size&quot;]
+            else:
+                # fallback: try common variants
+                for k in [&quot;N&quot;, &quot;n&quot;, &quot;data_size&quot;, &quot;num_examples&quot;]:
+                    if k in row:
+                        n = row[k]
+                        break
+        yhat = _predict_one(n, p)
+        outputs.append({&quot;sft_loss&quot;: float(yhat)})
+    return outputs</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#3</span>
+                    <span class="run-label">Run 3</span>
+                    <span class="r2-badge" style="background-color: #228B22; color: white;">
+                        R² = 0.883449
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-2')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-2">from __future__ import annotations
+import math
+
+# Per-group parameters for the scaling law:
+# sft_loss(N) = L + A * N**(-alpha)
+PARAMS = {
+  &quot;(&#x27;MBZUAI/LaMini-GPT-124M&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;A&quot;: 7.440100211083904,
+    &quot;L&quot;: 0.07578693008730511,
+    &quot;alpha&quot;: 0.09162057288333554
+  },
+  &quot;(&#x27;MBZUAI/LaMini-GPT-124M&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;A&quot;: 6.969627229339258,
+    &quot;L&quot;: 1.0000000085225302e-06,
+    &quot;alpha&quot;: 0.12488803834188497
+  },
+  &quot;(&#x27;MBZUAI/LaMini-GPT-124M&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;A&quot;: 3.519022121819693,
+    &quot;L&quot;: 0.5553046166310998,
+    &quot;alpha&quot;: 0.0905350448853153
+  },
+  &quot;(&#x27;MBZUAI/LaMini-GPT-774M&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;A&quot;: 5.577220212652247,
+    &quot;L&quot;: 0.2926528238084617,
+    &quot;alpha&quot;: 0.08805621954625023
+  },
+  &quot;(&#x27;MBZUAI/LaMini-GPT-774M&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;A&quot;: 6.293122362913966,
+    &quot;L&quot;: 1.0000000167985103e-06,
+    &quot;alpha&quot;: 0.12918488624821686
+  },
+  &quot;(&#x27;MBZUAI/LaMini-GPT-774M&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;A&quot;: 2.416969399153642,
+    &quot;L&quot;: 0.7097133618233342,
+    &quot;alpha&quot;: 0.09225417668880848
+  },
+  &quot;(&#x27;cerebras/Cerebras-GPT-1.3B&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;A&quot;: 3.0954136626697317,
+    &quot;L&quot;: 0.9803024318962148,
+    &quot;alpha&quot;: 0.09195872279643587
+  },
+  &quot;(&#x27;cerebras/Cerebras-GPT-1.3B&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;A&quot;: 4.857135213838401,
+    &quot;L&quot;: 1.000000002361188e-06,
+    &quot;alpha&quot;: 0.09575035015064552
+  },
+  &quot;(&#x27;cerebras/Cerebras-GPT-1.3B&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;A&quot;: 2.6112077543046617,
+    &quot;L&quot;: 0.8413814859856835,
+    &quot;alpha&quot;: 0.08975874488469686
+  },
+  &quot;(&#x27;cerebras/Cerebras-GPT-256M&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;A&quot;: 3.84163336780236,
+    &quot;L&quot;: 1.0409020111902445,
+    &quot;alpha&quot;: 0.08226644295724701
+  },
+  &quot;(&#x27;cerebras/Cerebras-GPT-256M&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;A&quot;: 5.787318908898869,
+    &quot;L&quot;: 1.0000000028874842e-06,
+    &quot;alpha&quot;: 0.11196743599817105
+  },
+  &quot;(&#x27;cerebras/Cerebras-GPT-256M&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;A&quot;: 4.20836124377278,
+    &quot;L&quot;: 0.5395374397768178,
+    &quot;alpha&quot;: 0.0917616156915809
+  },
+  &quot;(&#x27;facebook/bart-base&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;A&quot;: 7.161143292734261,
+    &quot;L&quot;: 1.0000000359978954e-06,
+    &quot;alpha&quot;: 0.09164741438063023
+  },
+  &quot;(&#x27;facebook/bart-base&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;A&quot;: 9.296093337645615,
+    &quot;L&quot;: 1.0000000040655927e-06,
+    &quot;alpha&quot;: 0.15813535276647986
+  },
+  &quot;(&#x27;facebook/bart-base&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;A&quot;: 5.830904621700831,
+    &quot;L&quot;: 0.2869492712213567,
+    &quot;alpha&quot;: 0.12178125982927294
+  },
+  &quot;(&#x27;facebook/bart-large&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;A&quot;: 5.0615812536821565,
+    &quot;L&quot;: 0.3490992285087147,
+    &quot;alpha&quot;: 0.08908882018311826
+  },
+  &quot;(&#x27;facebook/bart-large&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;A&quot;: 9.506914846719734,
+    &quot;L&quot;: 1.0000000022481673e-06,
+    &quot;alpha&quot;: 0.16937069022924925
+  },
+  &quot;(&#x27;facebook/bart-large&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;A&quot;: 2.625867642492629,
+    &quot;L&quot;: 0.7736133859382263,
+    &quot;alpha&quot;: 0.11446096205772392
+  },
+  &quot;(&#x27;facebook/opt-1.3b&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;A&quot;: 2.6048225290308236,
+    &quot;L&quot;: 0.9043414023323434,
+    &quot;alpha&quot;: 0.09063834250293701
+  },
+  &quot;(&#x27;facebook/opt-1.3b&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;A&quot;: 5.693458071267297,
+    &quot;L&quot;: 1.0000000020853807e-06,
+    &quot;alpha&quot;: 0.11822794821876381
+  },
+  &quot;(&#x27;facebook/opt-1.3b&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;A&quot;: 1.6932257825455985,
+    &quot;L&quot;: 0.863560283425031,
+    &quot;alpha&quot;: 0.09198305533257471
+  },
+  &quot;(&#x27;facebook/opt-350m&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;A&quot;: 4.119749020216196,
+    &quot;L&quot;: 0.7371203133386277,
+    &quot;alpha&quot;: 0.08549184563226274
+  },
+  &quot;(&#x27;facebook/opt-350m&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;A&quot;: 7.476893095942596,
+    &quot;L&quot;: 1.0000000026274898e-06,
+    &quot;alpha&quot;: 0.14033904872585587
+  },
+  &quot;(&#x27;facebook/opt-350m&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;A&quot;: 2.75049037744945,
+    &quot;L&quot;: 0.7346714054714121,
+    &quot;alpha&quot;: 0.09010627836738455
+  },
+  &quot;(&#x27;facebook/opt-6.7b&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;A&quot;: 0.9117066035927738,
+    &quot;L&quot;: 1.4647574764645663,
+    &quot;alpha&quot;: 0.08924638523752465
+  },
+  &quot;(&#x27;facebook/opt-6.7b&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;A&quot;: 0.7273693244609847,
+    &quot;L&quot;: 1.5892301308000973,
+    &quot;alpha&quot;: 0.09306258326029347
+  },
+  &quot;(&#x27;facebook/opt-6.7b&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;A&quot;: 1.2878365209695413,
+    &quot;L&quot;: 0.924046908237266,
+    &quot;alpha&quot;: 0.09235356420614224
+  },
+  &quot;(&#x27;google/mt5-base&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;A&quot;: 4.173545355842783,
+    &quot;L&quot;: 0.7586998661581449,
+    &quot;alpha&quot;: 0.09310904568468663
+  },
+  &quot;(&#x27;google/mt5-base&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;A&quot;: 2.121768452406966,
+    &quot;L&quot;: 1.6177582480620043,
+    &quot;alpha&quot;: 0.08865913268490061
+  },
+  &quot;(&#x27;google/mt5-base&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;A&quot;: 4.880269563742019,
+    &quot;L&quot;: 1.0000000017002558e-06,
+    &quot;alpha&quot;: 0.0961777508058187
+  },
+  &quot;(&#x27;google/mt5-large&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;A&quot;: 2.916718912178606,
+    &quot;L&quot;: 0.895946679190918,
+    &quot;alpha&quot;: 0.09308729553091386
+  },
+  &quot;(&#x27;google/mt5-large&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;A&quot;: 2.492796478693708,
+    &quot;L&quot;: 1.4237510860058773,
+    &quot;alpha&quot;: 0.0901878292592061
+  },
+  &quot;(&#x27;google/mt5-large&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;A&quot;: 3.8149792877009796,
+    &quot;L&quot;: 0.28152963055589475,
+    &quot;alpha&quot;: 0.0927984918782548
+  },
+  &quot;(&#x27;gpt2&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;A&quot;: 7.736245982667956,
+    &quot;L&quot;: 0.02129659579525276,
+    &quot;alpha&quot;: 0.09095789078505706
+  },
+  &quot;(&#x27;gpt2&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;A&quot;: 7.448124477442126,
+    &quot;L&quot;: 1.0000000030419932e-06,
+    &quot;alpha&quot;: 0.13683519625150198
+  },
+  &quot;(&#x27;gpt2&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;A&quot;: 3.7224904859431525,
+    &quot;L&quot;: 0.5140524210828509,
+    &quot;alpha&quot;: 0.09295215658695029
+  },
+  &quot;(&#x27;t5-base&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;A&quot;: 3.0420404457436288,
+    &quot;L&quot;: 0.797793577830627,
+    &quot;alpha&quot;: 0.08591994556309528
+  },
+  &quot;(&#x27;t5-base&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;A&quot;: 1.8235671433738498,
+    &quot;L&quot;: 0.4163994808667427,
+    &quot;alpha&quot;: 0.16742461953579632
+  },
+  &quot;(&#x27;t5-base&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;A&quot;: 1.726395754984347,
+    &quot;L&quot;: 0.7413366134228406,
+    &quot;alpha&quot;: 0.0907796674347665
+  },
+  &quot;(&#x27;t5-small&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;A&quot;: 3.4592068416893786,
+    &quot;L&quot;: 0.9447494529027566,
+    &quot;alpha&quot;: 0.08826656681486236
+  },
+  &quot;(&#x27;t5-small&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;A&quot;: 1.77294022802986,
+    &quot;L&quot;: 0.4066064048199717,
+    &quot;alpha&quot;: 0.13549712056259158
+  },
+  &quot;(&#x27;t5-small&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;A&quot;: 2.3051873945836134,
+    &quot;L&quot;: 0.7411113007567804,
+    &quot;alpha&quot;: 0.09117916657489698
+  }
+}
+
+# Fallback parameters (median across groups)
+FALLBACK = {
+  &quot;L&quot;: 0.5474210282039588,
+  &quot;A&quot;: 3.768734886822066,
+  &quot;alpha&quot;: 0.0921186160106916
+}
+
+def _predict_loss(n: float, p: dict[str, float]) -&gt; float:
+    if n is None or not (n &gt; 0):
+        return float(&#x27;nan&#x27;)
+    L = float(p.get(&#x27;L&#x27;, 0.0))
+    A = float(p.get(&#x27;A&#x27;, 1.0))
+    alpha = float(p.get(&#x27;alpha&#x27;, 0.5))
+    return L + A * (n ** (-alpha))
+
+def law(input_data: list[dict[str, float]], group: str) -&gt; list[dict[str, float]]:
+    &quot;&quot;&quot;
+    Predicts output variables based on input variables according to a discovered scaling law.
+
+    Args:
+        input_data: A list of dictionaries, where each dictionary is a single data
+                    point containing input variable names as keys and their
+                    corresponding values.
+        group: The name of the experimental group for which to make predictions.
+                The functional form of the law must be the same for all groups,
+                but the constant parameters/coefficients can differ per group.
+
+    Returns:
+        A list of dictionaries, corresponding to the input_data list, with each
+        dictionary containing the predicted output variable(s).
+    &quot;&quot;&quot;
+    p = PARAMS.get(group, FALLBACK)
+    out = []
+    for row in input_data:
+        n = row.get(&#x27;sft_data_size&#x27;)
+        yhat = _predict_loss(float(n), p) if n is not None else float(&#x27;nan&#x27;)
+        out.append({&#x27;sft_loss&#x27;: float(yhat)})
+    return out</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#4</span>
+                    <span class="run-label">Run 4</span>
+                    <span class="r2-badge" style="background-color: #DAA520; color: white;">
+                        R² = 0.799521
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-3')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-3"># Auto-generated scaling law for SFT loss
+# Formula: sft_loss = c + a * sft_data_size ** (-b)
+# Parameters differ by group; functional form is constant across groups.
+
+from typing import List, Dict
+
+COEFFS: Dict[str, Dict[str, float]] = {
+  &quot;(&#x27;MBZUAI/LaMini-GPT-124M&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;a&quot;: 10.222339742370627,
+    &quot;b&quot;: 0.21280634514155633,
+    &quot;c&quot;: 1.721022189744976
+  },
+  &quot;(&#x27;MBZUAI/LaMini-GPT-124M&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;a&quot;: 12.320547355485184,
+    &quot;b&quot;: 0.26089547694991816,
+    &quot;c&quot;: 0.9675486463460449
+  },
+  &quot;(&#x27;MBZUAI/LaMini-GPT-124M&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;a&quot;: 4.100772188047223,
+    &quot;b&quot;: 0.18152648967340554,
+    &quot;c&quot;: 1.2758902365563987
+  },
+  &quot;(&#x27;MBZUAI/LaMini-GPT-774M&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;a&quot;: 6.98811459026019,
+    &quot;b&quot;: 0.19248917759073345,
+    &quot;c&quot;: 1.5096042044247693
+  },
+  &quot;(&#x27;MBZUAI/LaMini-GPT-774M&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;a&quot;: 11.377717006008076,
+    &quot;b&quot;: 0.267426321785479,
+    &quot;c&quot;: 0.8347296614185309
+  },
+  &quot;(&#x27;MBZUAI/LaMini-GPT-774M&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;a&quot;: 2.6222828415682673,
+    &quot;b&quot;: 0.16267728670631554,
+    &quot;c&quot;: 1.1374823876758626
+  },
+  &quot;(&#x27;cerebras/Cerebras-GPT-1.3B&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;a&quot;: 3.330159186625065,
+    &quot;b&quot;: 0.15779434393768396,
+    &quot;c&quot;: 1.5049729117647779
+  },
+  &quot;(&#x27;cerebras/Cerebras-GPT-1.3B&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;a&quot;: 6.976305162979089,
+    &quot;b&quot;: 0.22457075012382388,
+    &quot;c&quot;: 1.0526920060489429
+  },
+  &quot;(&#x27;cerebras/Cerebras-GPT-1.3B&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;a&quot;: 2.778338954201265,
+    &quot;b&quot;: 0.15443803643412407,
+    &quot;c&quot;: 1.2940011824205082
+  },
+  &quot;(&#x27;cerebras/Cerebras-GPT-256M&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;a&quot;: 4.005536907737473,
+    &quot;b&quot;: 0.14619768148504508,
+    &quot;c&quot;: 1.7689484243906948
+  },
+  &quot;(&#x27;cerebras/Cerebras-GPT-256M&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;a&quot;: 9.359113292426192,
+    &quot;b&quot;: 0.24469706695166904,
+    &quot;c&quot;: 0.9834338424400386
+  },
+  &quot;(&#x27;cerebras/Cerebras-GPT-256M&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;a&quot;: 5.05504398023467,
+    &quot;b&quot;: 0.1909152356372,
+    &quot;c&quot;: 1.4279016737075942
+  },
+  &quot;(&#x27;facebook/bart-base&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;a&quot;: 9.986586175420015,
+    &quot;b&quot;: 0.219148740632597,
+    &quot;c&quot;: 1.640807282357686
+  },
+  &quot;(&#x27;facebook/bart-base&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;a&quot;: 19.128418719190538,
+    &quot;b&quot;: 0.30473021434712627,
+    &quot;c&quot;: 0.855779466239328
+  },
+  &quot;(&#x27;facebook/bart-base&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;a&quot;: 9.288530661930713,
+    &quot;b&quot;: 0.2583420783293094,
+    &quot;c&quot;: 1.2382722929449206
+  },
+  &quot;(&#x27;facebook/bart-large&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;a&quot;: 6.270260870036552,
+    &quot;b&quot;: 0.19607675604898817,
+    &quot;c&quot;: 1.4826106276651974
+  },
+  &quot;(&#x27;facebook/bart-large&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;a&quot;: 20.51868024266526,
+    &quot;b&quot;: 0.3198573488096475,
+    &quot;c&quot;: 0.7656923875695543
+  },
+  &quot;(&#x27;facebook/bart-large&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;a&quot;: 3.005653950106531,
+    &quot;b&quot;: 0.17843702366373163,
+    &quot;c&quot;: 1.0886052856336208
+  },
+  &quot;(&#x27;facebook/opt-1.3b&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;a&quot;: 2.749677843064501,
+    &quot;b&quot;: 0.15189436417307506,
+    &quot;c&quot;: 1.3373993667209183
+  },
+  &quot;(&#x27;facebook/opt-1.3b&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;a&quot;: 9.676777613999967,
+    &quot;b&quot;: 0.2590315295208322,
+    &quot;c&quot;: 0.9297285692706154
+  },
+  &quot;(&#x27;facebook/opt-1.3b&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;a&quot;: 1.719029960352032,
+    &quot;b&quot;: 0.1371889870827748,
+    &quot;c&quot;: 1.0947027162070562
+  },
+  &quot;(&#x27;facebook/opt-350m&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;a&quot;: 4.583073463469868,
+    &quot;b&quot;: 0.16532716547261397,
+    &quot;c&quot;: 1.5711046489173983
+  },
+  &quot;(&#x27;facebook/opt-350m&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;a&quot;: 14.362483066471071,
+    &quot;b&quot;: 0.2860946378187169,
+    &quot;c&quot;: 0.894883766967793
+  },
+  &quot;(&#x27;facebook/opt-350m&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;a&quot;: 2.991032639803012,
+    &quot;b&quot;: 0.16546405947502613,
+    &quot;c&quot;: 1.2590318169852763
+  },
+  &quot;(&#x27;facebook/opt-6.7b&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;a&quot;: 0.9497789352170123,
+    &quot;b&quot;: 0.07552355590456462,
+    &quot;c&quot;: 1.3931993183419757
+  },
+  &quot;(&#x27;facebook/opt-6.7b&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;a&quot;: 0.8210010689987665,
+    &quot;b&quot;: 0.060280813546033644,
+    &quot;c&quot;: 1.4296167223845089
+  },
+  &quot;(&#x27;facebook/opt-6.7b&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;a&quot;: 1.2745183253604955,
+    &quot;b&quot;: 0.11943224747206747,
+    &quot;c&quot;: 1.0459593750506353
+  },
+  &quot;(&#x27;google/mt5-base&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;a&quot;: 4.848102934246837,
+    &quot;b&quot;: 0.1814689362651268,
+    &quot;c&quot;: 1.5750980787060067
+  },
+  &quot;(&#x27;google/mt5-base&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;a&quot;: 2.0892991998041346,
+    &quot;b&quot;: 0.11066805689452665,
+    &quot;c&quot;: 1.7960272972239193
+  },
+  &quot;(&#x27;google/mt5-base&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;a&quot;: 7.07134076334372,
+    &quot;b&quot;: 0.23142747562751959,
+    &quot;c&quot;: 1.0970276915538568
+  },
+  &quot;(&#x27;google/mt5-large&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;a&quot;: 3.1617036326215486,
+    &quot;b&quot;: 0.16107663630524463,
+    &quot;c&quot;: 1.393359872806398
+  },
+  &quot;(&#x27;google/mt5-large&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;a&quot;: 2.5074166691183795,
+    &quot;b&quot;: 0.12452313908352985,
+    &quot;c&quot;: 1.7030248504135217
+  },
+  &quot;(&#x27;google/mt5-large&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;a&quot;: 4.878109306751101,
+    &quot;b&quot;: 0.20774103520443024,
+    &quot;c&quot;: 1.1349059912317212
+  },
+  &quot;(&#x27;gpt2&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;a&quot;: 10.696620740039227,
+    &quot;b&quot;: 0.21381293880470648,
+    &quot;c&quot;: 1.7542673564938083
+  },
+  &quot;(&#x27;gpt2&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;a&quot;: 13.94318348952227,
+    &quot;b&quot;: 0.2778055355186586,
+    &quot;c&quot;: 0.9041445149959696
+  },
+  &quot;(&#x27;gpt2&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;a&quot;: 4.475465647006644,
+    &quot;b&quot;: 0.19027842690009428,
+    &quot;c&quot;: 1.2776994882836155
+  },
+  &quot;(&#x27;t5-base&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;a&quot;: 3.2391224870437214,
+    &quot;b&quot;: 0.15468394052503098,
+    &quot;c&quot;: 1.3722191545029796
+  },
+  &quot;(&#x27;t5-base&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;a&quot;: 2.1969110113796746,
+    &quot;b&quot;: 0.21735306656480474,
+    &quot;c&quot;: 0.5006256694729821
+  },
+  &quot;(&#x27;t5-base&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;a&quot;: 1.7755175801642327,
+    &quot;b&quot;: 0.14166331237878174,
+    &quot;c&quot;: 0.9977652746259214
+  },
+  &quot;(&#x27;t5-small&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;a&quot;: 3.7204246492776534,
+    &quot;b&quot;: 0.15796169239030738,
+    &quot;c&quot;: 1.582099555532
+  },
+  &quot;(&#x27;t5-small&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;a&quot;: 2.1951193979994312,
+    &quot;b&quot;: 0.20619249726197017,
+    &quot;c&quot;: 0.5732957704253894
+  },
+  &quot;(&#x27;t5-small&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;a&quot;: 2.4517774544927837,
+    &quot;b&quot;: 0.15379493226337212,
+    &quot;c&quot;: 1.1248436924193128
+  },
+  &quot;__default__&quot;: {
+    &quot;a&quot;: 4.009205911858358,
+    &quot;b&quot;: 0.10560216502408726,
+    &quot;c&quot;: 0.5006256694729821
+  }
+}
+
+def _get_params_for_group(group: str) -&gt; Dict[str, float]:
+    if not isinstance(group, str):
+        return COEFFS.get(&quot;__default__&quot;, list(COEFFS.values())[0])
+    key = group
+    if key in COEFFS:
+        return COEFFS[key]
+    # case-insensitive lookup
+    lower_map = {k.lower(): k for k in COEFFS.keys()}
+    if key.lower() in lower_map:
+        return COEFFS[lower_map[key.lower()]]
+    return COEFFS.get(&quot;__default__&quot;, list(COEFFS.values())[0])
+
+def law(input_data: list[dict[str, float]], group: str) -&gt; list[dict[str, float]]:
+    &quot;&quot;&quot;
+    Predicts output variables based on input variables according to a discovered scaling law.
+
+    Args:
+        input_data: A list of dictionaries, where each dictionary is a single data
+                    point containing input variable names as keys and their
+                    corresponding values.
+        group: The name of the experimental group for which to make predictions.
+               The functional form of the law is the same for all groups,
+               but the constant parameters/coefficients can differ per group.
+
+    Returns:
+        A list of dictionaries, corresponding to the input_data list, with each
+        dictionary containing the predicted output variable(s).
+    &quot;&quot;&quot;
+    params = _get_params_for_group(group)
+    c = float(params.get(&quot;c&quot;, 0.0))
+    a = float(params.get(&quot;a&quot;, 1.0))
+    b = float(params.get(&quot;b&quot;, 0.5))
+    out: list[dict[str, float]] = []
+    for row in input_data:
+        s = float(row.get(&quot;sft_data_size&quot;, 0.0))
+        # Guard for non-positive sizes
+        if s &lt;= 0:
+            yhat = float(c + a)  # fallback
+        else:
+            yhat = float(c + a * (s ** (-b)))
+        out.append({&quot;sft_loss&quot;: yhat})
+    return out</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#5</span>
+                    <span class="run-label">Run 5</span>
+                    <span class="r2-badge" style="background-color: #DAA520; color: white;">
+                        R² = 0.721476
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-4')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-4">from typing import List, Dict
+import math
+
+# Discovered scaling law parameters per group for: sft_loss = a + c * sft_data_size ** (-alpha)
+PARAMS: Dict[str, Dict[str, float]] = {
+  &quot;(&#x27;MBZUAI/LaMini-GPT-124M&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;a&quot;: 0.790699041420406,
+    &quot;alpha&quot;: 0.10351089588377727,
+    &quot;c&quot;: 6.476424025207671
+  },
+  &quot;(&#x27;MBZUAI/LaMini-GPT-124M&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;a&quot;: 0.0,
+    &quot;alpha&quot;: 0.1056900726392252,
+    &quot;c&quot;: 5.946489526504135
+  },
+  &quot;(&#x27;MBZUAI/LaMini-GPT-124M&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;a&quot;: 0.8598216592762249,
+    &quot;alpha&quot;: 0.1056900726392252,
+    &quot;c&quot;: 3.2369503044164687
+  },
+  &quot;(&#x27;MBZUAI/LaMini-GPT-774M&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;a&quot;: 0.9075498078231787,
+    &quot;alpha&quot;: 0.10351089588377727,
+    &quot;c&quot;: 4.8480780922984765
+  },
+  &quot;(&#x27;MBZUAI/LaMini-GPT-774M&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;a&quot;: 0.0,
+    &quot;alpha&quot;: 0.11004842615012109,
+    &quot;c&quot;: 5.372961651185846
+  },
+  &quot;(&#x27;MBZUAI/LaMini-GPT-774M&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;a&quot;: 0.9183199182816504,
+    &quot;alpha&quot;: 0.11004842615012109,
+    &quot;c&quot;: 2.266079975011127
+  },
+  &quot;(&#x27;cerebras/Cerebras-GPT-1.3B&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;a&quot;: 1.2442064476081625,
+    &quot;alpha&quot;: 0.10786924939467314,
+    &quot;c&quot;: 2.8658834173325083
+  },
+  &quot;(&#x27;cerebras/Cerebras-GPT-1.3B&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;a&quot;: 0.3146945404290659,
+    &quot;alpha&quot;: 0.1056900726392252,
+    &quot;c&quot;: 4.491944618944813
+  },
+  &quot;(&#x27;cerebras/Cerebras-GPT-1.3B&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;a&quot;: 1.0767260533938707,
+    &quot;alpha&quot;: 0.1056900726392252,
+    &quot;c&quot;: 2.397611260105994
+  },
+  &quot;(&#x27;cerebras/Cerebras-GPT-256M&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;a&quot;: 1.3837123353179746,
+    &quot;alpha&quot;: 0.09237288135593222,
+    &quot;c&quot;: 3.420524828046365
+  },
+  &quot;(&#x27;cerebras/Cerebras-GPT-256M&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;a&quot;: 0.10007866721006853,
+    &quot;alpha&quot;: 0.1056900726392252,
+    &quot;c&quot;: 5.239812743829203
+  },
+  &quot;(&#x27;cerebras/Cerebras-GPT-256M&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;a&quot;: 0.9043339038916909,
+    &quot;alpha&quot;: 0.11004842615012109,
+    &quot;c&quot;: 3.960719642719618
+  },
+  &quot;(&#x27;facebook/bart-base&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;a&quot;: 0.6184084582954843,
+    &quot;alpha&quot;: 0.1056900726392252,
+    &quot;c&quot;: 6.513115640886011
+  },
+  &quot;(&#x27;facebook/bart-base&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;a&quot;: 0.0,
+    &quot;alpha&quot;: 0.13401937046004847,
+    &quot;c&quot;: 7.636029974479608
+  },
+  &quot;(&#x27;facebook/bart-base&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;a&quot;: 0.3874016174036133,
+    &quot;alpha&quot;: 0.12917675544794188,
+    &quot;c&quot;: 5.898021650901651
+  },
+  &quot;(&#x27;facebook/bart-large&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;a&quot;: 0.8052128093471991,
+    &quot;alpha&quot;: 0.1056900726392252,
+    &quot;c&quot;: 4.680762496215878
+  },
+  &quot;(&#x27;facebook/bart-large&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;a&quot;: 0.0,
+    &quot;alpha&quot;: 0.14249394673123486,
+    &quot;c&quot;: 7.648162334623565
+  },
+  &quot;(&#x27;facebook/bart-large&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;a&quot;: 0.8667983322336061,
+    &quot;alpha&quot;: 0.12651331719128328,
+    &quot;c&quot;: 2.625072086310989
+  },
+  &quot;(&#x27;facebook/opt-1.3b&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;a&quot;: 1.1291376286454256,
+    &quot;alpha&quot;: 0.1056900726392252,
+    &quot;c&quot;: 2.3951203811959285
+  },
+  &quot;(&#x27;facebook/opt-1.3b&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;a&quot;: 0.0428404440471033,
+    &quot;alpha&quot;: 0.11004842615012109,
+    &quot;c&quot;: 5.207725354628534
+  },
+  &quot;(&#x27;facebook/opt-1.3b&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;a&quot;: 1.0114362962753296,
+    &quot;alpha&quot;: 0.11004842615012109,
+    &quot;c&quot;: 1.5878995701870624
+  },
+  &quot;(&#x27;facebook/opt-350m&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;a&quot;: 1.222878403219055,
+    &quot;alpha&quot;: 0.10351089588377727,
+    &quot;c&quot;: 3.6065255823631324
+  },
+  &quot;(&#x27;facebook/opt-350m&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;a&quot;: 0.0,
+    &quot;alpha&quot;: 0.12312348668280874,
+    &quot;c&quot;: 6.489336172308496
+  },
+  &quot;(&#x27;facebook/opt-350m&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;a&quot;: 0.9804737553304538,
+    &quot;alpha&quot;: 0.11004842615012109,
+    &quot;c&quot;: 2.6146381175043194
+  },
+  &quot;(&#x27;facebook/opt-6.7b&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;a&quot;: 1.5458232189031926,
+    &quot;alpha&quot;: 0.10786924939467314,
+    &quot;c&quot;: 0.8596509729745894
+  },
+  &quot;(&#x27;facebook/opt-6.7b&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;a&quot;: 1.6573439061969082,
+    &quot;alpha&quot;: 0.10351089588377727,
+    &quot;c&quot;: 0.6280318367866337
+  },
+  &quot;(&#x27;facebook/opt-6.7b&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;a&quot;: 1.0363566762746874,
+    &quot;alpha&quot;: 0.11222760290556903,
+    &quot;c&quot;: 1.2253126948973887
+  },
+  &quot;(&#x27;google/mt5-base&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;a&quot;: 1.1131949092238613,
+    &quot;alpha&quot;: 0.11004842615012109,
+    &quot;c&quot;: 3.8930952385830904
+  },
+  &quot;(&#x27;google/mt5-base&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;a&quot;: 1.8273491136899558,
+    &quot;alpha&quot;: 0.1056900726392252,
+    &quot;c&quot;: 1.925439922690624
+  },
+  &quot;(&#x27;google/mt5-base&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;a&quot;: 0.3638587378999745,
+    &quot;alpha&quot;: 0.11222760290556903,
+    &quot;c&quot;: 4.621303363999233
+  },
+  &quot;(&#x27;google/mt5-large&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;a&quot;: 1.143692555167632,
+    &quot;alpha&quot;: 0.11004842615012109,
+    &quot;c&quot;: 2.7206765385461735
+  },
+  &quot;(&#x27;google/mt5-large&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;a&quot;: 1.6811125715819986,
+    &quot;alpha&quot;: 0.10351089588377727,
+    &quot;c&quot;: 2.159913444176315
+  },
+  &quot;(&#x27;google/mt5-large&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;a&quot;: 0.6146203671723408,
+    &quot;alpha&quot;: 0.11440677966101698,
+    &quot;c&quot;: 3.675861062356107
+  },
+  &quot;(&#x27;gpt2&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;a&quot;: 0.7916709426646357,
+    &quot;alpha&quot;: 0.10351089588377727,
+    &quot;c&quot;: 6.716079382662674
+  },
+  &quot;(&#x27;gpt2&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;a&quot;: 0.0,
+    &quot;alpha&quot;: 0.11658595641646491,
+    &quot;c&quot;: 6.305790696642276
+  },
+  &quot;(&#x27;gpt2&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;a&quot;: 0.8313159187381804,
+    &quot;alpha&quot;: 0.11004842615012109,
+    &quot;c&quot;: 3.474574037621201
+  },
+  &quot;(&#x27;t5-base&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;a&quot;: 1.1327222235180263,
+    &quot;alpha&quot;: 0.1056900726392252,
+    &quot;c&quot;: 2.756063479323879
+  },
+  &quot;(&#x27;t5-base&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;a&quot;: 0.4149675868147168,
+    &quot;alpha&quot;: 0.16646489104116224,
+    &quot;c&quot;: 1.8164624249306538
+  },
+  &quot;(&#x27;t5-base&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;a&quot;: 0.8895207492301833,
+    &quot;alpha&quot;: 0.1056900726392252,
+    &quot;c&quot;: 1.5872010595195376
+  },
+  &quot;(&#x27;t5-small&#x27;, &#x27;flan&#x27;)&quot;: {
+    &quot;a&quot;: 1.2792346884811308,
+    &quot;alpha&quot;: 0.1056900726392252,
+    &quot;c&quot;: 3.1690824030803815
+  },
+  &quot;(&#x27;t5-small&#x27;, &#x27;gigaword&#x27;)&quot;: {
+    &quot;a&quot;: 0.40252893117710303,
+    &quot;alpha&quot;: 0.13450363196125908,
+    &quot;c&quot;: 1.7724517895533356
+  },
+  &quot;(&#x27;t5-small&#x27;, &#x27;wikiword&#x27;)&quot;: {
+    &quot;a&quot;: 0.9358926760825715,
+    &quot;alpha&quot;: 0.1056900726392252,
+    &quot;c&quot;: 2.1182803806409276
+  }
+}
+
+DEFAULT_PARAMS = {&quot;a&quot;: 0.791093711721, &quot;c&quot;: 3.78217048039, &quot;alpha&quot;: 0.112031592298}
+
+def _predict_loss(n: float, a: float, c: float, alpha: float) -&gt; float:
+    n_eff = max(1e-12, float(n))
+    return float(a + c * (n_eff ** (-alpha)))
+
+def law(input_data: list[dict[str, float]], group: str) -&gt; list[dict[str, float]]:
+    &quot;&quot;&quot;
+    Predicts sft_loss from sft_data_size using the scaling law:
+    sft_loss = a + c * sft_data_size ** (-alpha)
+
+    Functional form is the same for all groups; parameters (a, c, alpha) vary per group.
+    &quot;&quot;&quot;
+    params = PARAMS.get(group, DEFAULT_PARAMS)
+    a = float(params.get(&quot;a&quot;, DEFAULT_PARAMS[&quot;a&quot;]))
+    c = float(params.get(&quot;c&quot;, DEFAULT_PARAMS[&quot;c&quot;]))
+    alpha = float(params.get(&quot;alpha&quot;, DEFAULT_PARAMS[&quot;alpha&quot;]))
+    out: list[dict[str, float]] = []
+    for item in input_data:
+        n = float(item.get(&quot;sft_data_size&quot;, 0.0))
+        y = _predict_loss(n, a, c, alpha)
+        out.append({&quot;sft_loss&quot;: y})
+    return out</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        </div>
+        
+        <footer class="footer">
+            <p>SLDBench | <a href="https://arxiv.org/abs/2507.21184" target="_blank">arXiv:2507.21184</a> | <a href="https://github.com/linhaowei1/SLD" target="_blank">GitHub</a></p>
+        </footer>
+    </div>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script>
+        function toggleRun(header) {
+            const content = header.nextElementSibling;
+            const isExpanded = content.style.display === 'block';
+            content.style.display = isExpanded ? 'none' : 'block';
+            header.classList.toggle('expanded', !isExpanded);
+        }
+        
+        function copyCode(event, codeId) {
+            event.stopPropagation();
+            const code = document.getElementById(codeId).textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                const btn = event.target;
+                btn.textContent = 'Copied!';
+                setTimeout(() => btn.textContent = 'Copy', 2000);
+            });
+        }
+        
+        Prism.highlightAll();
+    </script>
+</body>
+</html>

@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SLD - SFT Scaling Law - gemini-cli + Gemini 3 Pro Preview</title>
+    <link rel="icon" type="image/png" href="assets/sld_logo.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" rel="stylesheet" />
+    <style>
+        :root {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8f9fa;
+            --accent-primary: #2563eb;
+            --accent-secondary: #3b82f6;
+            --accent-gradient: linear-gradient(135deg, #2563eb 0%, #3b82f6 50%, #60a5fa 100%);
+            --text-primary: #1f2937;
+            --text-secondary: #4b5563;
+            --border-subtle: rgba(0, 0, 0, 0.1);
+            --glass-bg: rgba(0, 0, 0, 0.02);
+            --success: #10b981;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Sora', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            min-height: 100vh;
+            color: var(--text-primary);
+        }
+        
+        .bg-pattern {
+            display: none;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--accent-primary);
+            text-decoration: none;
+            font-size: 0.9rem;
+            margin-bottom: 1.5rem;
+            transition: color 0.2s;
+        }
+        
+        .back-link:hover {
+            color: var(--accent-secondary);
+        }
+        
+        .header {
+            background: var(--glass-bg);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            backdrop-filter: blur(10px);
+        }
+        
+        .header h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            background: var(--accent-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .meta-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+            margin-top: 1rem;
+        }
+        
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .meta-label {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+        
+        .meta-value {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .r2-badge {
+            display: inline-block;
+            padding: 0.3rem 0.6rem;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        .section-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+        
+        .runs-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .run-card {
+            background: var(--glass-bg);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            overflow: hidden;
+            transition: border-color 0.2s;
+        }
+        
+        .run-card:hover {
+            border-color: rgba(99, 102, 241, 0.3);
+        }
+        
+        .run-card.best-run {
+            border-color: var(--success);
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.1);
+        }
+        
+        .run-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 1.25rem;
+            background: rgba(255, 255, 255, 0.02);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .run-header:hover {
+            background: rgba(255, 255, 255, 0.04);
+        }
+        
+        .run-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .run-badge {
+            padding: 0.25rem 0.6rem;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-secondary);
+        }
+        
+        .run-badge.best-badge {
+            background: var(--success);
+            color: white;
+        }
+        
+        .run-label {
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+        
+        .expand-icon {
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            transition: transform 0.2s;
+        }
+        
+        .run-header.expanded .expand-icon {
+            transform: rotate(180deg);
+        }
+        
+        .run-content {
+            border-top: 1px solid var(--border-subtle);
+        }
+        
+        .code-container {
+            overflow: hidden;
+        }
+        
+        .code-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 1.25rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-bottom: 1px solid var(--border-subtle);
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+        
+        .copy-btn {
+            padding: 0.35rem 0.75rem;
+            background: rgba(99, 102, 241, 0.2);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 6px;
+            color: var(--accent-primary);
+            font-size: 0.75rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        
+        .copy-btn:hover {
+            background: rgba(99, 102, 241, 0.3);
+        }
+        
+        .code-container pre {
+            margin: 0;
+            padding: 1.25rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            line-height: 1.6;
+            overflow-x: auto;
+            background: transparent !important;
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 3rem;
+            padding-top: 2rem;
+            border-top: 1px solid var(--border-subtle);
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+        
+        .footer a {
+            color: var(--accent-primary);
+            text-decoration: none;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+            
+            .header h1 {
+                font-size: 1.25rem;
+            }
+            
+            .meta-row {
+                flex-direction: column;
+                gap: 0.75rem;
+            }
+            
+            .run-info {
+                flex-wrap: wrap;
+                gap: 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-pattern"></div>
+    
+    <div class="container">
+        <a href="sld_index.html" class="back-link">
+            ← Back to Leaderboard
+        </a>
+        
+        <div class="header">
+            <h1>SFT Scaling Law</h1>
+            <div class="meta-row">
+                <div class="meta-item">
+                    <span class="meta-label">Agent:</span>
+                    <span class="meta-value">gemini-cli</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Model:</span>
+                    <span class="meta-value">Gemini 3 Pro Preview</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Best R²:</span>
+                    <span class="r2-badge" style="background-color: #228B22; color: white;">
+                        0.948364
+                    </span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Mean R²:</span>
+                    <span class="meta-value">0.948364</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Min R²:</span>
+                    <span class="meta-value">0.948364</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Runs:</span>
+                    <span class="meta-value">1</span>
+                </div>
+            </div>
+        </div>
+        
+        <h2 class="section-title">All Runs (sorted by R²)</h2>
+        
+        <div class="runs-container">
+            
+        <div class="run-card best-run">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge best-badge">Best</span>
+                    <span class="run-label">Run 1</span>
+                    <span class="r2-badge" style="background-color: #228B22; color: white;">
+                        R² = 0.948364
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: block;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-0')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-0">import numpy as np
+
+def law(input_data: list[dict[str, float]], group: str) -&gt; list[dict[str, float]]:
+    &quot;&quot;&quot;
+    Predicts output variables based on input variables according to a discovered scaling law.
+
+    Args:
+        input_data: A list of dictionaries, where each dictionary is a single data
+                    point containing input variable names as keys and their
+                    corresponding values.
+        group: The name of the experimental group for which to make predictions.
+                The functional form of the law must be the same for all groups,
+                but the constant parameters/coefficients can differ per group.
+
+    Returns:
+        A list of dictionaries, corresponding to the input_data list, with each
+        dictionary containing the predicted output variable(s).
+    &quot;&quot;&quot;
+    
+    # Parameters discovered from the training data
+    # Form: sft_loss = a + b * ln(sft_data_size)
+    params = {
+        &quot;(&#x27;MBZUAI/LaMini-GPT-124M&#x27;, &#x27;flan&#x27;)&quot;: {
+            &quot;a&quot;: 5.988265549351065,
+            &quot;b&quot;: -0.2858284253987973
+        },
+        &quot;(&#x27;MBZUAI/LaMini-GPT-774M&#x27;, &#x27;flan&#x27;)&quot;: {
+            &quot;a&quot;: 4.783598287214052,
+            &quot;b&quot;: -0.21223122991733276
+        },
+        &quot;(&#x27;cerebras/Cerebras-GPT-256M&#x27;, &#x27;flan&#x27;)&quot;: {
+            &quot;a&quot;: 4.210632462544093,
+            &quot;b&quot;: -0.14467116003927433
+        },
+        &quot;(&#x27;cerebras/Cerebras-GPT-1.3B&#x27;, &#x27;flan&#x27;)&quot;: {
+            &quot;a&quot;: 3.4606313079569837,
+            &quot;b&quot;: -0.12168554599239426
+        },
+        &quot;(&#x27;facebook/bart-base&#x27;, &#x27;flan&#x27;)&quot;: {
+            &quot;a&quot;: 5.722811837645894,
+            &quot;b&quot;: -0.27885014029903604
+        },
+        &quot;(&#x27;facebook/bart-large&#x27;, &#x27;flan&#x27;)&quot;: {
+            &quot;a&quot;: 4.453518961526505,
+            &quot;b&quot;: -0.19814331941245988
+        },
+        &quot;(&#x27;facebook/opt-1.3b&#x27;, &#x27;flan&#x27;)&quot;: {
+            &quot;a&quot;: 3.0035271247006574,
+            &quot;b&quot;: -0.10226900935941804
+        },
+        &quot;(&#x27;facebook/opt-350m&#x27;, &#x27;flan&#x27;)&quot;: {
+            &quot;a&quot;: 4.096427281007177,
+            &quot;b&quot;: -0.1567771098875299
+        },
+        &quot;(&#x27;facebook/opt-6.7b&#x27;, &#x27;flan&#x27;)&quot;: {
+            &quot;a&quot;: 2.2060635294933304,
+            &quot;b&quot;: -0.035974453233156484
+        },
+        &quot;(&#x27;gpt2&#x27;, &#x27;flan&#x27;)&quot;: {
+            &quot;a&quot;: 6.179866386147315,
+            &quot;b&quot;: -0.29617705608594097
+        },
+        &quot;(&#x27;t5-base&#x27;, &#x27;flan&#x27;)&quot;: {
+            &quot;a&quot;: 3.2855166649939935,
+            &quot;b&quot;: -0.11717228671842463
+        },
+        &quot;(&#x27;t5-small&#x27;, &#x27;flan&#x27;)&quot;: {
+            &quot;a&quot;: 3.752075115263242,
+            &quot;b&quot;: -0.13444290860067154
+        },
+        &quot;(&#x27;google/mt5-base&#x27;, &#x27;flan&#x27;)&quot;: {
+            &quot;a&quot;: 4.0988075329513345,
+            &quot;b&quot;: -0.16562129412487037
+        },
+        &quot;(&#x27;google/mt5-large&#x27;, &#x27;flan&#x27;)&quot;: {
+            &quot;a&quot;: 3.2282318950626876,
+            &quot;b&quot;: -0.11550187851501488
+        },
+        &quot;(&#x27;MBZUAI/LaMini-GPT-124M&#x27;, &#x27;gigaword&#x27;)&quot;: {
+            &quot;a&quot;: 4.737755542012152,
+            &quot;b&quot;: -0.2633818402656468
+        },
+        &quot;(&#x27;MBZUAI/LaMini-GPT-774M&#x27;, &#x27;gigaword&#x27;)&quot;: {
+            &quot;a&quot;: 4.2045733043013165,
+            &quot;b&quot;: -0.23807369821093685
+        },
+        &quot;(&#x27;cerebras/Cerebras-GPT-256M&#x27;, &#x27;gigaword&#x27;)&quot;: {
+            &quot;a&quot;: 4.218447739736505,
+            &quot;b&quot;: -0.22564133332553715
+        },
+        &quot;(&#x27;cerebras/Cerebras-GPT-1.3B&#x27;, &#x27;gigaword&#x27;)&quot;: {
+            &quot;a&quot;: 3.820355959611436,
+            &quot;b&quot;: -0.19060958285317242
+        },
+        &quot;(&#x27;facebook/bart-base&#x27;, &#x27;gigaword&#x27;)&quot;: {
+            &quot;a&quot;: 5.410755825604152,
+            &quot;b&quot;: -0.3347248647552073
+        },
+        &quot;(&#x27;facebook/bart-large&#x27;, &#x27;gigaword&#x27;)&quot;: {
+            &quot;a&quot;: 5.242535980974371,
+            &quot;b&quot;: -0.3339209236977352
+        },
+        &quot;(&#x27;facebook/opt-1.3b&#x27;, &#x27;gigaword&#x27;)&quot;: {
+            &quot;a&quot;: 4.067383747817735,
+            &quot;b&quot;: -0.22503850880208404
+        },
+        &quot;(&#x27;facebook/opt-350m&#x27;, &#x27;gigaword&#x27;)&quot;: {
+            &quot;a&quot;: 4.789217216189481,
+            &quot;b&quot;: -0.28416051180558977
+        },
+        &quot;(&#x27;facebook/opt-6.7b&#x27;, &#x27;gigaword&#x27;)&quot;: {
+            &quot;a&quot;: 2.1626361790690503,
+            &quot;b&quot;: -0.027858065828614262
+        },
+        &quot;(&#x27;gpt2&#x27;, &#x27;gigaword&#x27;)&quot;: {
+            &quot;a&quot;: 4.8171995484035675,
+            &quot;b&quot;: -0.28087485939518764
+        },
+        &quot;(&#x27;t5-base&#x27;, &#x27;gigaword&#x27;)&quot;: {
+            &quot;a&quot;: 1.480251152476475,
+            &quot;b&quot;: -0.0696292965522014
+        },
+        &quot;(&#x27;t5-small&#x27;, &#x27;gigaword&#x27;)&quot;: {
+            &quot;a&quot;: 1.6089334546678618,
+            &quot;b&quot;: -0.07229854246705678
+        },
+        &quot;(&#x27;google/mt5-base&#x27;, &#x27;gigaword&#x27;)&quot;: {
+            &quot;a&quot;: 3.3355539218016768,
+            &quot;b&quot;: -0.08234869176487448
+        },
+        &quot;(&#x27;google/mt5-large&#x27;, &#x27;gigaword&#x27;)&quot;: {
+            &quot;a&quot;: 3.4146676286886763,
+            &quot;b&quot;: -0.09533853604323887
+        },
+        &quot;(&#x27;MBZUAI/LaMini-GPT-124M&#x27;, &#x27;wikiword&#x27;)&quot;: {
+            &quot;a&quot;: 3.391898490213529,
+            &quot;b&quot;: -0.1380796078939516
+        },
+        &quot;(&#x27;MBZUAI/LaMini-GPT-774M&#x27;, &#x27;wikiword&#x27;)&quot;: {
+            &quot;a&quot;: 2.652870267456121,
+            &quot;b&quot;: -0.09602793909920557
+        },
+        &quot;(&#x27;cerebras/Cerebras-GPT-256M&#x27;, &#x27;wikiword&#x27;)&quot;: {
+            &quot;a&quot;: 3.9284497987057874,
+            &quot;b&quot;: -0.16694369363861158
+        },
+        &quot;(&#x27;cerebras/Cerebras-GPT-1.3B&#x27;, &#x27;wikiword&#x27;)&quot;: {
+            &quot;a&quot;: 2.950335143562661,
+            &quot;b&quot;: -0.10204513742983291
+        },
+        &quot;(&#x27;facebook/bart-base&#x27;, &#x27;wikiword&#x27;)&quot;: {
+            &quot;a&quot;: 4.4926337354168595,
+            &quot;b&quot;: -0.2413552868912743
+        },
+        &quot;(&#x27;facebook/bart-large&#x27;, &#x27;wikiword&#x27;)&quot;: {
+            &quot;a&quot;: 2.7193492499816334,
+            &quot;b&quot;: -0.10813142202742225
+        },
+        &quot;(&#x27;facebook/opt-1.3b&#x27;, &#x27;wikiword&#x27;)&quot;: {
+            &quot;a&quot;: 2.227609751673505,
+            &quot;b&quot;: -0.06738256744904991
+        },
+        &quot;(&#x27;facebook/opt-350m&#x27;, &#x27;wikiword&#x27;)&quot;: {
+            &quot;a&quot;: 2.969051299001184,
+            &quot;b&quot;: -0.10931922565009441
+        },
+        &quot;(&#x27;facebook/opt-6.7b&#x27;, &#x27;wikiword&#x27;)&quot;: {
+            &quot;a&quot;: 1.9623193491235948,
+            &quot;b&quot;: -0.05153332226677372
+        },
+        &quot;(&#x27;gpt2&#x27;, &#x27;wikiword&#x27;)&quot;: {
+            &quot;a&quot;: 3.4933775691623454,
+            &quot;b&quot;: -0.14749971599228653
+        },
+        &quot;(&#x27;t5-base&#x27;, &#x27;wikiword&#x27;)&quot;: {
+            &quot;a&quot;: 2.132300508433401,
+            &quot;b&quot;: -0.06785004652930211
+        },
+        &quot;(&#x27;t5-small&#x27;, &#x27;wikiword&#x27;)&quot;: {
+            &quot;a&quot;: 2.594400260204647,
+            &quot;b&quot;: -0.09053553061557014
+        },
+        &quot;(&#x27;google/mt5-base&#x27;, &#x27;wikiword&#x27;)&quot;: {
+            &quot;a&quot;: 3.861648173041152,
+            &quot;b&quot;: -0.19493726211114437
+        },
+        &quot;(&#x27;google/mt5-large&#x27;, &#x27;wikiword&#x27;)&quot;: {
+            &quot;a&quot;: 3.353099664653985,
+            &quot;b&quot;: -0.15291379226040927
+        }
+    }
+    
+    if group not in params:
+        # Fallback or default?
+        # If we encounter an unknown group, we can&#x27;t do much better than guessing or raising error.
+        # But for this task, we likely just need to handle the known groups.
+        # Returning a default of 0 or similar might be safe, but let&#x27;s just log a warning and use mean params?
+        # Actually, let&#x27;s just assume known groups or return empty/error if strict.
+        # Given the instruction &quot;functional form... same... coefficients differ&quot;, maybe we just return 0s if unknown.
+        # But let&#x27;s try to be helpful.
+        print(f&quot;Warning: Unknown group &#x27;{group}&#x27;. Using default parameters.&quot;)
+        a, b = 0, 0 # Placeholder
+    else:
+        a = params[group][&quot;a&quot;]
+        b = params[group][&quot;b&quot;]
+        
+    predictions = []
+    for item in input_data:
+        x = item.get(&quot;sft_data_size&quot;)
+        if x is None:
+            predictions.append({})
+            continue
+            
+        # Apply the law: L = a + b * ln(x)
+        # Ensure x is valid (&gt;0)
+        if x &lt;= 0:
+            pred_y = float(&#x27;nan&#x27;)
+        else:
+            pred_y = a + b * np.log(x)
+            
+        predictions.append({&quot;sft_loss&quot;: pred_y})
+        
+    return predictions</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        </div>
+        
+        <footer class="footer">
+            <p>SLDBench | <a href="https://arxiv.org/abs/2507.21184" target="_blank">arXiv:2507.21184</a> | <a href="https://github.com/linhaowei1/SLD" target="_blank">GitHub</a></p>
+        </footer>
+    </div>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script>
+        function toggleRun(header) {
+            const content = header.nextElementSibling;
+            const isExpanded = content.style.display === 'block';
+            content.style.display = isExpanded ? 'none' : 'block';
+            header.classList.toggle('expanded', !isExpanded);
+        }
+        
+        function copyCode(event, codeId) {
+            event.stopPropagation();
+            const code = document.getElementById(codeId).textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                const btn = event.target;
+                btn.textContent = 'Copied!';
+                setTimeout(() => btn.textContent = 'Copy', 2000);
+            });
+        }
+        
+        Prism.highlightAll();
+    </script>
+</body>
+</html>

@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SLD - LR & Batch Size Scaling Law - mini-swe-agent + GPT-5</title>
+    <link rel="icon" type="image/png" href="assets/sld_logo.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" rel="stylesheet" />
+    <style>
+        :root {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8f9fa;
+            --accent-primary: #2563eb;
+            --accent-secondary: #3b82f6;
+            --accent-gradient: linear-gradient(135deg, #2563eb 0%, #3b82f6 50%, #60a5fa 100%);
+            --text-primary: #1f2937;
+            --text-secondary: #4b5563;
+            --border-subtle: rgba(0, 0, 0, 0.1);
+            --glass-bg: rgba(0, 0, 0, 0.02);
+            --success: #10b981;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Sora', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            min-height: 100vh;
+            color: var(--text-primary);
+        }
+        
+        .bg-pattern {
+            display: none;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--accent-primary);
+            text-decoration: none;
+            font-size: 0.9rem;
+            margin-bottom: 1.5rem;
+            transition: color 0.2s;
+        }
+        
+        .back-link:hover {
+            color: var(--accent-secondary);
+        }
+        
+        .header {
+            background: var(--glass-bg);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            backdrop-filter: blur(10px);
+        }
+        
+        .header h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            background: var(--accent-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .meta-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+            margin-top: 1rem;
+        }
+        
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .meta-label {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+        
+        .meta-value {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .r2-badge {
+            display: inline-block;
+            padding: 0.3rem 0.6rem;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        .section-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+        
+        .runs-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .run-card {
+            background: var(--glass-bg);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            overflow: hidden;
+            transition: border-color 0.2s;
+        }
+        
+        .run-card:hover {
+            border-color: rgba(99, 102, 241, 0.3);
+        }
+        
+        .run-card.best-run {
+            border-color: var(--success);
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.1);
+        }
+        
+        .run-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 1.25rem;
+            background: rgba(255, 255, 255, 0.02);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .run-header:hover {
+            background: rgba(255, 255, 255, 0.04);
+        }
+        
+        .run-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .run-badge {
+            padding: 0.25rem 0.6rem;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-secondary);
+        }
+        
+        .run-badge.best-badge {
+            background: var(--success);
+            color: white;
+        }
+        
+        .run-label {
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+        
+        .expand-icon {
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            transition: transform 0.2s;
+        }
+        
+        .run-header.expanded .expand-icon {
+            transform: rotate(180deg);
+        }
+        
+        .run-content {
+            border-top: 1px solid var(--border-subtle);
+        }
+        
+        .code-container {
+            overflow: hidden;
+        }
+        
+        .code-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 1.25rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-bottom: 1px solid var(--border-subtle);
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+        
+        .copy-btn {
+            padding: 0.35rem 0.75rem;
+            background: rgba(99, 102, 241, 0.2);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 6px;
+            color: var(--accent-primary);
+            font-size: 0.75rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        
+        .copy-btn:hover {
+            background: rgba(99, 102, 241, 0.3);
+        }
+        
+        .code-container pre {
+            margin: 0;
+            padding: 1.25rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            line-height: 1.6;
+            overflow-x: auto;
+            background: transparent !important;
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 3rem;
+            padding-top: 2rem;
+            border-top: 1px solid var(--border-subtle);
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+        
+        .footer a {
+            color: var(--accent-primary);
+            text-decoration: none;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+            
+            .header h1 {
+                font-size: 1.25rem;
+            }
+            
+            .meta-row {
+                flex-direction: column;
+                gap: 0.75rem;
+            }
+            
+            .run-info {
+                flex-wrap: wrap;
+                gap: 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-pattern"></div>
+    
+    <div class="container">
+        <a href="sld_index.html" class="back-link">
+            ← Back to Leaderboard
+        </a>
+        
+        <div class="header">
+            <h1>LR & Batch Size Scaling Law</h1>
+            <div class="meta-row">
+                <div class="meta-item">
+                    <span class="meta-label">Agent:</span>
+                    <span class="meta-value">mini-swe-agent</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Model:</span>
+                    <span class="meta-value">GPT-5</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Best R²:</span>
+                    <span class="r2-badge" style="background-color: #D2691E; color: white;">
+                        0.373525
+                    </span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Mean R²:</span>
+                    <span class="meta-value">-0.268718</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Min R²:</span>
+                    <span class="meta-value">-1.000000</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Runs:</span>
+                    <span class="meta-value">5</span>
+                </div>
+            </div>
+        </div>
+        
+        <h2 class="section-title">All Runs (sorted by R²)</h2>
+        
+        <div class="runs-container">
+            
+        <div class="run-card best-run">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge best-badge">Best</span>
+                    <span class="run-label">Run 1</span>
+                    <span class="r2-badge" style="background-color: #D2691E; color: white;">
+                        R² = 0.373525
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: block;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-0')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-0"># Auto-generated scaling law implementation
+# Discovered via ridge regression (manual) on polynomial-in-log features
+# Do not modify the function signature.
+
+from typing import List, Dict
+import math
+
+FEATURES = [&#x27;bias&#x27;, &#x27;L&#x27;, &#x27;B&#x27;, &#x27;D&#x27;, &#x27;P&#x27;, &#x27;L2&#x27;, &#x27;B2&#x27;, &#x27;D2&#x27;, &#x27;P2&#x27;, &#x27;LB&#x27;, &#x27;LD&#x27;, &#x27;LP&#x27;, &#x27;BD&#x27;, &#x27;BP&#x27;, &#x27;DP&#x27;]
+
+COEFS_BY_GROUP = {&#x27;all_data&#x27;: {&#x27;coef&#x27;: [16.624581903612846, 0.2627109539547664, 0.8995972963599023, -2.109340807436253, -0.3416462681138454, 0.14849884087182352, 0.1269746750542109, 0.13485667144489863, 0.07916170471632446, -0.08188202638168432, -0.024745326001810515, 0.12219666925411721, -0.12293565944271072, -0.0525403200519685, -0.08250175820236673], &#x27;uses_bias_feature&#x27;: True}}
+
+def _make_features_one(x: Dict[str, float]):
+    # Compute polynomial-in-log features
+    L = math.log10(x[&quot;lr&quot;])
+    B = math.log10(x[&quot;bsz&quot;])
+    D = math.log10(x[&quot;data_size&quot;])
+    P = math.log10(x[&quot;non_embedding_param_size&quot;])
+    feats = {
+        &quot;bias&quot;: 1.0,
+        &quot;L&quot;: L, &quot;B&quot;: B, &quot;D&quot;: D, &quot;P&quot;: P,
+        &quot;L2&quot;: L*L, &quot;B2&quot;: B*B, &quot;D2&quot;: D*D, &quot;P2&quot;: P*P,
+        &quot;LB&quot;: L*B, &quot;LD&quot;: L*D, &quot;LP&quot;: L*P,
+        &quot;BD&quot;: B*D, &quot;BP&quot;: B*P, &quot;DP&quot;: D*P,
+    }
+    return [feats[k] for k in FEATURES]
+
+def _predict_one(x: Dict[str, float], group: str) -&gt; float:
+    # Fallback to any known group&#x27;s coefficients if unseen group
+    g = group if group in COEFS_BY_GROUP else (list(COEFS_BY_GROUP.keys())[0] if COEFS_BY_GROUP else None)
+    if g is None:
+        raise ValueError(&quot;No coefficients available for prediction.&quot;)
+    coef = COEFS_BY_GROUP[g][&quot;coef&quot;]
+    feats = _make_features_one(x)
+    return sum(c*f for c, f in zip(coef, feats))
+
+def law(input_data: List[Dict[str, float]], group: str) -&gt; List[Dict[str, float]]:
+    &quot;&quot;&quot;
+    Predicts output variables based on input variables according to a discovered scaling law.
+
+    Args:
+        input_data: A list of dictionaries, where each dictionary is a single data
+                    point containing input variable names as keys and their
+                    corresponding values.
+        group: The name of the experimental group for which to make predictions.
+                The functional form of the law is the same for all groups,
+                but the coefficients can differ per group.
+
+    Returns:
+        A list of dictionaries, corresponding to the input_data list, with each
+        dictionary containing the predicted output variable(s).
+    &quot;&quot;&quot;
+    outputs = []
+    for x in input_data:
+        y = _predict_one(x, group)
+        outputs.append({&quot;lm_loss&quot;: float(y)})
+    return outputs</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#2</span>
+                    <span class="run-label">Run 2</span>
+                    <span class="r2-badge" style="background-color: #D2691E; color: white;">
+                        R² = 0.031133
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-1')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-1">def law(input_data: list[dict[str, float]], group: str) -&gt; list[dict[str, float]]:
+    &quot;&quot;&quot;
+    Predicts output variables based on input variables according to a discovered scaling law.
+
+    Args:
+        input_data: A list of dictionaries, where each dictionary is a single data
+                    point containing input variable names as keys and their
+                    corresponding values.
+        group: The name of the experimental group for which to make predictions.
+                The functional form of the law must be the same for all groups,
+                but the constant parameters/coefficients can differ per group.
+
+    Returns:
+        A list of dictionaries, corresponding to the input_data list, with each
+        dictionary containing the predicted output variable(s).
+    &quot;&quot;&quot;
+    # Coefficients per group for the model:
+    # lm_loss = c0 + c1*log(N) + c2*log(D) + c3*log(B) + c4*log(LR) + c5*(log(LR))^2
+    COEFS = {&#x27;all_data&#x27;: {&#x27;intercept&#x27;: 8.93757202949646, &#x27;log_n&#x27;: -0.13012928622451295, &#x27;log_d&#x27;: -0.12092765178779778, &#x27;log_b&#x27;: -0.0002436010749052914, &#x27;log_lr&#x27;: 0.3285833854688861, &#x27;log_lr2&#x27;: 0.024612644687545315}}
+
+    # Fallback: if group not seen, use &#x27;all_data&#x27; if available, else a conservative default
+    if group not in COEFS:
+        group_key = &#x27;all_data&#x27; if &#x27;all_data&#x27; in COEFS else next(iter(COEFS))
+    else:
+        group_key = group
+
+    params = COEFS[group_key]
+
+    outputs = []
+    for row in input_data:
+        try:
+            N = float(row[&#x27;non_embedding_param_size&#x27;])
+            D = float(row[&#x27;data_size&#x27;])
+            B = float(row[&#x27;bsz&#x27;])
+            LR = float(row[&#x27;lr&#x27;])
+        except KeyError as e:
+            raise KeyError(f&quot;Missing required key: {e}&quot;)
+
+        # Guard against non-positive values
+        eps = 1e-12
+        import math
+        log_n = math.log(max(N, eps))
+        log_d = math.log(max(D, eps))
+        log_b = math.log(max(B, eps))
+        log_lr = math.log(max(LR, eps))
+        log_lr2 = log_lr * log_lr
+
+        lm_loss = (
+            params[&#x27;intercept&#x27;]
+            + params[&#x27;log_n&#x27;] * log_n
+            + params[&#x27;log_d&#x27;] * log_d
+            + params[&#x27;log_b&#x27;] * log_b
+            + params[&#x27;log_lr&#x27;] * log_lr
+            + params[&#x27;log_lr2&#x27;] * log_lr2
+        )
+
+        outputs.append({&#x27;lm_loss&#x27;: float(lm_loss)})
+    return outputs</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#3</span>
+                    <span class="run-label">Run 3</span>
+                    <span class="r2-badge" style="background-color: #D2691E; color: white;">
+                        R² = 0.025235
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-2')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-2"># Auto-generated scaling law implementation
+# Functional form (same across groups):
+# log(lm_loss) = a0 + a1*log(lr) + a2*(log(lr))**2 + b*log(bsz) + c*log(data_size) + d*log(non_embedding_param_size)
+# lm_loss = exp( ... )
+from __future__ import annotations
+import math
+from typing import List, Dict
+
+COEFFS: dict[str, list[float]] = {
+  &quot;all_data&quot;: [
+    3.4633428865264464,
+    0.13057007473444138,
+    0.009779161172905821,
+    -0.0005055619243274072,
+    -0.04809130067252434,
+    -0.051116402150383135
+  ]
+}
+
+def _safe_log(x: float, eps: float = 1e-12) -&gt; float:
+    return math.log(max(float(x), eps))
+
+def law(input_data: list[dict[str, float]], group: str) -&gt; list[dict[str, float]]:
+    &quot;&quot;&quot;
+    Predicts output variables based on input variables according to a discovered scaling law.
+
+    Args:
+        input_data: A list of dictionaries, where each dictionary is a single data
+                    point containing input variable names as keys and their
+                    corresponding values.
+        group: The name of the experimental group for which to make predictions.
+                The functional form of the law must be the same for all groups,
+                but the constant parameters/coefficients can differ per group.
+
+    Returns:
+        A list of dictionaries, corresponding to the input_data list, with each
+        dictionary containing the predicted output variable(s).
+    &quot;&quot;&quot;
+    # Select coefficients for the group
+    if group in COEFFS:
+        beta = COEFFS[group]
+    elif &quot;default&quot; in COEFFS:
+        beta = COEFFS[&quot;default&quot;]
+    elif len(COEFFS) &gt; 0:
+        # Fallback to first available group
+        beta = next(iter(COEFFS.values()))
+    else:
+        # No coefficients available; default to zero vector
+        beta = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+    out: list[dict[str, float]] = []
+    for row in input_data:
+        lr = float(row.get(&quot;lr&quot;, 0.0))
+        bsz = float(row.get(&quot;bsz&quot;, 0.0))
+        data_size = float(row.get(&quot;data_size&quot;, 0.0))
+        non_embedding_param_size = float(row.get(&quot;non_embedding_param_size&quot;, 0.0))
+
+        l_lr = _safe_log(lr)
+        l_b = _safe_log(bsz)
+        l_d = _safe_log(data_size)
+        l_p = _safe_log(non_embedding_param_size)
+
+        a0, a1, a2, b, c, d = beta
+        log_pred = a0 + a1 * l_lr + a2 * (l_lr ** 2) + b * l_b + c * l_d + d * l_p
+        lm_loss = float(math.exp(log_pred))
+        out.append({&quot;lm_loss&quot;: lm_loss})
+    return out</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#4</span>
+                    <span class="run-label">Run 4</span>
+                    <span class="r2-badge" style="background-color: #B22222; color: white;">
+                        R² = -0.773483
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-3')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-3"># Auto-generated scaling law based on a log-linear (power-law) fit.
+# Formula:
+#    ln(lm_loss) = A_g + a_g_lr*ln(lr) + a_g_bsz*ln(bsz) + a_g_ds*ln(data_size) + a_g_np*ln(non_embedding_param_size)
+# =&gt; lm_loss = exp(A_g) * lr^a_g_lr * bsz^a_g_bsz * data_size^a_g_ds * non_embedding_param_size^a_g_np
+
+from typing import List, Dict
+import math
+
+COEFFICIENTS: Dict[str, Dict[str, float]] = {
+  &quot;all_data&quot;: {
+    &quot;intercept&quot;: 3.0805017396527683,
+    &quot;lr&quot;: 0.00863691905384939,
+    &quot;bsz&quot;: -0.0005162836622543786,
+    &quot;data_size&quot;: -0.04700957690670226,
+    &quot;non_embedding_param_size&quot;: -0.05174150134631458
+  }
+}
+GLOBAL_COEFFICIENTS: Dict[str, float] = {
+  &quot;intercept&quot;: 3.0805017396527683,
+  &quot;lr&quot;: 0.00863691905384939,
+  &quot;bsz&quot;: -0.0005162836622543786,
+  &quot;data_size&quot;: -0.04700957690670226,
+  &quot;non_embedding_param_size&quot;: -0.05174150134631458
+}
+
+def _predict_one(x: Dict[str, float], group: str) -&gt; float:
+    # Use group-specific coefficients if available, else fallback to global
+    gkey = str(group)
+    c = COEFFICIENTS.get(gkey, GLOBAL_COEFFICIENTS)
+    # Ensure all inputs are positive for log
+    lr = float(x.get(&quot;lr&quot;, 0.0))
+    bsz = float(x.get(&quot;bsz&quot;, 0.0))
+    data_size = float(x.get(&quot;data_size&quot;, 0.0))
+    non_embedding_param_size = float(x.get(&quot;non_embedding_param_size&quot;, 0.0))
+    eps = 1e-12
+    if lr &lt;= 0 or bsz &lt;= 0 or data_size &lt;= 0 or non_embedding_param_size &lt;= 0:
+        # Graceful handling: clamp to tiny positive to avoid math domain errors
+        lr = max(lr, eps)
+        bsz = max(bsz, eps)
+        data_size = max(data_size, eps)
+        non_embedding_param_size = max(non_embedding_param_size, eps)
+    ln_y = (
+        c[&quot;intercept&quot;]
+        + c[&quot;lr&quot;] * math.log(lr)
+        + c[&quot;bsz&quot;] * math.log(bsz)
+        + c[&quot;data_size&quot;] * math.log(data_size)
+        + c[&quot;non_embedding_param_size&quot;] * math.log(non_embedding_param_size)
+    )
+    y = math.exp(ln_y)
+    return float(y)
+
+def law(input_data: List[Dict[str, float]], group: str) -&gt; List[Dict[str, float]]:
+    &quot;&quot;&quot;
+    Predicts output variables based on input variables according to a discovered scaling law.
+
+    Args:
+        input_data: A list of dictionaries, where each dictionary is a single data
+                    point containing input variable names as keys and their
+                    corresponding values.
+        group: The name of the experimental group for which to make predictions.
+                The functional form of the law must be the same for all groups,
+                but the constant parameters/coefficients can differ per group.
+
+    Returns:
+        A list of dictionaries, corresponding to the input_data list, with each
+        dictionary containing the predicted output variable(s).
+    &quot;&quot;&quot;
+    out = []
+    for row in input_data:
+        y = _predict_one(row, group)
+        out.append({&quot;lm_loss&quot;: y})
+    return out</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="run-card ">
+            <div class="run-header" onclick="toggleRun(this)">
+                <div class="run-info">
+                    <span class="run-badge ">#5</span>
+                    <span class="run-label">Run 5</span>
+                    <span class="r2-badge" style="background-color: #B22222; color: white;">
+                        R² = -1.000000
+                    </span>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="run-content" style="display: none;">
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>Python</span>
+                        <button class="copy-btn" onclick="copyCode(event, 'code-4')">Copy</button>
+                    </div>
+                    <pre><code class="language-python" id="code-4">import math
+from typing import List, Dict
+
+# Discovered scaling law parameters per group.
+COEFFS = {
+  &quot;_default&quot;: {
+    &quot;L_inf&quot;: 1.4844436961875769,
+    &quot;a_bsz&quot;: -0.003095036209539229,
+    &quot;a_data_size&quot;: -0.11488605291781988,
+    &quot;a_lr&quot;: 0.020887414852540892,
+    &quot;a_non_embedding_param_size&quot;: -0.12526765402456455,
+    &quot;log_A&quot;: 5.278756801510673,
+    &quot;mse&quot;: 0.004834661925900249
+  },
+  &quot;all_data&quot;: {
+    &quot;L_inf&quot;: 1.4844436961875769,
+    &quot;a_bsz&quot;: -0.003095036209539229,
+    &quot;a_data_size&quot;: -0.11488605291781988,
+    &quot;a_lr&quot;: 0.020887414852540892,
+    &quot;a_non_embedding_param_size&quot;: -0.12526765402456455,
+    &quot;log_A&quot;: 5.278756801510673,
+    &quot;mse&quot;: 0.004834661925900249
+  }
+}
+
+def _predict_single(x: Dict[str, float], pars: Dict[str, float]) -&gt; float:
+    # Power-law with asymptote:
+    # lm_loss = L_inf + A * lr^a_lr * bsz^a_bsz * data_size^a_data_size * non_embedding_param_size^a_non_embedding_param_size
+    L = pars[&quot;L_inf&quot;]
+    log_A = pars[&quot;log_A&quot;]
+    # Ensure positive inputs for power
+    lr = max(float(x.get(&quot;lr&quot;, 0.0)), 1e-12)
+    bsz = max(float(x.get(&quot;bsz&quot;, 0.0)), 1e-12)
+    data = max(float(x.get(&quot;data_size&quot;, 0.0)), 1.0)
+    params = max(float(x.get(&quot;non_embedding_param_size&quot;, 0.0)), 1.0)
+    expo = (
+        log_A
+        + pars[&quot;a_lr&quot;] * math.log(lr)
+        + pars[&quot;a_bsz&quot;] * math.log(bsz)
+        + pars[&quot;a_data_size&quot;] * math.log(data)
+        + pars[&quot;a_non_embedding_param_size&quot;] * math.log(params)
+    )
+    return L + math.exp(expo)
+
+def law(input_data: List[Dict[str, float]], group: str) -&gt; List[Dict[str, float]]:
+    &quot;&quot;&quot;
+    Predicts output variables based on input variables according to a discovered scaling law.
+
+    Args:
+        input_data: A list of dictionaries, where each dictionary is a single data
+                    point containing input variable names as keys and their
+                    corresponding values.
+        group: The name of the experimental group for which to make predictions.
+                The functional form of the law must be the same for all groups,
+                but the constant parameters/coefficients can differ per group.
+
+    Returns:
+        A list of dictionaries, corresponding to the input_data list, with each
+        dictionary containing the predicted output variable(s).
+    &quot;&quot;&quot;
+    pars = COEFFS.get(group, COEFFS.get(&quot;_default&quot;, {}))
+    if not pars:
+        raise ValueError(&quot;No coefficients available for group and no default provided.&quot;)
+    out = []
+    for x in input_data:
+        y = _predict_single(x, pars)
+        out.append({&quot;lm_loss&quot;: float(y)})
+    return out</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        </div>
+        
+        <footer class="footer">
+            <p>SLDBench | <a href="https://arxiv.org/abs/2507.21184" target="_blank">arXiv:2507.21184</a> | <a href="https://github.com/linhaowei1/SLD" target="_blank">GitHub</a></p>
+        </footer>
+    </div>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script>
+        function toggleRun(header) {
+            const content = header.nextElementSibling;
+            const isExpanded = content.style.display === 'block';
+            content.style.display = isExpanded ? 'none' : 'block';
+            header.classList.toggle('expanded', !isExpanded);
+        }
+        
+        function copyCode(event, codeId) {
+            event.stopPropagation();
+            const code = document.getElementById(codeId).textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                const btn = event.target;
+                btn.textContent = 'Copied!';
+                setTimeout(() => btn.textContent = 'Copy', 2000);
+            });
+        }
+        
+        Prism.highlightAll();
+    </script>
+</body>
+</html>
