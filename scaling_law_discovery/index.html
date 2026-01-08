@@ -26,25 +26,42 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
+    <!-- KaTeX for LaTeX rendering -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
 
     <style>
+      /* ==========================================================================
+         CSS Variables & Theme
+         ========================================================================== */
       :root {
+        /* Background Colors */
         --bg-primary: #ffffff;
         --bg-secondary: #f8f9fa;
         --bg-tertiary: #f1f3f4;
+        --glass-bg: rgba(0, 0, 0, 0.02);
+
+        /* Accent Colors */
         --accent-primary: #2563eb;
         --accent-secondary: #3b82f6;
         --accent-gradient: linear-gradient(135deg, #2563eb 0%, #3b82f6 50%, #60a5fa 100%);
+
+        /* Text Colors */
         --text-primary: #1f2937;
         --text-secondary: #4b5563;
         --text-muted: #6b7280;
+
+        /* Border & Status Colors */
         --border-subtle: rgba(0, 0, 0, 0.1);
-        --glass-bg: rgba(0, 0, 0, 0.02);
         --success: #10b981;
         --warning: #f59e0b;
         --danger: #ef4444;
       }
 
+      /* ==========================================================================
+         Base & Reset
+         ========================================================================== */
       * {
         box-sizing: border-box;
         margin: 0;
@@ -52,21 +69,14 @@
       }
 
       body {
-        font-family:
-          "Sora",
-          -apple-system,
-          BlinkMacSystemFont,
-          sans-serif;
+        font-family: "Sora", -apple-system, BlinkMacSystemFont, sans-serif;
         background: var(--bg-primary);
         color: var(--text-primary);
         line-height: 1.6;
         min-height: 100vh;
       }
 
-      /* Subtle Background Pattern */
-      .bg-pattern {
-        display: none;
-      }
+      .bg-pattern { display: none; }
 
       .container {
         max-width: 1200px;
@@ -76,16 +86,16 @@
         z-index: 1;
       }
 
-      /* Header Section */
+      /* ==========================================================================
+         Header Section
+         ========================================================================== */
       .header-section {
         padding: 4rem 0 3rem;
         text-align: center;
         border-bottom: 1px solid var(--border-subtle);
       }
 
-      .title-container {
-        margin-bottom: 1.5rem;
-      }
+      .title-container { margin-bottom: 1.5rem; }
 
       .main-title {
         font-size: 3.5rem;
@@ -118,9 +128,7 @@
       }
 
       /* Authors */
-      .authors-container {
-        margin-bottom: 2rem;
-      }
+      .authors-container { margin-bottom: 2rem; }
 
       .author-name {
         color: var(--text-secondary);
@@ -130,11 +138,11 @@
         transition: color 0.2s;
       }
 
-      .author-name:hover {
-        color: var(--accent-primary);
-      }
+      .author-name:hover { color: var(--accent-primary); }
 
-      /* Buttons */
+      /* ==========================================================================
+         Buttons
+         ========================================================================== */
       .buttons-container {
         display: flex;
         justify-content: center;
@@ -176,17 +184,22 @@
         border-color: var(--accent-primary);
       }
 
-      /* Overview Section */
-      .overview-section {
-        padding: 4rem 0;
-        border-bottom: 1px solid var(--border-subtle);
-      }
-
+      /* ==========================================================================
+         Section Common Styles
+         ========================================================================== */
       .section-title {
         font-size: 1.75rem;
         font-weight: 600;
         margin-bottom: 1.5rem;
         color: var(--text-primary);
+      }
+
+      /* ==========================================================================
+         Overview Section
+         ========================================================================== */
+      .overview-section {
+        padding: 4rem 0;
+        border-bottom: 1px solid var(--border-subtle);
       }
 
       .overview-text {
@@ -196,6 +209,7 @@
         max-width: 800px;
       }
 
+      /* Task Cards Grid */
       .task-grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -244,10 +258,10 @@
         font-weight: 600;
       }
 
-      /* Leaderboard Section */
-      .leaderboard-section {
-        padding: 4rem 0;
-      }
+      /* ==========================================================================
+         Leaderboard Section
+         ========================================================================== */
+      .leaderboard-section { padding: 4rem 0; }
 
       .leaderboard-header {
         display: flex;
@@ -258,6 +272,7 @@
         margin-bottom: 2rem;
       }
 
+      /* Filter Controls */
       .filter-controls {
         display: flex;
         gap: 0.5rem;
@@ -277,110 +292,12 @@
         font-family: inherit;
       }
 
-      .filter-btn:hover {
-        background: rgba(0, 0, 0, 0.05);
-      }
+      .filter-btn:hover { background: rgba(0, 0, 0, 0.05); }
 
       .filter-btn.active {
         background: var(--accent-primary);
         border-color: var(--accent-primary);
         color: white;
-      }
-
-      /* Table Styles */
-      .table-container {
-        overflow-x: auto;
-        border-radius: 16px;
-        border: 1px solid var(--border-subtle);
-        background: var(--glass-bg);
-      }
-
-      table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 0.9rem;
-      }
-
-      thead {
-        background: var(--bg-secondary);
-      }
-
-      th {
-        padding: 1rem;
-        text-align: left;
-        font-weight: 600;
-        color: var(--text-secondary);
-        border-bottom: 1px solid var(--border-subtle);
-        white-space: nowrap;
-      }
-
-      td {
-        padding: 0.875rem 1rem;
-        border-bottom: 1px solid var(--border-subtle);
-        color: var(--text-primary);
-      }
-
-      tbody tr:hover {
-        background: var(--bg-secondary);
-      }
-
-      tbody tr:last-child td {
-        border-bottom: none;
-      }
-
-      .model-cell {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-      }
-
-      .model-logo {
-        width: 24px;
-        height: 24px;
-        border-radius: 6px;
-        object-fit: contain;
-      }
-
-      .r2-badge {
-        display: inline-block;
-        padding: 0.3rem 0.6rem;
-        border-radius: 6px;
-        font-weight: 500;
-        font-size: 0.85rem;
-        font-family: "JetBrains Mono", monospace;
-      }
-
-      .r2-excellent {
-        background: rgba(16, 185, 129, 0.15);
-        color: #059669;
-      }
-      .r2-good {
-        background: rgba(34, 197, 94, 0.15);
-        color: #16a34a;
-      }
-      .r2-moderate {
-        background: rgba(245, 158, 11, 0.15);
-        color: #d97706;
-      }
-      .r2-poor {
-        background: rgba(239, 68, 68, 0.15);
-        color: #dc2626;
-      }
-      .r2-negative {
-        background: rgba(220, 38, 38, 0.15);
-        color: #b91c1c;
-      }
-
-      .solution-link {
-        color: var(--accent-primary);
-        text-decoration: none;
-        font-weight: 500;
-        transition: color 0.2s;
-      }
-
-      .solution-link:hover {
-        color: var(--accent-secondary);
-        text-decoration: underline;
       }
 
       /* Task Tabs */
@@ -417,7 +334,505 @@
         color: white;
       }
 
-      /* Footer */
+      /* ==========================================================================
+         Table Styles
+         ========================================================================== */
+      .table-container {
+        overflow-x: auto;
+        border-radius: 16px;
+        border: 1px solid var(--border-subtle);
+        background: var(--glass-bg);
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+      }
+
+      thead { background: var(--bg-secondary); }
+
+      th {
+        padding: 1rem;
+        text-align: left;
+        font-weight: 600;
+        color: var(--text-secondary);
+        border-bottom: 1px solid var(--border-subtle);
+        white-space: nowrap;
+      }
+
+      td {
+        padding: 0.875rem 1rem;
+        border-bottom: 1px solid var(--border-subtle);
+        color: var(--text-primary);
+      }
+
+      tbody tr:hover { background: var(--bg-secondary); }
+      tbody tr:last-child td { border-bottom: none; }
+
+      .model-cell {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+      }
+
+      .model-logo {
+        width: 24px;
+        height: 24px;
+        border-radius: 6px;
+        object-fit: contain;
+      }
+
+      .solution-link {
+        color: var(--accent-primary);
+        text-decoration: none;
+        font-weight: 500;
+        transition: color 0.2s;
+      }
+
+      .solution-link:hover {
+        color: var(--accent-secondary);
+        text-decoration: underline;
+      }
+
+      /* ==========================================================================
+         Solution Modal Styles
+         ========================================================================== */
+      .modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.7);
+        backdrop-filter: blur(4px);
+        z-index: 1000;
+        overflow-y: auto;
+      }
+
+      .modal-overlay.active {
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        padding: 2rem;
+      }
+
+      .modal-content {
+        background: var(--bg-primary);
+        border-radius: 16px;
+        max-width: 1000px;
+        width: 100%;
+        max-height: calc(100vh - 4rem);
+        overflow-y: auto;
+        box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
+        animation: modalSlideIn 0.3s ease;
+      }
+
+      @keyframes modalSlideIn {
+        from {
+          opacity: 0;
+          transform: translateY(-20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1.5rem 2rem;
+        border-bottom: 1px solid var(--border-subtle);
+        background: var(--bg-secondary);
+        border-radius: 16px 16px 0 0;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+      }
+
+      .modal-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: var(--text-primary);
+      }
+
+      .modal-close {
+        background: transparent;
+        border: none;
+        font-size: 1.5rem;
+        color: var(--text-secondary);
+        cursor: pointer;
+        padding: 0.5rem;
+        border-radius: 8px;
+        transition: all 0.2s;
+      }
+
+      .modal-close:hover {
+        background: var(--border-subtle);
+        color: var(--text-primary);
+      }
+
+      .modal-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1.5rem;
+        padding: 1rem 2rem;
+        background: var(--bg-secondary);
+        border-bottom: 1px solid var(--border-subtle);
+      }
+
+      .modal-meta-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .modal-meta-label {
+        color: var(--text-secondary);
+        font-size: 0.85rem;
+      }
+
+      .modal-meta-value {
+        font-weight: 600;
+        color: var(--text-primary);
+      }
+
+      .modal-body {
+        padding: 1.5rem 2rem;
+      }
+
+      .runs-container {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+      }
+
+      .run-card {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-subtle);
+        border-radius: 12px;
+        overflow: hidden;
+      }
+
+      .run-card.best-run {
+        border-color: var(--success);
+      }
+
+      .run-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 1.25rem;
+        cursor: pointer;
+        transition: background 0.2s;
+      }
+
+      .run-header:hover {
+        background: var(--border-subtle);
+      }
+
+      .run-info {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+      }
+
+      .run-badge {
+        padding: 0.25rem 0.6rem;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        background: var(--border-subtle);
+        color: var(--text-secondary);
+      }
+
+      .run-badge.best-badge {
+        background: var(--success);
+        color: white;
+      }
+
+      .run-label {
+        font-weight: 500;
+        color: var(--text-primary);
+      }
+
+      .expand-icon {
+        color: var(--text-muted);
+        font-size: 0.8rem;
+        transition: transform 0.2s;
+      }
+
+      .run-header.expanded .expand-icon {
+        transform: rotate(180deg);
+      }
+
+      .run-content {
+        display: none;
+        border-top: 1px solid var(--border-subtle);
+      }
+
+      .run-content.show {
+        display: block;
+      }
+
+      .code-container {
+        overflow: hidden;
+      }
+
+      .code-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.75rem 1.25rem;
+        background: var(--bg-tertiary);
+        border-bottom: 1px solid var(--border-subtle);
+        font-size: 0.8rem;
+        color: var(--text-muted);
+      }
+
+      .copy-btn {
+        padding: 0.35rem 0.75rem;
+        background: rgba(37, 99, 235, 0.1);
+        border: 1px solid rgba(37, 99, 235, 0.2);
+        border-radius: 6px;
+        color: var(--accent-primary);
+        font-size: 0.75rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-family: inherit;
+      }
+
+      .copy-btn:hover {
+        background: rgba(37, 99, 235, 0.2);
+      }
+
+      .code-block {
+        margin: 0;
+        padding: 1.25rem;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 0.8rem;
+        line-height: 1.6;
+        overflow-x: auto;
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      .no-runs-message {
+        text-align: center;
+        padding: 2rem;
+        color: var(--text-secondary);
+      }
+
+      /* ==========================================================================
+         R² Score Badges
+         ========================================================================== */
+      .r2-badge {
+        display: inline-block;
+        padding: 0.3rem 0.6rem;
+        border-radius: 6px;
+        font-weight: 500;
+        font-size: 0.85rem;
+        font-family: "JetBrains Mono", monospace;
+      }
+
+      .r2-excellent { background: rgba(16, 185, 129, 0.15); color: #059669; }
+      .r2-good { background: rgba(34, 197, 94, 0.15); color: #16a34a; }
+      .r2-moderate { background: rgba(245, 158, 11, 0.15); color: #d97706; }
+      .r2-poor { background: rgba(239, 68, 68, 0.15); color: #dc2626; }
+      .r2-negative { background: rgba(220, 38, 38, 0.15); color: #b91c1c; }
+
+
+      /* ==========================================================================
+         Law Comparison Cards
+         ========================================================================== */
+      .law-comparison-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(520px, 1fr));
+        gap: 1.5rem;
+        margin-top: 2rem;
+      }
+
+      .law-comparison-card {
+        background: var(--glass-bg);
+        border: 1px solid var(--border-subtle);
+        border-radius: 16px;
+        overflow: hidden;
+        transition: all 0.3s ease;
+      }
+
+      .law-comparison-card:hover {
+        border-color: var(--accent-primary);
+        box-shadow: 0 12px 32px rgba(37, 99, 235, 0.12);
+        transform: translateY(-4px);
+      }
+
+      .law-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 1.25rem;
+        background: var(--bg-secondary);
+        border-bottom: 1px solid var(--border-subtle);
+      }
+
+      .law-card-header h4 {
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .law-card-header a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      .law-card-header a:hover {
+        color: var(--accent-primary);
+      }
+
+      .law-card-body {
+        padding: 1.25rem;
+      }
+
+      .law-row {
+        display: flex;
+        align-items: flex-start;
+        gap: 1rem;
+        padding: 0.875rem;
+        border-radius: 10px;
+        margin-bottom: 0.75rem;
+        background: var(--bg-primary);
+        border: 1px solid var(--border-subtle);
+      }
+
+      .law-row:last-child {
+        margin-bottom: 0;
+      }
+
+      .law-row.discovered {
+        border-left: 3px solid var(--success);
+        background: rgba(16, 185, 129, 0.03);
+      }
+
+      .law-row.human {
+        border-left: 3px solid var(--text-muted);
+      }
+
+      .law-label {
+        flex-shrink: 0;
+        width: 90px;
+      }
+
+      .law-label-badge {
+        display: inline-block;
+        padding: 0.25rem 0.6rem;
+        border-radius: 6px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+      }
+
+      .law-label-badge.discovered {
+        background: rgba(16, 185, 129, 0.15);
+        color: #059669;
+      }
+
+      .law-label-badge.human {
+        background: rgba(107, 114, 128, 0.15);
+        color: #4b5563;
+      }
+
+      .law-content {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .law-formula {
+        font-size: 0.95rem;
+        line-height: 1.7;
+        color: var(--text-primary);
+        overflow-x: auto;
+        padding-bottom: 0.25rem;
+      }
+
+      .law-meta {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-top: 0.5rem;
+        font-size: 0.8rem;
+        color: var(--text-muted);
+      }
+
+      .law-meta-item {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+      }
+
+      .r2-value {
+        font-family: "JetBrains Mono", monospace;
+        font-weight: 600;
+      }
+
+      .r2-value.high {
+        color: var(--success);
+      }
+
+      .r2-value.medium {
+        color: var(--warning);
+      }
+
+      .r2-value.low {
+        color: var(--danger);
+      }
+
+      .improvement-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 0.2rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        background: rgba(16, 185, 129, 0.12);
+        color: #059669;
+      }
+
+      .param-count {
+        font-family: "JetBrains Mono", monospace;
+        color: var(--accent-primary);
+      }
+
+      @media (max-width: 768px) {
+        .law-comparison-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .law-row {
+          flex-direction: column;
+          gap: 0.5rem;
+        }
+
+        .law-label {
+          width: auto;
+        }
+      }
+
+      /* ==========================================================================
+         Footer
+         ========================================================================== */
       .footer {
         padding: 3rem 0;
         text-align: center;
@@ -426,67 +841,23 @@
         font-size: 0.9rem;
       }
 
-      /* Responsive */
+      /* ==========================================================================
+         Responsive Design
+         ========================================================================== */
       @media (max-width: 768px) {
-        .main-title {
-          font-size: 2.5rem;
-        }
-
-        .subtitle {
-          font-size: 1.2rem;
-        }
-
-        .container {
-          padding: 0 1rem;
-        }
-
-        .header-section {
-          padding: 2rem 0;
-        }
-
-        th,
-        td {
-          padding: 0.75rem 0.5rem;
-          font-size: 0.8rem;
-        }
-      }
-
-      /* Summary Cards */
-      .summary-cards {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 1rem;
-        margin: 2rem 0;
-      }
-
-      .summary-card {
-        background: var(--glass-bg);
-        border: 1px solid var(--border-subtle);
-        border-radius: 12px;
-        padding: 1.5rem;
-        text-align: center;
-      }
-
-      .summary-card .value {
-        font-size: 2rem;
-        font-weight: 700;
-        background: var(--accent-gradient);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-      }
-
-      .summary-card .label {
-        color: var(--text-muted);
-        font-size: 0.9rem;
-        margin-top: 0.25rem;
+        .main-title { font-size: 2.5rem; }
+        .subtitle { font-size: 1.2rem; }
+        .container { padding: 0 1rem; }
+        .header-section { padding: 2rem 0; }
+        th, td { padding: 0.75rem 0.5rem; font-size: 0.8rem; }
       }
     </style>
   </head>
   <body>
     <div class="bg-pattern"></div>
-
     <div class="container">
+
+      <!-- ============================== HEADER ============================== -->
       <header class="header-section">
         <div class="title-container">
           <h1 class="main-title">Can Language Models Discover Scaling Laws?</h1>
@@ -495,6 +866,7 @@
 
         <div class="conference-badge">arXiv 2025</div>
 
+        <!-- Authors -->
         <div class="authors-container" style="line-height: 2">
           <a href="https://linhaowei1.github.io/" target="_blank" class="author-name">Haowei Lin<sup style="color: var(--accent-primary)">*</sup></a>
           <a href="https://haotianye.com/" target="_blank" class="author-name">Haotian Ye<sup style="color: var(--accent-primary)">*</sup></a>
@@ -509,20 +881,28 @@
           <a href="https://www.james-zou.com/" target="_blank" class="author-name">James Zou</a>
         </div>
 
+        <!-- Affiliations -->
         <div class="affiliations-container" style="margin-bottom: 0.5rem">
-          <span style="color: var(--text-muted); font-size: 0.9rem"
-            >Peking University · Stanford University · Wizard Quant · Tsinghua University</span
-          >
+          <span style="color: var(--text-muted); font-size: 0.9rem">
+            Peking University · Stanford University · Wizard Quant · Tsinghua University
+          </span>
         </div>
         <div style="margin-bottom: 1.5rem">
-          <span style="color: var(--text-muted); font-size: 0.8rem"><sup style="color: var(--accent-primary)">*</sup> Equal contribution</span>
+          <span style="color: var(--text-muted); font-size: 0.8rem">
+            <sup style="color: var(--accent-primary)">*</sup> Equal contribution
+          </span>
         </div>
 
+        <!-- Action Buttons -->
         <div class="buttons-container">
-          <a href="https://arxiv.org/abs/2507.21184" class="button button-primary" target="_blank"> <i class="fas fa-file-pdf"></i> Paper </a>
-          <a href="https://github.com/linhaowei1/SLD" class="button button-secondary" target="_blank"> <i class="fab fa-github"></i> Code </a>
-          <a href="https://huggingface.co/datasets/pkuHaowei/sldbench" class="button button-secondary" target="_blank">
-            <i class="fas fa-database"></i> Dataset
+          <a href="https://arxiv.org/abs/2507.21184" class="button button-primary" target="_blank">
+            <i class="fas fa-file-pdf"></i> Paper
+          </a>
+          <a href="https://github.com/linhaowei1/SLD" class="button button-secondary" target="_blank">
+            <i class="fab fa-github"></i> Code
+          </a>
+          <a href="https://huggingface.co/collections/pkuHaowei/scaling-law-discovery" class="button button-secondary" target="_blank">
+            <i class="fas fa-database"></i> HuggingFace
           </a>
           <a href="https://algorithmicsuperintelligence.ai/blog/openevolve-sldagent/index.html" class="button button-secondary" target="_blank">
             <i class="fas fa-blog"></i> Blog
@@ -530,91 +910,301 @@
           <a href="https://github.com/laude-institute/harbor-datasets/tree/main/datasets/sldbench" class="button button-secondary" target="_blank">
             <i class="fas fa-anchor"></i> Harbor
           </a>
-          <a href="#leaderboard" class="button button-secondary"> <i class="fas fa-trophy"></i> Leaderboard </a>
+          <a href="#leaderboard" class="button button-secondary">
+            <i class="fas fa-trophy"></i> Leaderboard
+          </a>
         </div>
       </header>
 
-      <section class="overview-section">
-        <h2 class="section-title">Overview</h2>
-        <p class="overview-text">
-          We frame <strong>scaling law discovery</strong> as a benchmarked "scientific agent" task by curating thousands of experiments across diverse
-          settings. We introduce <strong>SLDAgent</strong>, an evolution-based agent that jointly searches scaling-law functional forms and fits
-          parameters. Across tasks, the discovered laws extrapolate more accurately than established human-derived laws, validating usefulness in both
-          pretraining and finetuning scenarios.
-        </p>
-
-        <h3 class="section-title" style="margin-top: 2rem">Benchmark Tasks</h3>
-        <div class="task-grid">
-          <a href="https://arxiv.org/abs/2505.10475" target="_blank" class="task-card-link">
-            <div class="task-card">
-              <h3>Parallel Scaling Law <i class="fas fa-external-link-alt" style="font-size: 0.7rem; opacity: 0.6"></i></h3>
-              <p>Predicts language-modeling loss as a function of model size <strong>N</strong> and inference parallelism <strong>P</strong>.</p>
-            </div>
-          </a>
-          <a href="https://arxiv.org/abs/2407.13623" target="_blank" class="task-card-link">
-            <div class="task-card">
-              <h3>Vocabulary Scaling Law <i class="fas fa-external-link-alt" style="font-size: 0.7rem; opacity: 0.6"></i></h3>
-              <p>
-                Models unigram-normalized loss as a function of non-vocabulary model size <strong>N</strong>, vocabulary size <strong>V</strong>, and
-                dataset size <strong>D</strong>.
-              </p>
-            </div>
-          </a>
-          <a href="https://arxiv.org/abs/2402.02314" target="_blank" class="task-card-link">
-            <div class="task-card">
-              <h3>SFT Scaling Law <i class="fas fa-external-link-alt" style="font-size: 0.7rem; opacity: 0.6"></i></h3>
-              <p>Models finetuning loss based on the supervised fine-tuning dataset size <strong>D</strong>.</p>
-            </div>
-          </a>
-          <a href="https://arxiv.org/abs/2403.16952" target="_blank" class="task-card-link">
-            <div class="task-card">
-              <h3>Domain Mixture Scaling Law <i class="fas fa-external-link-alt" style="font-size: 0.7rem; opacity: 0.6"></i></h3>
-              <p>Models each domain's pre-training loss based on that domain's proportion in the training mixture.</p>
-            </div>
-          </a>
-          <a href="https://arxiv.org/abs/2402.07871" target="_blank" class="task-card-link">
-            <div class="task-card">
-              <h3>MoE Scaling Law <i class="fas fa-external-link-alt" style="font-size: 0.7rem; opacity: 0.6"></i></h3>
-              <p>Models loss in relation to network size <strong>N</strong> and number of experts <strong>E</strong>.</p>
-            </div>
-          </a>
-          <a href="https://arxiv.org/abs/2305.16264" target="_blank" class="task-card-link">
-            <div class="task-card">
-              <h3>Data-Constrained Scaling Law <i class="fas fa-external-link-alt" style="font-size: 0.7rem; opacity: 0.6"></i></h3>
-              <p>
-                Models pre-training loss as a function of network size <strong>N</strong>, dataset size <strong>D</strong>, and number of unique
-                tokens <strong>U</strong>.
-              </p>
-            </div>
-          </a>
-          <a href="https://arxiv.org/abs/2503.04715" target="_blank" class="task-card-link">
-            <div class="task-card">
-              <h3>LR & Batch Size Scaling Law <i class="fas fa-external-link-alt" style="font-size: 0.7rem; opacity: 0.6"></i></h3>
-              <p>
-                Models pre-training loss based on learning rate <strong>l</strong>, batch size <strong>b</strong>, dataset size <strong>D</strong>,
-                and network size <strong>N</strong>.
-              </p>
-            </div>
-          </a>
-          <a href="https://arxiv.org/abs/2410.01692" target="_blank" class="task-card-link">
-            <div class="task-card">
-              <h3>U-shaped Scaling Law <i class="fas fa-external-link-alt" style="font-size: 0.7rem; opacity: 0.6"></i></h3>
-              <p>Models performance (Brier score) as a non-monotonic function of compute measured in FLOPs <strong>C</strong>.</p>
-            </div>
-          </a>
+      <!-- ============================== NEWS ============================== -->
+      <section class="news-section" style="padding: 3rem 0; border-bottom: 1px solid var(--border-subtle)">
+        <h2 class="section-title">News</h2>
+        <div style="display: flex; flex-direction: column; gap: 0.75rem; max-width: 1200px">
+          <div style="display: flex; align-items: flex-start; gap: 1rem; padding: 0.75rem 1rem; background: var(--glass-bg); border-radius: 8px; border-left: 3px solid var(--accent-primary)">
+            <span style="flex-shrink: 0; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--accent-primary); font-weight: 500">Jan 08, 2026</span>
+            <span style="color: var(--text-secondary); font-size: 0.95rem">🎉 Welcome <a href="#contribute" style="color: var(--accent-primary); text-decoration: none; font-weight: 500">contributions</a>! You can now submit new datasets and upload agent results to the leaderboard.</span>
+          </div>
+          <div style="display: flex; align-items: flex-start; gap: 1rem; padding: 0.75rem 1rem; background: var(--glass-bg); border-radius: 8px; border-left: 3px solid var(--accent-primary)">
+            <span style="flex-shrink: 0; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--accent-primary); font-weight: 500">Dec 07, 2025</span>
+            <span style="color: var(--text-secondary); font-size: 0.95rem">🚀 SLDBench is now live! First launch of the benchmark and leaderboard.</span>
+          </div>
         </div>
       </section>
 
+      <!-- ============================== OVERVIEW ============================== -->
+      <section class="overview-section">
+        <h2 class="section-title">Overview</h2>
+        <p class="overview-text">
+          We frame <strong>scaling law discovery</strong> as a benchmarked "scientific agent" task by curating 
+          thousands of experiments across diverse settings. We introduce <strong>SLDAgent</strong>, an evolution-based 
+          agent that jointly searches scaling-law functional forms and fits parameters. Across tasks, the discovered 
+          laws extrapolate more accurately than established human-derived laws, validating usefulness in both 
+          pretraining and finetuning scenarios.
+        </p>
+
+        <!-- Benchmark Tasks: Law Comparison -->
+        <h3 class="section-title" style="margin-top: 2rem">SLDAgent Discovered vs. Human Laws</h3>
+        <p style="color: var(--text-secondary); margin-bottom: 1.5rem; font-size: 0.95rem;">
+          Comparison of the best discovered scaling laws vs. human-derived laws across all benchmark tasks.
+        </p>
+
+        <div class="law-comparison-grid">
+
+          <!-- Parallel Scaling Law -->
+          <div class="law-comparison-card">
+            <div class="law-card-header">
+              <h4><a href="https://arxiv.org/abs/2505.10475" target="_blank">Parallel Scaling Law <i class="fas fa-external-link-alt" style="font-size: 0.65rem; opacity: 0.5"></i></a></h4>
+              <span class="improvement-badge"><i class="fas fa-arrow-up"></i> +0.01%</span>
+            </div>
+            <div class="law-card-body">
+              <div class="law-row discovered">
+                <div class="law-label"><span class="law-label-badge discovered">Discovered</span></div>
+                <div class="law-content">
+                  <div class="law-formula" data-formula="L = \theta_1 + \theta_2 \cdot N^{-\theta_3} + \theta_4 \cdot (P^{-0.5} - 1)"></div>
+                  <div class="law-meta">
+                    <span class="law-meta-item">R² = <span class="r2-value high">0.9999</span></span>
+                    <span class="law-meta-item">Params: <span class="param-count">4</span></span>
+                  </div>
+                </div>
+              </div>
+              <div class="law-row human">
+                <div class="law-label"><span class="law-label-badge human">Human</span></div>
+                <div class="law-content">
+                  <div class="law-formula" data-formula="L = \left(\frac{\theta_1}{N \cdot (\theta_2 \ln P + 1)}\right)^{\theta_3} + \theta_4"></div>
+                  <div class="law-meta">
+                    <span class="law-meta-item">R² = <span class="r2-value high">0.9999</span></span>
+                    <span class="law-meta-item">Params: <span class="param-count">4</span></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Vocabulary Scaling Law -->
+          <div class="law-comparison-card">
+            <div class="law-card-header">
+              <h4><a href="https://arxiv.org/abs/2407.13623" target="_blank">Vocabulary Scaling Law <i class="fas fa-external-link-alt" style="font-size: 0.65rem; opacity: 0.5"></i></a></h4>
+              <span class="improvement-badge"><i class="fas fa-arrow-up"></i> +2.37%</span>
+            </div>
+            <div class="law-card-body">
+              <div class="law-row discovered">
+                <div class="law-label"><span class="law-label-badge discovered">Discovered</span></div>
+                <div class="law-content">
+                  <div class="law-formula" data-formula="L = \theta_1 + \frac{\theta_2}{1 + e^{\theta_3 \ln N + \theta_4 \ln D - \theta_5(\ln V - \theta_6)^2 + \theta_7}}"></div>
+                  <div class="law-meta">
+                    <span class="law-meta-item">R² = <span class="r2-value high">0.9893</span></span>
+                    <span class="law-meta-item">Params: <span class="param-count">7</span></span>
+                  </div>
+                </div>
+              </div>
+              <div class="law-row human">
+                <div class="law-label"><span class="law-label-badge human">Human</span></div>
+                <div class="law-content">
+                  <div class="law-formula" data-formula="L = \frac{\theta_1}{N^{\theta_2}} + \frac{\theta_3}{V^{\theta_4}} + \frac{\theta_5}{D^{\theta_6}} + \theta_7"></div>
+                  <div class="law-meta">
+                    <span class="law-meta-item">R² = <span class="r2-value high">0.9664</span></span>
+                    <span class="law-meta-item">Params: <span class="param-count">7</span></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- SFT Scaling Law -->
+          <div class="law-comparison-card">
+            <div class="law-card-header">
+              <h4><a href="https://arxiv.org/abs/2402.02314" target="_blank">SFT Scaling Law <i class="fas fa-external-link-alt" style="font-size: 0.65rem; opacity: 0.5"></i></a></h4>
+              <span class="improvement-badge"><i class="fas fa-arrow-up"></i> +4.41%</span>
+            </div>
+            <div class="law-card-body">
+              <div class="law-row discovered">
+                <div class="law-label"><span class="law-label-badge discovered">Discovered</span></div>
+                <div class="law-content">
+                  <div class="law-formula" data-formula="L = \theta_1 + \frac{\theta_2}{1 + (D/\theta_3)^{\theta_4}}"></div>
+                  <div class="law-meta">
+                    <span class="law-meta-item">R² = <span class="r2-value high">0.9993</span></span>
+                    <span class="law-meta-item">Params: <span class="param-count">4</span></span>
+                  </div>
+                </div>
+              </div>
+              <div class="law-row human">
+                <div class="law-label"><span class="law-label-badge human">Human</span></div>
+                <div class="law-content">
+                  <div class="law-formula" data-formula="L = \frac{\theta_1}{D^{\theta_2} + \theta_3} + \theta_4"></div>
+                  <div class="law-meta">
+                    <span class="law-meta-item">R² = <span class="r2-value high">0.9571</span></span>
+                    <span class="law-meta-item">Params: <span class="param-count">4</span></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Domain Mixture Scaling Law -->
+          <div class="law-comparison-card">
+            <div class="law-card-header">
+              <h4><a href="https://arxiv.org/abs/2403.16952" target="_blank">Domain Mixture Scaling Law <i class="fas fa-external-link-alt" style="font-size: 0.65rem; opacity: 0.5"></i></a></h4>
+              <span class="improvement-badge"><i class="fas fa-arrow-up"></i> +48.84%</span>
+            </div>
+            <div class="law-card-body">
+              <div class="law-row discovered">
+                <div class="law-label"><span class="law-label-badge discovered">Discovered</span></div>
+                <div class="law-content">
+                  <div class="law-formula" data-formula="L_i = \theta_{0,i} + \theta_{1,i} \cdot r_i^{\theta_{2,i}} + \sum_{j \neq i} \theta_{3,ij} \cdot r_j"></div>
+                  <div class="law-meta">
+                    <span class="law-meta-item">R² = <span class="r2-value high">0.9988</span></span>
+                    <span class="law-meta-item">Params: <span class="param-count">35</span></span>
+                  </div>
+                </div>
+              </div>
+              <div class="law-row human">
+                <div class="law-label"><span class="law-label-badge human">Human</span></div>
+                <div class="law-content">
+                  <div class="law-formula" data-formula="L_i = \theta_{1,i} + \theta_{2,i} \cdot \exp\left(\sum_j \theta_{3,ij} \cdot r_j\right)"></div>
+                  <div class="law-meta">
+                    <span class="law-meta-item">R² = <span class="r2-value medium">0.6711</span></span>
+                    <span class="law-meta-item">Params: <span class="param-count">35</span></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- MoE Scaling Law -->
+          <div class="law-comparison-card">
+            <div class="law-card-header">
+              <h4><a href="https://arxiv.org/abs/2402.07871" target="_blank">MoE Scaling Law <i class="fas fa-external-link-alt" style="font-size: 0.65rem; opacity: 0.5"></i></a></h4>
+              <span class="improvement-badge"><i class="fas fa-arrow-up"></i> +36.98%</span>
+            </div>
+            <div class="law-card-body">
+              <div class="law-row discovered">
+                <div class="law-label"><span class="law-label-badge discovered">Discovered</span></div>
+                <div class="law-content">
+                  <div class="law-formula" data-formula="L = \frac{\theta_1 \cdot N^{-\theta_2}}{1 + \theta_3 (\ln E)^2} + \theta_4 \tanh(\theta_5 E) + \theta_6"></div>
+                  <div class="law-meta">
+                    <span class="law-meta-item">R² = <span class="r2-value high">0.9632</span></span>
+                    <span class="law-meta-item">Params: <span class="param-count">6</span></span>
+                  </div>
+                </div>
+              </div>
+              <div class="law-row human">
+                <div class="law-label"><span class="law-label-badge human">Human</span></div>
+                <div class="law-content">
+                  <div class="law-formula" data-formula="\ln L = \theta_1 \ln N + \theta_2 \ln \hat{E} + \theta_3 \ln N \ln \hat{E} + \theta_4"></div>
+                  <div class="law-meta">
+                    <span class="law-meta-item">R² = <span class="r2-value medium">0.7032</span></span>
+                    <span class="law-meta-item">Params: <span class="param-count">6</span></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Data-Constrained Scaling Law -->
+          <div class="law-comparison-card">
+            <div class="law-card-header">
+              <h4><a href="https://arxiv.org/abs/2305.16264" target="_blank">Data-Constrained Scaling Law <i class="fas fa-external-link-alt" style="font-size: 0.65rem; opacity: 0.5"></i></a></h4>
+              <span class="improvement-badge"><i class="fas fa-arrow-up"></i> +9.30%</span>
+            </div>
+            <div class="law-card-body">
+              <div class="law-row discovered">
+                <div class="law-label"><span class="law-label-badge discovered">Discovered</span></div>
+                <div class="law-content">
+                  <div class="law-formula" data-formula="L = \frac{\theta_1}{U^{\theta_2}} + \frac{\theta_3}{N^{\theta_4}} + \frac{\theta_5}{D^{\theta_6}} \cdot \left(\frac{D}{U}\right)^{\theta_7} + E"></div>
+                  <div class="law-meta">
+                    <span class="law-meta-item">R² = <span class="r2-value high">0.9953</span></span>
+                    <span class="law-meta-item">Params: <span class="param-count">7</span></span>
+                  </div>
+                </div>
+              </div>
+              <div class="law-row human">
+                <div class="law-label"><span class="law-label-badge human">Human</span></div>
+                <div class="law-content">
+                  <div class="law-formula" data-formula="L = \frac{\theta_1}{(U_N + \theta_2 U_N(1-e^{-R_N/\theta_2}))^{\theta_3}} + \frac{\theta_4}{(U_D + \theta_5 U_D(1-e^{-R_D/\theta_5}))^{\theta_3}} + \theta_6"></div>
+                  <div class="law-meta">
+                    <span class="law-meta-item">R² = <span class="r2-value high">0.9106</span></span>
+                    <span class="law-meta-item">Params: <span class="param-count">7</span></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- LR & Batch Size Scaling Law -->
+          <div class="law-comparison-card">
+            <div class="law-card-header">
+              <h4><a href="https://arxiv.org/abs/2503.04715" target="_blank">LR & Batch Size Scaling Law <i class="fas fa-external-link-alt" style="font-size: 0.65rem; opacity: 0.5"></i></a></h4>
+              <span class="improvement-badge"><i class="fas fa-arrow-up"></i> +1406%</span>
+            </div>
+            <div class="law-card-body">
+              <div class="law-row discovered">
+                <div class="law-label"><span class="law-label-badge discovered">Discovered</span></div>
+                <div class="law-content">
+                  <div class="law-formula" data-formula="L = \sum_{k} \theta_k \cdot \phi_k(\ln l, \ln b, \ln D, \ln N)"></div>
+                  <div class="law-meta">
+                    <span class="law-meta-item">R² = <span class="r2-value high">0.9834</span></span>
+                    <span class="law-meta-item">Params: <span class="param-count">24</span> <span style="font-size: 0.7rem; color: var(--text-muted)">(polynomial features)</span></span>
+                  </div>
+                </div>
+              </div>
+              <div class="law-row human">
+                <div class="law-label"><span class="law-label-badge human">Human</span></div>
+                <div class="law-content">
+                  <div class="law-formula" data-formula="L = \frac{\theta_1}{D^{\theta_2}} + \frac{\theta_3}{N^{\theta_4}} + \theta_5 + \theta_6(l - l_0)^2 + \theta_7(\ln b + \frac{b_0}{b})"></div>
+                  <div class="law-meta">
+                    <span class="law-meta-item">R² = <span class="r2-value low">-0.0757</span></span>
+                    <span class="law-meta-item">Params: <span class="param-count">12</span></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- U-shaped Scaling Law -->
+          <div class="law-comparison-card">
+            <div class="law-card-header">
+              <h4><a href="https://arxiv.org/abs/2410.01692" target="_blank">U-shaped Scaling Law <i class="fas fa-external-link-alt" style="font-size: 0.65rem; opacity: 0.5"></i></a></h4>
+              <span class="improvement-badge"><i class="fas fa-arrow-up"></i> +193.5%</span>
+            </div>
+            <div class="law-card-body">
+              <div class="law-row discovered">
+                <div class="law-label"><span class="law-label-badge discovered">Discovered</span></div>
+                <div class="law-content">
+                  <div class="law-formula" data-formula="y = \theta_1 - \theta_2 e^{-\theta_3 \log_{10} C} + \frac{\theta_4}{1 + \left(\frac{\log_{10} C - \theta_5}{\theta_6}\right)^2}"></div>
+                  <div class="law-meta">
+                    <span class="law-meta-item">R² = <span class="r2-value high">0.9353</span></span>
+                    <span class="law-meta-item">Params: <span class="param-count">6</span></span>
+                  </div>
+                </div>
+              </div>
+              <div class="law-row human">
+                <div class="law-label"><span class="law-label-badge human">Human</span></div>
+                <div class="law-content">
+                  <div class="law-formula" data-formula="y = \theta_1 x^5 + \theta_2 x^4 + \theta_3 x^3 + \theta_4 x^2 + \theta_5 x + \theta_6 \quad (x = \log_{10} C)"></div>
+                  <div class="law-meta">
+                    <span class="law-meta-item">R² = <span class="r2-value low">-1.0000</span></span>
+                    <span class="law-meta-item">Params: <span class="param-count">6</span></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+
+      <!-- ============================== LEADERBOARD ============================== -->
       <section class="leaderboard-section" id="leaderboard">
         <div class="leaderboard-header">
           <h2 class="section-title" style="margin-bottom: 0">Leaderboard</h2>
           <div class="filter-controls">
-            <button class="filter-btn active" onclick="showTable('all')">All Tasks</button>
+            <button class="filter-btn active" onclick="showTable('general')">General Agents</button>
             <button class="filter-btn" onclick="showTable('sldagent')">SLDAgent Only</button>
-            <button class="filter-btn" onclick="showTable('general')">General Agents</button>
           </div>
         </div>
 
+        <!-- Task Tabs -->
         <div class="task-tabs" id="taskTabs">
           <button class="task-tab active" data-task="all">All Tasks (Avg)</button>
           <button class="task-tab" data-task="parallel_scaling_law">Parallel</button>
@@ -627,6 +1217,7 @@
           <button class="task-tab" data-task="easy_question_scaling_law">U-shaped</button>
         </div>
 
+        <!-- Leaderboard Table -->
         <div class="table-container">
           <table id="leaderboardTable">
             <thead>
@@ -641,1394 +1232,95 @@
               </tr>
             </thead>
             <tbody id="leaderboardBody">
-              <!-- Will be populated by JavaScript -->
+              <!-- Populated by JavaScript -->
             </tbody>
           </table>
         </div>
       </section>
 
-      <!-- Citation Section -->
+      <!-- ============================== CITATION ============================== -->
       <section class="citation-section" style="padding: 3rem 0; border-top: 1px solid var(--border-subtle)">
         <h2 style="font-size: 1.5rem; font-weight: 600; margin-bottom: 1.5rem; text-align: center">Citation</h2>
-        <div
-          class="citation-box"
-          style="background: var(--bg-secondary); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 1.5rem; position: relative"
-        >
-          <button
-            onclick="copyCitation()"
-            style="
-              position: absolute;
-              top: 1rem;
-              right: 1rem;
-              padding: 0.5rem 1rem;
-              background: var(--accent-primary);
-              color: white;
-              border: none;
-              border-radius: 6px;
-              cursor: pointer;
-              font-size: 0.85rem;
-              font-family: inherit;
-            "
-          >
+        <div class="citation-box" style="background: var(--bg-secondary); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 1.5rem; position: relative">
+          <button onclick="copyCitation()" style="position: absolute; top: 1rem; right: 1rem; padding: 0.5rem 1rem; background: var(--accent-primary); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-family: inherit;">
             Copy
           </button>
-          <pre
-            style="
-              font-family: &quot;JetBrains Mono&quot;, monospace;
-              font-size: 0.85rem;
-              line-height: 1.6;
-              overflow-x: auto;
-              white-space: pre-wrap;
-              word-wrap: break-word;
-              color: var(--text-secondary);
-              margin: 0;
-            "
-          >
-@article{lin2025sld,
+          <pre style="font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; line-height: 1.6; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word; color: var(--text-secondary); margin: 0;">@article{lin2025sld,
   title={Can Language Models Discover Scaling Laws?},
   author={Lin, Haowei and Ye, Haotian and Feng, Wenzheng and Huang, Quzhe and Li, Yujun and Lim, Hubert and Li, Zhengrui and Wang, Xiangyu and Ma, Jianzhu and Liang, Yitao and Zou, James},
   journal={arXiv preprint arXiv:2507.21184},
   year={2025}
-}</pre
-          >
+}</pre>
         </div>
       </section>
 
-      <!-- Contact Section -->
-      <section class="contact-section" style="padding: 2rem 0 3rem; text-align: center">
+      <!-- ============================== CONTRIBUTE ============================== -->
+      <section id="contribute" class="contact-section" style="padding: 2rem 0 3rem; text-align: center">
         <h2 style="font-size: 1.5rem; font-weight: 600; margin-bottom: 1rem">Contribute</h2>
-        <p style="color: var(--text-secondary); margin-bottom: 1rem">Want to connect or contribute new scaling law tasks to SLDBench?</p>
+        <p style="color: var(--text-secondary); margin-bottom: 1.5rem">
+          We welcome contributions to SLDBench! Here's how you can get involved:
+        </p>
+        
+        <div style="display: flex; flex-direction: column; gap: 1rem; max-width: 600px; margin: 0 auto 1.5rem; text-align: left">
+          <div style="background: var(--glass-bg); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 1rem 1.25rem">
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem">
+              <i class="fas fa-database" style="color: var(--accent-primary)"></i>
+              <strong style="color: var(--text-primary)">Add New Scaling Law Datasets</strong>
+            </div>
+            <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 0.75rem">
+              Contribute new scaling law discovery tasks to expand the benchmark.
+            </p>
+            <a href="https://huggingface.co/datasets/pkuHaowei/sldbench" target="_blank" style="color: var(--accent-primary); text-decoration: none; font-size: 0.9rem; font-weight: 500">
+              <i class="fas fa-code-branch"></i> Make a PR to pkuHaowei/sldbench →
+            </a>
+          </div>
+          
+          <div style="background: var(--glass-bg); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 1rem 1.25rem">
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem">
+              <i class="fas fa-trophy" style="color: var(--accent-primary)"></i>
+              <strong style="color: var(--text-primary)">Submit Agent Results</strong>
+            </div>
+            <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 0.75rem">
+              Upload your SLD agent's results to the leaderboard.
+            </p>
+            <a href="https://huggingface.co/datasets/pkuHaowei/scaling_law_discovery_results" target="_blank" style="color: var(--accent-primary); text-decoration: none; font-size: 0.9rem; font-weight: 500">
+              <i class="fas fa-code-branch"></i> Make a PR to pkuHaowei/scaling_law_discovery_results →
+            </a>
+          </div>
+        </div>
+        
         <p style="color: var(--text-primary)">
-          Contact:
-          <a href="mailto:linhaowei@pku.edu.cn" style="color: var(--accent-primary); text-decoration: none; font-weight: 500"
-            >Haowei Lin (linhaowei@pku.edu.cn)</a
-          >
+          Questions? Contact:
+          <a href="mailto:linhaowei@pku.edu.cn" style="color: var(--accent-primary); text-decoration: none; font-weight: 500">
+            Haowei Lin (linhaowei@pku.edu.cn)
+          </a>
         </p>
       </section>
 
+      <!-- ============================== FOOTER ============================== -->
       <footer class="footer">
         <p>SLDBench © 2025 | Peking University · Stanford University · Wizard Quant · Tsinghua University</p>
         <p style="margin-top: 0.5rem">
           <a href="https://arxiv.org/abs/2507.21184" target="_blank" style="color: var(--accent-primary); text-decoration: none">arXiv</a>
           ·
-          <a
-            href="https://algorithmicsuperintelligence.ai/blog/openevolve-sldagent/index.html"
-            target="_blank"
-            style="color: var(--accent-primary); text-decoration: none"
-            >Blog</a
-          >
+          <a href="https://algorithmicsuperintelligence.ai/blog/openevolve-sldagent/index.html" target="_blank" style="color: var(--accent-primary); text-decoration: none">Blog</a>
           ·
-          <a
-            href="https://github.com/laude-institute/harbor-datasets/tree/main/datasets/sldbench"
-            target="_blank"
-            style="color: var(--accent-primary); text-decoration: none"
-            >Harbor</a
-          >
+          <a href="https://github.com/laude-institute/harbor/tree/main/adapters/sldbench" target="_blank" style="color: var(--accent-primary); text-decoration: none">Harbor</a>
         </p>
       </footer>
+
     </div>
 
     <script>
-      // Leaderboard data (will be populated from JSON)
-      const leaderboardData = [
-        {
-          task: "parallel_scaling_law",
-          agent: "SLDAgent",
-          model: "gemini-3-pro-preview",
-          mean_r2: 0.999945,
-          max_r2: 0.999954,
-          min_r2: 0.999914,
-          count: 5,
-        },
-        {
-          task: "parallel_scaling_law",
-          agent: "SLDAgent",
-          model: "claude-haiku-4-5-20251001",
-          mean_r2: 0.9999162,
-          max_r2: 0.999952,
-          min_r2: 0.999893,
-          count: 5,
-        },
-        {
-          task: "parallel_scaling_law",
-          agent: "SLDAgent",
-          model: "o4-mini",
-          mean_r2: 0.9999548,
-          max_r2: 0.999958,
-          min_r2: 0.999954,
-          count: 5,
-        },
-        {
-          task: "parallel_scaling_law",
-          agent: "SLDAgent",
-          model: "gemini-2.5-flash",
-          mean_r2: 0.999961,
-          max_r2: 0.999974,
-          min_r2: 0.999954,
-          count: 5,
-        },
-        {
-          task: "parallel_scaling_law",
-          agent: "SLDAgent",
-          model: "claude-sonnet-4-5-20250929",
-          mean_r2: 0.9999072,
-          max_r2: 0.999957,
-          min_r2: 0.999885,
-          count: 5,
-        },
-        {
-          task: "parallel_scaling_law",
-          agent: "SLDAgent",
-          model: "gpt-5",
-          mean_r2: 0.9999554,
-          max_r2: 0.999985,
-          min_r2: 0.999927,
-          count: 5,
-        },
-        {
-          task: "vocab_scaling_law",
-          agent: "SLDAgent",
-          model: "gemini-3-pro-preview",
-          mean_r2: 0.9793976,
-          max_r2: 0.979398,
-          min_r2: 0.979396,
-          count: 5,
-        },
-        {
-          task: "vocab_scaling_law",
-          agent: "SLDAgent",
-          model: "claude-haiku-4-5-20251001",
-          mean_r2: 0.9362606,
-          max_r2: 0.978871,
-          min_r2: 0.892967,
-          count: 5,
-        },
-        {
-          task: "vocab_scaling_law",
-          agent: "SLDAgent",
-          model: "o4-mini",
-          mean_r2: 0.9854354,
-          max_r2: 0.986247,
-          min_r2: 0.984961,
-          count: 5,
-        },
-        {
-          task: "vocab_scaling_law",
-          agent: "SLDAgent",
-          model: "gemini-2.5-flash",
-          mean_r2: 0.7708068,
-          max_r2: 0.975124,
-          min_r2: 0.000007,
-          count: 5,
-        },
-        {
-          task: "vocab_scaling_law",
-          agent: "SLDAgent",
-          model: "claude-sonnet-4-5-20250929",
-          mean_r2: 0.9844276,
-          max_r2: 0.986132,
-          min_r2: 0.980252,
-          count: 5,
-        },
-        {
-          task: "vocab_scaling_law",
-          agent: "SLDAgent",
-          model: "gpt-5",
-          mean_r2: 0.9862284,
-          max_r2: 0.988557,
-          min_r2: 0.984955,
-          count: 5,
-        },
-        {
-          task: "sft_scaling_law",
-          agent: "SLDAgent",
-          model: "gemini-3-pro-preview",
-          mean_r2: 0.9986248,
-          max_r2: 0.999266,
-          min_r2: 0.99846,
-          count: 5,
-        },
-        {
-          task: "sft_scaling_law",
-          agent: "SLDAgent",
-          model: "claude-haiku-4-5-20251001",
-          mean_r2: 0.993169,
-          max_r2: 0.99736,
-          min_r2: 0.991148,
-          count: 5,
-        },
-        {
-          task: "sft_scaling_law",
-          agent: "SLDAgent",
-          model: "o4-mini",
-          mean_r2: 0.995574,
-          max_r2: 0.999264,
-          min_r2: 0.981141,
-          count: 5,
-        },
-        {
-          task: "sft_scaling_law",
-          agent: "SLDAgent",
-          model: "gemini-2.5-flash",
-          mean_r2: 0.8567428,
-          max_r2: 0.999261,
-          min_r2: 0.639052,
-          count: 5,
-        },
-        {
-          task: "sft_scaling_law",
-          agent: "SLDAgent",
-          model: "claude-sonnet-4-5-20250929",
-          mean_r2: 0.9981198,
-          max_r2: 0.999306,
-          min_r2: 0.995633,
-          count: 5,
-        },
-        {
-          task: "sft_scaling_law",
-          agent: "SLDAgent",
-          model: "gpt-5",
-          mean_r2: 0.9990736,
-          max_r2: 0.999265,
-          min_r2: 0.998768,
-          count: 5,
-        },
-        {
-          task: "domain_mixture_scaling_law",
-          agent: "SLDAgent",
-          model: "gemini-3-pro-preview",
-          mean_r2: 0.9961066,
-          max_r2: 0.996946,
-          min_r2: 0.995604,
-          count: 5,
-        },
-        {
-          task: "domain_mixture_scaling_law",
-          agent: "SLDAgent",
-          model: "claude-haiku-4-5-20251001",
-          mean_r2: 0.9779178,
-          max_r2: 0.998086,
-          min_r2: 0.910012,
-          count: 5,
-        },
-        {
-          task: "domain_mixture_scaling_law",
-          agent: "SLDAgent",
-          model: "o4-mini",
-          mean_r2: 0.9962576,
-          max_r2: 0.998807,
-          min_r2: 0.99159,
-          count: 5,
-        },
-        {
-          task: "domain_mixture_scaling_law",
-          agent: "SLDAgent",
-          model: "gemini-2.5-flash",
-          mean_r2: 0.9981856,
-          max_r2: 0.998312,
-          min_r2: 0.998153,
-          count: 5,
-        },
-        {
-          task: "domain_mixture_scaling_law",
-          agent: "SLDAgent",
-          model: "claude-sonnet-4-5-20250929",
-          mean_r2: 0.9974724,
-          max_r2: 0.998727,
-          min_r2: 0.995904,
-          count: 5,
-        },
-        {
-          task: "domain_mixture_scaling_law",
-          agent: "SLDAgent",
-          model: "gpt-5",
-          mean_r2: 0.9962134,
-          max_r2: 0.998312,
-          min_r2: 0.990296,
-          count: 5,
-        },
-        {
-          task: "moe_scaling_law",
-          agent: "SLDAgent",
-          model: "gemini-3-pro-preview",
-          mean_r2: 0.9579754,
-          max_r2: 0.958443,
-          min_r2: 0.957176,
-          count: 5,
-        },
-        {
-          task: "moe_scaling_law",
-          agent: "SLDAgent",
-          model: "claude-haiku-4-5-20251001",
-          mean_r2: 0.9582288,
-          max_r2: 0.962352,
-          min_r2: 0.949784,
-          count: 5,
-        },
-        {
-          task: "moe_scaling_law",
-          agent: "SLDAgent",
-          model: "o4-mini",
-          mean_r2: 0.9580188,
-          max_r2: 0.960856,
-          min_r2: 0.953694,
-          count: 5,
-        },
-        {
-          task: "moe_scaling_law",
-          agent: "SLDAgent",
-          model: "gemini-2.5-flash",
-          mean_r2: 0.9579622,
-          max_r2: 0.958324,
-          min_r2: 0.957564,
-          count: 5,
-        },
-        {
-          task: "moe_scaling_law",
-          agent: "SLDAgent",
-          model: "claude-sonnet-4-5-20250929",
-          mean_r2: 0.9586906,
-          max_r2: 0.963224,
-          min_r2: 0.954018,
-          count: 5,
-        },
-        {
-          task: "moe_scaling_law",
-          agent: "SLDAgent",
-          model: "gpt-5",
-          mean_r2: 0.9576152,
-          max_r2: 0.961586,
-          min_r2: 0.952085,
-          count: 5,
-        },
-        {
-          task: "data_constrained_scaling_law",
-          agent: "SLDAgent",
-          model: "gemini-3-pro-preview",
-          mean_r2: 0.9159956,
-          max_r2: 0.928929,
-          min_r2: 0.893579,
-          count: 5,
-        },
-        {
-          task: "data_constrained_scaling_law",
-          agent: "SLDAgent",
-          model: "claude-haiku-4-5-20251001",
-          mean_r2: 0.7583254,
-          max_r2: 0.904712,
-          min_r2: 0.639676,
-          count: 5,
-        },
-        {
-          task: "data_constrained_scaling_law",
-          agent: "SLDAgent",
-          model: "o4-mini",
-          mean_r2: 0.8976132,
-          max_r2: 0.929252,
-          min_r2: 0.813374,
-          count: 5,
-        },
-        {
-          task: "data_constrained_scaling_law",
-          agent: "SLDAgent",
-          model: "gemini-2.5-flash",
-          mean_r2: 0.889634,
-          max_r2: 0.92504,
-          min_r2: 0.831876,
-          count: 5,
-        },
-        {
-          task: "data_constrained_scaling_law",
-          agent: "SLDAgent",
-          model: "claude-sonnet-4-5-20250929",
-          mean_r2: 0.8944534,
-          max_r2: 0.919475,
-          min_r2: 0.852179,
-          count: 5,
-        },
-        {
-          task: "data_constrained_scaling_law",
-          agent: "SLDAgent",
-          model: "gpt-5",
-          mean_r2: 0.912015,
-          max_r2: 0.926947,
-          min_r2: 0.900311,
-          count: 5,
-        },
-        {
-          task: "lr_bsz_scaling_law",
-          agent: "SLDAgent",
-          model: "gemini-3-pro-preview",
-          mean_r2: 0.9407126,
-          max_r2: 0.940806,
-          min_r2: 0.940533,
-          count: 5,
-        },
-        {
-          task: "lr_bsz_scaling_law",
-          agent: "SLDAgent",
-          model: "claude-haiku-4-5-20251001",
-          mean_r2: 0.8993506,
-          max_r2: 0.922917,
-          min_r2: 0.883183,
-          count: 5,
-        },
-        {
-          task: "lr_bsz_scaling_law",
-          agent: "SLDAgent",
-          model: "o4-mini",
-          mean_r2: 0.887927,
-          max_r2: 0.906301,
-          min_r2: 0.865452,
-          count: 5,
-        },
-        {
-          task: "lr_bsz_scaling_law",
-          agent: "SLDAgent",
-          model: "gemini-2.5-flash",
-          mean_r2: 0.9138788,
-          max_r2: 0.91806,
-          min_r2: 0.904116,
-          count: 5,
-        },
-        {
-          task: "lr_bsz_scaling_law",
-          agent: "SLDAgent",
-          model: "claude-sonnet-4-5-20250929",
-          mean_r2: 0.9109496,
-          max_r2: 0.921644,
-          min_r2: 0.894674,
-          count: 5,
-        },
-        {
-          task: "lr_bsz_scaling_law",
-          agent: "SLDAgent",
-          model: "gpt-5",
-          mean_r2: 0.9547952,
-          max_r2: 0.983442,
-          min_r2: 0.91051,
-          count: 5,
-        },
-        {
-          task: "easy_question_scaling_law",
-          agent: "SLDAgent",
-          model: "gemini-3-pro-preview",
-          mean_r2: 0.9311246,
-          max_r2: 0.931286,
-          min_r2: 0.930479,
-          count: 5,
-        },
-        {
-          task: "easy_question_scaling_law",
-          agent: "SLDAgent",
-          model: "claude-haiku-4-5-20251001",
-          mean_r2: 0.9278042,
-          max_r2: 0.929632,
-          min_r2: 0.925939,
-          count: 5,
-        },
-        {
-          task: "easy_question_scaling_law",
-          agent: "SLDAgent",
-          model: "o4-mini",
-          mean_r2: 0.9289944,
-          max_r2: 0.933141,
-          min_r2: 0.92207,
-          count: 5,
-        },
-        {
-          task: "easy_question_scaling_law",
-          agent: "SLDAgent",
-          model: "gemini-2.5-flash",
-          mean_r2: 0.925247,
-          max_r2: 0.925978,
-          min_r2: 0.924689,
-          count: 5,
-        },
-        {
-          task: "easy_question_scaling_law",
-          agent: "SLDAgent",
-          model: "claude-sonnet-4-5-20250929",
-          mean_r2: 0.8383628,
-          max_r2: 0.931613,
-          min_r2: 0.785188,
-          count: 5,
-        },
-        {
-          task: "easy_question_scaling_law",
-          agent: "SLDAgent",
-          model: "gpt-5",
-          mean_r2: 0.9275676,
-          max_r2: 0.935259,
-          min_r2: 0.92057,
-          count: 5,
-        },
-        {
-          task: "parallel_scaling_law",
-          agent: "codex",
-          model: "gpt-5",
-          mean_r2: 0.9987460638550058,
-          max_r2: 0.999963701769498,
-          min_r2: 0.9945998203341918,
-          count: 5,
-        },
-        {
-          task: "parallel_scaling_law",
-          agent: "codex",
-          model: "o4-mini",
-          mean_r2: 0.9995716967095042,
-          max_r2: 0.9995719008923731,
-          min_r2: 0.9995716456637871,
-          count: 5,
-        },
-        {
-          task: "parallel_scaling_law",
-          agent: "gemini-cli",
-          model: "gemini-3-pro-preview",
-          mean_r2: 0.9996581747303507,
-          max_r2: 0.9996581747303507,
-          min_r2: 0.9996581747303507,
-          count: 1,
-        },
-        {
-          task: "parallel_scaling_law",
-          agent: "gemini-cli",
-          model: "gemini-2.5-flash",
-          mean_r2: 0.4996787929012916,
-          max_r2: 0.999575036868136,
-          min_r2: -1.0,
-          count: 4,
-        },
-        {
-          task: "parallel_scaling_law",
-          agent: "goose",
-          model: "gpt-5",
-          mean_r2: 0.9996353481673488,
-          max_r2: 0.9999581900832513,
-          min_r2: 0.999386829360554,
-          count: 5,
-        },
-        {
-          task: "parallel_scaling_law",
-          agent: "mini-swe-agent",
-          model: "gpt-5",
-          mean_r2: 0.9971734952890792,
-          max_r2: 0.999965683926635,
-          min_r2: 0.9888637574857715,
-          count: 5,
-        },
-        {
-          task: "parallel_scaling_law",
-          agent: "aider",
-          model: "gpt-5",
-          mean_r2: 0.9905062938357017,
-          max_r2: 0.9995716456637871,
-          min_r2: 0.9553425628038237,
-          count: 5,
-        },
-        {
-          task: "parallel_scaling_law",
-          agent: "claude-code",
-          model: "claude-sonnet-4-5",
-          mean_r2: 0.9978050730675714,
-          max_r2: 0.9996642094311177,
-          min_r2: 0.9904731396048916,
-          count: 5,
-        },
-        {
-          task: "parallel_scaling_law",
-          agent: "claude-code",
-          model: "claude-haiku-4-5",
-          mean_r2: 0.9995018579225828,
-          max_r2: 0.9995719008923731,
-          min_r2: 0.9993350933876335,
-          count: 5,
-        },
-        {
-          task: "parallel_scaling_law",
-          agent: "opencode",
-          model: "gpt-5",
-          mean_r2: 0.9995536952125399,
-          max_r2: 0.9999525339137554,
-          min_r2: 0.9992975937451641,
-          count: 5,
-        },
-        {
-          task: "parallel_scaling_law",
-          agent: "openhands",
-          model: "gpt-5",
-          mean_r2: 0.9996286781217683,
-          max_r2: 0.9999686869950699,
-          min_r2: 0.9993868293605483,
-          count: 5,
-        },
-        {
-          task: "parallel_scaling_law",
-          agent: "terminus-2",
-          model: "gpt-5",
-          mean_r2: 0.9995980591078177,
-          max_r2: 0.999963143501211,
-          min_r2: 0.9994111428853495,
-          count: 5,
-        },
-        {
-          task: "vocab_scaling_law",
-          agent: "opencode",
-          model: "gpt-5",
-          mean_r2: 0.8893649211221231,
-          max_r2: 0.9633395290722803,
-          min_r2: 0.860335976042556,
-          count: 5,
-        },
-        {
-          task: "vocab_scaling_law",
-          agent: "codex",
-          model: "o4-mini",
-          mean_r2: 0.861120981682294,
-          max_r2: 0.8611209816822958,
-          min_r2: 0.8611209816822929,
-          count: 5,
-        },
-        {
-          task: "vocab_scaling_law",
-          agent: "codex",
-          model: "gpt-5",
-          mean_r2: 0.9773077975712354,
-          max_r2: 0.9803294597341835,
-          min_r2: 0.965221185665217,
-          count: 5,
-        },
-        {
-          task: "vocab_scaling_law",
-          agent: "goose",
-          model: "gpt-5",
-          mean_r2: 0.9616107314040608,
-          max_r2: 0.9803444595586591,
-          min_r2: 0.9331217548489369,
-          count: 5,
-        },
-        {
-          task: "vocab_scaling_law",
-          agent: "terminus-2",
-          model: "gpt-5",
-          mean_r2: 0.5333673256593519,
-          max_r2: 0.9780303997616716,
-          min_r2: -1.0,
-          count: 5,
-        },
-        {
-          task: "vocab_scaling_law",
-          agent: "claude-code",
-          model: "claude-haiku-4-5",
-          mean_r2: 0.8953397174814187,
-          max_r2: 0.9495816779972813,
-          min_r2: 0.8611196740809965,
-          count: 5,
-        },
-        {
-          task: "vocab_scaling_law",
-          agent: "claude-code",
-          model: "claude-sonnet-4-5",
-          mean_r2: 0.9622151990634494,
-          max_r2: 0.9864474723517275,
-          min_r2: 0.9008088602634483,
-          count: 5,
-        },
-        {
-          task: "vocab_scaling_law",
-          agent: "gemini-cli",
-          model: "gemini-2.5-flash",
-          mean_r2: 0.48531691683343403,
-          max_r2: 0.9336026286000653,
-          min_r2: -1.0,
-          count: 5,
-        },
-        {
-          task: "vocab_scaling_law",
-          agent: "gemini-cli",
-          model: "gemini-3-pro-preview",
-          mean_r2: 0.9675316815066236,
-          max_r2: 0.9675316815066236,
-          min_r2: 0.9675316815066236,
-          count: 1,
-        },
-        {
-          task: "vocab_scaling_law",
-          agent: "mini-swe-agent",
-          model: "gpt-5",
-          mean_r2: 0.5542634109353453,
-          max_r2: 0.9762167727034833,
-          min_r2: -1.0,
-          count: 5,
-        },
-        {
-          task: "vocab_scaling_law",
-          agent: "aider",
-          model: "gpt-5",
-          mean_r2: 0.13234521131463622,
-          max_r2: 0.90463643176696,
-          min_r2: -1.0,
-          count: 5,
-        },
-        {
-          task: "vocab_scaling_law",
-          agent: "openhands",
-          model: "gpt-5",
-          mean_r2: 0.9702019227334003,
-          max_r2: 0.9803294439609564,
-          min_r2: 0.9600166958283929,
-          count: 3,
-        },
-        {
-          task: "sft_scaling_law",
-          agent: "mini-swe-agent",
-          model: "gpt-5",
-          mean_r2: 0.8528156371048997,
-          max_r2: 0.9712278433265641,
-          min_r2: 0.7214761282485547,
-          count: 5,
-        },
-        {
-          task: "sft_scaling_law",
-          agent: "codex",
-          model: "o4-mini",
-          mean_r2: 0.8829201187189459,
-          max_r2: 0.9483637722992666,
-          min_r2: 0.7872387316864881,
-          count: 5,
-        },
-        {
-          task: "sft_scaling_law",
-          agent: "codex",
-          model: "gpt-5",
-          mean_r2: 0.8547525968474889,
-          max_r2: 0.9808284172383123,
-          min_r2: 0.7087799648207229,
-          count: 5,
-        },
-        {
-          task: "sft_scaling_law",
-          agent: "openhands",
-          model: "gpt-5",
-          mean_r2: 0.6396592537411797,
-          max_r2: 0.9807743473850661,
-          min_r2: 0.26470164744109936,
-          count: 5,
-        },
-        {
-          task: "sft_scaling_law",
-          agent: "claude-code",
-          model: "claude-sonnet-4-5",
-          mean_r2: 0.9161389099028339,
-          max_r2: 0.9483641432810792,
-          min_r2: 0.7872387183534779,
-          count: 5,
-        },
-        {
-          task: "sft_scaling_law",
-          agent: "claude-code",
-          model: "claude-haiku-4-5",
-          mean_r2: 0.893891219503305,
-          max_r2: 0.948364143088023,
-          min_r2: 0.78672749092768,
-          count: 5,
-        },
-        {
-          task: "sft_scaling_law",
-          agent: "opencode",
-          model: "gpt-5",
-          mean_r2: 0.8454504572377456,
-          max_r2: 0.8933421464883828,
-          min_r2: 0.7568889380156899,
-          count: 5,
-        },
-        {
-          task: "sft_scaling_law",
-          agent: "gemini-cli",
-          model: "gemini-2.5-flash",
-          mean_r2: 0.7872387573011755,
-          max_r2: 0.7872388481323169,
-          min_r2: 0.7872385272463132,
-          count: 5,
-        },
-        {
-          task: "sft_scaling_law",
-          agent: "gemini-cli",
-          model: "gemini-3-pro-preview",
-          mean_r2: 0.9483641432810792,
-          max_r2: 0.9483641432810792,
-          min_r2: 0.9483641432810792,
-          count: 1,
-        },
-        {
-          task: "sft_scaling_law",
-          agent: "terminus-2",
-          model: "gpt-5",
-          mean_r2: 0.8563879326556306,
-          max_r2: 0.9602806228023233,
-          min_r2: 0.7872387162572971,
-          count: 3,
-        },
-        {
-          task: "sft_scaling_law",
-          agent: "aider",
-          model: "gpt-5",
-          mean_r2: 0.13122621071126223,
-          max_r2: 0.8929712300401905,
-          min_r2: -1.0,
-          count: 5,
-        },
-        {
-          task: "sft_scaling_law",
-          agent: "goose",
-          model: "gpt-5",
-          mean_r2: 0.8986272280179619,
-          max_r2: 0.9675556370398622,
-          min_r2: 0.7316198430146021,
-          count: 5,
-        },
-        {
-          task: "domain_mixture_scaling_law",
-          agent: "terminus-2",
-          model: "gpt-5",
-          mean_r2: 0.5016690570842307,
-          max_r2: 0.9022238569876261,
-          min_r2: -1.0,
-          count: 5,
-        },
-        {
-          task: "domain_mixture_scaling_law",
-          agent: "openhands",
-          model: "gpt-5",
-          mean_r2: 0.899080955845065,
-          max_r2: 0.9714759455458236,
-          min_r2: 0.7922146054081841,
-          count: 5,
-        },
-        {
-          task: "domain_mixture_scaling_law",
-          agent: "aider",
-          model: "gpt-5",
-          mean_r2: 0.5136777117141453,
-          max_r2: 0.9711466282348672,
-          min_r2: -1.0,
-          count: 5,
-        },
-        {
-          task: "domain_mixture_scaling_law",
-          agent: "gemini-cli",
-          model: "gemini-3-pro-preview",
-          mean_r2: 0.9801384249563572,
-          max_r2: 0.9894232423883015,
-          min_r2: 0.9708536075244129,
-          count: 2,
-        },
-        {
-          task: "domain_mixture_scaling_law",
-          agent: "gemini-cli",
-          model: "gemini-2.5-flash",
-          mean_r2: 0.5295967258654282,
-          max_r2: 0.9683293523927846,
-          min_r2: -1.0,
-          count: 5,
-        },
-        {
-          task: "domain_mixture_scaling_law",
-          agent: "claude-code",
-          model: "claude-haiku-4-5",
-          mean_r2: 0.905449213026839,
-          max_r2: 0.9708404106349446,
-          min_r2: 0.7922146054081852,
-          count: 5,
-        },
-        {
-          task: "domain_mixture_scaling_law",
-          agent: "claude-code",
-          model: "claude-sonnet-4-5",
-          mean_r2: 0.9705429607490046,
-          max_r2: 0.9715978378387945,
-          min_r2: 0.9683363599598951,
-          count: 5,
-        },
-        {
-          task: "domain_mixture_scaling_law",
-          agent: "opencode",
-          model: "gpt-5",
-          mean_r2: 0.9602455667675395,
-          max_r2: 0.9894230209470385,
-          min_r2: 0.8992005438971118,
-          count: 5,
-        },
-        {
-          task: "domain_mixture_scaling_law",
-          agent: "codex",
-          model: "o4-mini",
-          mean_r2: 0.9417108490233704,
-          max_r2: 0.9747667014004453,
-          min_r2: 0.845751889692298,
-          count: 4,
-        },
-        {
-          task: "domain_mixture_scaling_law",
-          agent: "codex",
-          model: "gpt-5",
-          mean_r2: 0.9332598096775641,
-          max_r2: 0.9904279621411324,
-          min_r2: 0.834132477378136,
-          count: 5,
-        },
-        {
-          task: "domain_mixture_scaling_law",
-          agent: "mini-swe-agent",
-          model: "gpt-5",
-          mean_r2: 0.8725296796323434,
-          max_r2: 0.9022243523590899,
-          min_r2: 0.8258876852334336,
-          count: 5,
-        },
-        {
-          task: "domain_mixture_scaling_law",
-          agent: "goose",
-          model: "gpt-5",
-          mean_r2: 0.9439364184418991,
-          max_r2: 0.9711402923865737,
-          min_r2: 0.8420232887107839,
-          count: 5,
-        },
-        {
-          task: "moe_scaling_law",
-          agent: "opencode",
-          model: "gpt-5",
-          mean_r2: 0.23985286483495782,
-          max_r2: 0.8326948945403161,
-          min_r2: -0.2203392724748181,
-          count: 5,
-        },
-        {
-          task: "moe_scaling_law",
-          agent: "claude-code",
-          model: "claude-haiku-4-5",
-          mean_r2: 0.3942897291510219,
-          max_r2: 0.690012615694646,
-          min_r2: -0.12142857050825584,
-          count: 5,
-        },
-        {
-          task: "moe_scaling_law",
-          agent: "claude-code",
-          model: "claude-sonnet-4-5",
-          mean_r2: 0.8327089885986426,
-          max_r2: 0.832730383827209,
-          min_r2: 0.8326947789717778,
-          count: 5,
-        },
-        {
-          task: "moe_scaling_law",
-          agent: "goose",
-          model: "gpt-5",
-          mean_r2: 0.8129032929402868,
-          max_r2: 0.8326949506828294,
-          min_r2: 0.7432219059000413,
-          count: 5,
-        },
-        {
-          task: "moe_scaling_law",
-          agent: "codex",
-          model: "gpt-5",
-          mean_r2: 0.6493746344296719,
-          max_r2: 0.8327367228696878,
-          min_r2: -0.007324169056861285,
-          count: 5,
-        },
-        {
-          task: "moe_scaling_law",
-          agent: "codex",
-          model: "o4-mini",
-          mean_r2: 0.467622021260557,
-          max_r2: 0.4676220212605916,
-          min_r2: 0.467622021260491,
-          count: 5,
-        },
-        {
-          task: "moe_scaling_law",
-          agent: "aider",
-          model: "gpt-5",
-          mean_r2: 0.11896764636981434,
-          max_r2: 0.8255653734029562,
-          min_r2: -1.0,
-          count: 5,
-        },
-        {
-          task: "moe_scaling_law",
-          agent: "terminus-2",
-          model: "gpt-5",
-          mean_r2: 0.18602176703658746,
-          max_r2: 0.8232104919912513,
-          min_r2: -1.0,
-          count: 5,
-        },
-        {
-          task: "moe_scaling_law",
-          agent: "mini-swe-agent",
-          model: "gpt-5",
-          mean_r2: 0.3520845848902173,
-          max_r2: 0.8088674102021726,
-          min_r2: -0.2174120260368131,
-          count: 5,
-        },
-        {
-          task: "moe_scaling_law",
-          agent: "gemini-cli",
-          model: "gemini-2.5-flash",
-          mean_r2: 0.27254968880655933,
-          max_r2: 0.8326945403197157,
-          min_r2: -0.7530567784428743,
-          count: 5,
-        },
-        {
-          task: "moe_scaling_law",
-          agent: "gemini-cli",
-          model: "gemini-3-pro-preview",
-          mean_r2: 0.8327007315947877,
-          max_r2: 0.8327068947622238,
-          min_r2: 0.8326945684273517,
-          count: 2,
-        },
-        {
-          task: "moe_scaling_law",
-          agent: "openhands",
-          model: "gpt-5",
-          mean_r2: 0.8320659591681903,
-          max_r2: 0.832695604405338,
-          min_r2: 0.8301781731293862,
-          count: 4,
-        },
-        {
-          task: "data_constrained_scaling_law",
-          agent: "gemini-cli",
-          model: "gemini-3-pro-preview",
-          mean_r2: 0.7750650779269981,
-          max_r2: 0.8629934766010074,
-          min_r2: 0.6871366792529888,
-          count: 2,
-        },
-        {
-          task: "data_constrained_scaling_law",
-          agent: "gemini-cli",
-          model: "gemini-2.5-flash",
-          mean_r2: 0.26351784719235805,
-          max_r2: 0.9839739762975884,
-          min_r2: -1.0,
-          count: 4,
-        },
-        {
-          task: "data_constrained_scaling_law",
-          agent: "aider",
-          model: "gpt-5",
-          mean_r2: 0.7177438531727811,
-          max_r2: 0.9634745415818766,
-          min_r2: 0.10364952067918853,
-          count: 5,
-        },
-        {
-          task: "data_constrained_scaling_law",
-          agent: "terminus-2",
-          model: "gpt-5",
-          mean_r2: 0.36647349382950123,
-          max_r2: 0.9141363121207646,
-          min_r2: -0.8528135881770655,
-          count: 5,
-        },
-        {
-          task: "data_constrained_scaling_law",
-          agent: "codex",
-          model: "o4-mini",
-          mean_r2: 0.8046440001732151,
-          max_r2: 0.8046440001732258,
-          min_r2: 0.8046440001732089,
-          count: 5,
-        },
-        {
-          task: "data_constrained_scaling_law",
-          agent: "codex",
-          model: "gpt-5",
-          mean_r2: 0.7634595569132717,
-          max_r2: 0.9146078334760895,
-          min_r2: 0.26746113817506945,
-          count: 5,
-        },
-        {
-          task: "data_constrained_scaling_law",
-          agent: "goose",
-          model: "gpt-5",
-          mean_r2: 0.8935198696824717,
-          max_r2: 0.9135283064888177,
-          min_r2: 0.8668732888156546,
-          count: 5,
-        },
-        {
-          task: "data_constrained_scaling_law",
-          agent: "claude-code",
-          model: "claude-haiku-4-5",
-          mean_r2: 0.7782188841330568,
-          max_r2: 0.9141388739397632,
-          min_r2: 0.4535053806129923,
-          count: 5,
-        },
-        {
-          task: "data_constrained_scaling_law",
-          agent: "claude-code",
-          model: "claude-sonnet-4-5",
-          mean_r2: 0.9155053127347091,
-          max_r2: 0.9209736489464382,
-          min_r2: 0.9141265482606495,
-          count: 5,
-        },
-        {
-          task: "data_constrained_scaling_law",
-          agent: "opencode",
-          model: "gpt-5",
-          mean_r2: 0.9196200087855875,
-          max_r2: 0.9361348825951996,
-          min_r2: 0.9141364335503527,
-          count: 5,
-        },
-        {
-          task: "data_constrained_scaling_law",
-          agent: "mini-swe-agent",
-          model: "gpt-5",
-          mean_r2: 0.9028564438076627,
-          max_r2: 0.9429629724114367,
-          min_r2: 0.8435283091253291,
-          count: 5,
-        },
-        {
-          task: "data_constrained_scaling_law",
-          agent: "openhands",
-          model: "gpt-5",
-          mean_r2: 0.9173448788616427,
-          max_r2: 0.9781099040907586,
-          min_r2: 0.8629969706966466,
-          count: 4,
-        },
-        {
-          task: "lr_bsz_scaling_law",
-          agent: "claude-code",
-          model: "claude-sonnet-4-5",
-          mean_r2: -0.845783207562234,
-          max_r2: -0.5002951848232313,
-          min_r2: -1.0,
-          count: 5,
-        },
-        {
-          task: "lr_bsz_scaling_law",
-          agent: "claude-code",
-          model: "claude-haiku-4-5",
-          mean_r2: -0.511462162270773,
-          max_r2: 0.7631368760049485,
-          min_r2: -1.0,
-          count: 5,
-        },
-        {
-          task: "lr_bsz_scaling_law",
-          agent: "terminus-2",
-          model: "gpt-5",
-          mean_r2: -0.6929408100958947,
-          max_r2: -0.45131555384703703,
-          min_r2: -0.7734825621788497,
-          count: 4,
-        },
-        {
-          task: "lr_bsz_scaling_law",
-          agent: "aider",
-          model: "gpt-5",
-          mean_r2: -0.6590424716681464,
-          max_r2: 0.025235327927412232,
-          min_r2: -1.0,
-          count: 5,
-        },
-        {
-          task: "lr_bsz_scaling_law",
-          agent: "openhands",
-          model: "gpt-5",
-          mean_r2: -0.8489883747858796,
-          max_r2: -0.7734825621788195,
-          min_r2: -1.0,
-          count: 3,
-        },
-        {
-          task: "lr_bsz_scaling_law",
-          agent: "opencode",
-          model: "gpt-5",
-          mean_r2: -0.36800807203230734,
-          max_r2: 0.38067431196726,
-          min_r2: -1.0,
-          count: 5,
-        },
-        {
-          task: "lr_bsz_scaling_law",
-          agent: "gemini-cli",
-          model: "gemini-2.5-flash",
-          mean_r2: -0.8727332962449005,
-          max_r2: -0.7734825621789003,
-          min_r2: -1.0,
-          count: 5,
-        },
-        {
-          task: "lr_bsz_scaling_law",
-          agent: "gemini-cli",
-          model: "gemini-3-pro-preview",
-          mean_r2: 0.40872232381959583,
-          max_r2: 0.7631368759959467,
-          min_r2: 0.05430777164324496,
-          count: 2,
-        },
-        {
-          task: "lr_bsz_scaling_law",
-          agent: "mini-swe-agent",
-          model: "gpt-5",
-          mean_r2: -0.2687178971546145,
-          max_r2: 0.3735249092781414,
-          min_r2: -1.0,
-          count: 5,
-        },
-        {
-          task: "lr_bsz_scaling_law",
-          agent: "codex",
-          model: "o4-mini",
-          mean_r2: -0.773482639279657,
-          max_r2: -0.7734825621788461,
-          min_r2: -0.7734829476828933,
-          count: 5,
-        },
-        {
-          task: "lr_bsz_scaling_law",
-          agent: "codex",
-          model: "gpt-5",
-          mean_r2: -0.03921055671793472,
-          max_r2: 0.5457665098088457,
-          min_r2: -1.0,
-          count: 5,
-        },
-        {
-          task: "lr_bsz_scaling_law",
-          agent: "goose",
-          model: "gpt-5",
-          mean_r2: 0.2795121300051201,
-          max_r2: 0.35368210221902185,
-          min_r2: -0.01597885950900646,
-          count: 5,
-        },
-        {
-          task: "easy_question_scaling_law",
-          agent: "mini-swe-agent",
-          model: "gpt-5",
-          mean_r2: -0.49119852970813493,
-          max_r2: 0.3025098978565248,
-          min_r2: -1.0,
-          count: 5,
-        },
-        {
-          task: "easy_question_scaling_law",
-          agent: "goose",
-          model: "gpt-5",
-          mean_r2: -0.2316104841056653,
-          max_r2: 0.3765961789922039,
-          min_r2: -1.0,
-          count: 5,
-        },
-        {
-          task: "easy_question_scaling_law",
-          agent: "aider",
-          model: "gpt-5",
-          mean_r2: -0.47449393885510505,
-          max_r2: 0.38070320345369735,
-          min_r2: -1.0,
-          count: 5,
-        },
-        {
-          task: "easy_question_scaling_law",
-          agent: "claude-code",
-          model: "claude-sonnet-4-5",
-          mean_r2: -1.0,
-          max_r2: -1.0,
-          min_r2: -1.0,
-          count: 5,
-        },
-        {
-          task: "easy_question_scaling_law",
-          agent: "claude-code",
-          model: "claude-haiku-4-5",
-          mean_r2: -1.0,
-          max_r2: -1.0,
-          min_r2: -1.0,
-          count: 5,
-        },
-        {
-          task: "easy_question_scaling_law",
-          agent: "codex",
-          model: "gpt-5",
-          mean_r2: -0.7398260688339301,
-          max_r2: 0.3008696558303495,
-          min_r2: -1.0,
-          count: 5,
-        },
-        {
-          task: "easy_question_scaling_law",
-          agent: "codex",
-          model: "o4-mini",
-          mean_r2: -1.0,
-          max_r2: -1.0,
-          min_r2: -1.0,
-          count: 5,
-        },
-        {
-          task: "easy_question_scaling_law",
-          agent: "opencode",
-          model: "gpt-5",
-          mean_r2: -0.47994621371261703,
-          max_r2: 0.30250989519054927,
-          min_r2: -1.0,
-          count: 5,
-        },
-        {
-          task: "easy_question_scaling_law",
-          agent: "gemini-cli",
-          model: "gemini-2.5-flash",
-          mean_r2: -0.7937911758677193,
-          max_r2: 0.031044120661403607,
-          min_r2: -1.0,
-          count: 5,
-        },
-        {
-          task: "easy_question_scaling_law",
-          agent: "gemini-cli",
-          model: "gemini-3-pro-preview",
-          mean_r2: -0.23402698110505393,
-          max_r2: -0.23402698110505393,
-          min_r2: -0.23402698110505393,
-          count: 1,
-        },
-        {
-          task: "easy_question_scaling_law",
-          agent: "openhands",
-          model: "gpt-5",
-          mean_r2: -0.2783628692696916,
-          max_r2: 0.24149862576143488,
-          min_r2: -1.0,
-          count: 5,
-        },
-        {
-          task: "easy_question_scaling_law",
-          agent: "terminus-2",
-          model: "gpt-5",
-          mean_r2: -0.5046569149418039,
-          max_r2: 0.15008221046835635,
-          min_r2: -1.0,
-          count: 4,
-        },
-      ];
+      /* ==========================================================================
+         LEADERBOARD DATA
+         ========================================================================== */
+      // leaderboardData will be populated from JSON
+      let leaderboardData = [];
 
+      /* ==========================================================================
+         CONFIGURATION: Display Names & Mappings
+         ========================================================================== */
       const taskDisplayNames = {
         parallel_scaling_law: "Parallel",
         vocab_scaling_law: "Vocabulary",
@@ -2042,29 +1334,56 @@
 
       const modelLogos = {
         "gpt-5": "assets/openai_logo.png",
+        "gpt-5.2": "assets/openai_logo.png",
+        "gpt-4.1": "assets/openai_logo.png",
+        "gpt-4o": "assets/openai_logo.png",
+        "o1": "assets/openai_logo.png",
+        "o3": "assets/openai_logo.png",
         "o4-mini": "assets/openai_logo.png",
         "claude-sonnet-4-5-20250929": "assets/claude_logo.png",
         "claude-sonnet-4-5": "assets/claude_logo.png",
         "claude-haiku-4-5-20251001": "assets/claude_logo.png",
         "claude-haiku-4-5": "assets/claude_logo.png",
         "gemini-2.5-flash": "assets/gemini_logo.png",
+        "gemini-2.5-pro": "assets/gemini_logo.png",
         "gemini-3-pro-preview": "assets/gemini_logo.png",
+        "gemini-3-flash-preview": "assets/gemini_logo.png",
+        "DeepSeek-V3.2": "assets/deepseek_logo.png",
+        "DeepSeek-V3.2-reasoning": "assets/deepseek_logo.png",
       };
 
       const modelDisplayNames = {
         "gpt-5": "GPT-5",
+        "gpt-5.2": "GPT-5.2",
+        "gpt-4.1": "GPT-4.1",
+        "gpt-4o": "GPT-4o",
+        "o1": "o1",
+        "o3": "o3",
         "o4-mini": "o4-mini",
         "claude-sonnet-4-5-20250929": "Claude Sonnet 4.5",
         "claude-sonnet-4-5": "Claude Sonnet 4.5",
         "claude-haiku-4-5-20251001": "Claude Haiku 4.5",
         "claude-haiku-4-5": "Claude Haiku 4.5",
         "gemini-2.5-flash": "Gemini 2.5 Flash",
+        "gemini-2.5-pro": "Gemini 2.5 Pro",
         "gemini-3-pro-preview": "Gemini 3 Pro",
+        "gemini-3-flash-preview": "Gemini 3 Flash",
+        "DeepSeek-V3.2": "DeepSeek V3.2",
+        "DeepSeek-V3.2-reasoning": "DeepSeek V3.2-R",
       };
 
-      let currentTask = "all";
-      let currentFilter = "all";
 
+      /* ==========================================================================
+         STATE MANAGEMENT
+         ========================================================================== */
+      let currentTask = "all";
+      let currentFilter = "general";
+
+      /* ==========================================================================
+         UTILITY FUNCTIONS
+         ========================================================================== */
+      
+      /** Get CSS class for R² score coloring */
       function getR2Class(r2) {
         if (r2 >= 0.95) return "r2-excellent";
         if (r2 >= 0.8) return "r2-good";
@@ -2073,16 +1392,16 @@
         return "r2-negative";
       }
 
+      /** Format R² value to 4 decimal places */
       function formatR2(r2) {
         return r2.toFixed(4);
       }
 
-      function getFilename(entry) {
-        const agent = entry.agent.replace(/ /g, "_").toLowerCase();
-        const model = entry.model.replace(/-/g, "_").replace(/\./g, "_");
-        return `sld_${entry.task}_${agent}_${model}.html`;
-      }
-
+      /* ==========================================================================
+         DATA AGGREGATION FUNCTIONS
+         ========================================================================== */
+      
+      /** Aggregate leaderboard data by agent+model combination */
       function aggregateByAgentModel(data) {
         const aggregated = {};
 
@@ -2117,6 +1436,12 @@
         }));
       }
 
+
+      /* ==========================================================================
+         LEADERBOARD TABLE RENDERING
+         ========================================================================== */
+      
+      /** Render the leaderboard table based on current filters */
       function renderTable() {
         const tbody = document.getElementById("leaderboardBody");
         let filteredData = [...leaderboardData];
@@ -2142,28 +1467,28 @@
           .map((entry, idx) => {
             const logo = modelLogos[entry.model] || "";
             const modelName = modelDisplayNames[entry.model] || entry.model;
-            const filename = currentTask === "all" ? "#" : getFilename(entry);
 
             return `
-                    <tr>
-                        <td>${idx + 1}</td>
-                        <td>${entry.agent}</td>
-                        <td>
-                            <div class="model-cell">
-                                ${logo ? `<img src="${logo}" alt="${modelName}" class="model-logo">` : ""}
-                                ${modelName}
-                            </div>
-                        </td>
-                        <td><span class="r2-badge ${getR2Class(entry.mean_r2)}">${formatR2(entry.mean_r2)}</span></td>
-                        <td><span class="r2-badge ${getR2Class(entry.max_r2)}">${formatR2(entry.max_r2)}</span></td>
-                        <td>${entry.count}</td>
-                        <td>${currentTask !== "all" ? `<a href="${filename}" class="solution-link">View</a>` : "—"}</td>
-                    </tr>
-                `;
+              <tr>
+                <td>${idx + 1}</td>
+                <td>${entry.agent}</td>
+                <td>
+                  <div class="model-cell">
+                    ${logo ? `<img src="${logo}" alt="${modelName}" class="model-logo">` : ""}
+                    ${modelName}
+                  </div>
+                </td>
+                <td><span class="r2-badge ${getR2Class(entry.mean_r2)}">${formatR2(entry.mean_r2)}</span></td>
+                <td><span class="r2-badge ${getR2Class(entry.max_r2)}">${formatR2(entry.max_r2)}</span></td>
+                <td>${entry.count}</td>
+                <td>${currentTask !== "all" ? `<a href="javascript:void(0)" class="solution-link" onclick="openSolutionModal('${entry.task}', '${entry.agent}', '${entry.model}')">View</a>` : "—"}</td>
+              </tr>
+            `;
           })
           .join("");
       }
 
+      /** Handle filter button clicks */
       function showTable(filter) {
         currentFilter = filter;
         document.querySelectorAll(".filter-btn").forEach((btn) => btn.classList.remove("active"));
@@ -2171,20 +1496,11 @@
         renderTable();
       }
 
-      // Task tab click handlers
-      document.querySelectorAll(".task-tab").forEach((tab) => {
-        tab.addEventListener("click", () => {
-          currentTask = tab.dataset.task;
-          document.querySelectorAll(".task-tab").forEach((t) => t.classList.remove("active"));
-          tab.classList.add("active");
-          renderTable();
-        });
-      });
-
-      // Initial render
-      renderTable();
-
-      // Copy citation to clipboard
+      /* ==========================================================================
+         CITATION FUNCTIONALITY
+         ========================================================================== */
+      
+      /** Copy citation to clipboard */
       function copyCitation() {
         const citation = `@article{lin2025sld,
   title={Can Language Models Discover Scaling Laws?},
@@ -2203,6 +1519,334 @@
           }, 2000);
         });
       }
+
+      /* ==========================================================================
+         EVENT LISTENERS & INITIALIZATION
+         ========================================================================== */
+      
+      // Task tab click handlers
+      document.querySelectorAll(".task-tab").forEach((tab) => {
+        tab.addEventListener("click", () => {
+          currentTask = tab.dataset.task;
+          document.querySelectorAll(".task-tab").forEach((t) => t.classList.remove("active"));
+          tab.classList.add("active");
+          renderTable();
+        });
+      });
+
+      /* ==========================================================================
+         SOLUTION MODAL FUNCTIONS
+         ========================================================================== */
+
+      let runsData = {};
+      let dataLoaded = false;
+
+      // List of JSONL data files to load
+      const dataFiles = [
+        "parallel_scaling_law",
+        "vocab_scaling_law",
+        "sft_scaling_law",
+        "domain_mixture_scaling_law",
+        "moe_scaling_law",
+        "data_constrained_scaling_law",
+        "lr_bsz_scaling_law",
+        "easy_question_scaling_law"
+      ];
+
+      /** Parse JSONL text into array of objects */
+      function parseJSONL(text) {
+        return text.trim().split('\n')
+          .filter(line => line.trim())
+          .map(line => JSON.parse(line));
+      }
+
+      /** Load all data from JSONL files and compute leaderboard statistics */
+      async function loadAllData() {
+        if (dataLoaded) return;
+        try {
+          leaderboardData = [];
+          runsData = {};
+          
+          // Fetch all JSONL files in parallel
+          const fetchPromises = dataFiles.map(async (task) => {
+            const response = await fetch(`data/${task}.jsonl?v=${Date.now()}`);
+            const text = await response.text();
+            return { task, entries: parseJSONL(text) };
+          });
+          
+          const allTaskData = await Promise.all(fetchPromises);
+          
+          // Process each task's entries
+          for (const { task, entries } of allTaskData) {
+            // Group entries by agent+model
+            const agentModelGroups = {};
+            
+            for (const entry of entries) {
+              const agent = entry.agent_name || '';
+              const model = entry.model_name || '';
+              const key = `${task}_${agent}_${model}`;
+              
+              if (!agentModelGroups[key]) {
+                agentModelGroups[key] = {
+                  task: task,
+                  agent: agent,
+                  model: model,
+                  runs: []
+                };
+              }
+              
+              const r2 = entry.reward_r2;
+              if (r2 === undefined || r2 === null) continue;
+              
+              agentModelGroups[key].runs.push({
+                run_id: `Run ${agentModelGroups[key].runs.length + 1}`,
+                r2: r2,
+                solution: entry.solution || 'Solution not available'
+              });
+            }
+            
+            // Calculate stats and add to leaderboardData
+            for (const [key, group] of Object.entries(agentModelGroups)) {
+              const runs = group.runs;
+              if (runs.length === 0) continue;
+              
+              // Sort runs by R² descending
+              runs.sort((a, b) => b.r2 - a.r2);
+              
+              const r2Values = runs.map(r => r.r2);
+              const meanR2 = r2Values.reduce((a, b) => a + b, 0) / r2Values.length;
+              const maxR2 = Math.max(...r2Values);
+              const minR2 = Math.min(...r2Values);
+              
+              leaderboardData.push({
+                task: group.task,
+                agent: group.agent,
+                model: group.model,
+                mean_r2: meanR2,
+                max_r2: maxR2,
+                min_r2: minR2,
+                count: runs.length
+              });
+              
+              // Store runs for modal display
+              runsData[key] = {
+                task: group.task,
+                agent: group.agent,
+                model: group.model,
+                runs: runs
+              };
+            }
+          }
+          
+          dataLoaded = true;
+          console.log('Loaded', leaderboardData.length, 'leaderboard items from JSONL files');
+        } catch (error) {
+          console.error('Failed to load data:', error);
+        }
+      }
+
+      /** Load runs data from cache */
+      async function loadRunsData() {
+        if (!dataLoaded) await loadAllData();
+        return runsData || {};
+      }
+
+      /** Open solution modal */
+      async function openSolutionModal(task, agent, model) {
+        const loadedRunsData = await loadRunsData();
+        const key = `${task}_${agent}_${model}`;
+        const detail = loadedRunsData[key];
+
+        const modal = document.getElementById('solutionModal');
+        const modalTitle = document.getElementById('modalTitle');
+        const modalMeta = document.getElementById('modalMeta');
+        const modalBody = document.getElementById('modalBody');
+
+        // Set title
+        const taskName = taskDisplayNames[task] || task;
+        modalTitle.textContent = `${taskName} Scaling Law - ${agent} + ${modelDisplayNames[model] || model}`;
+
+        if (!detail || !detail.runs || detail.runs.length === 0) {
+          modalMeta.innerHTML = '';
+          modalBody.innerHTML = '<div class="no-runs-message"><p>No detailed run data available for this entry.</p></div>';
+        } else {
+          const runs = detail.runs;
+          const bestR2 = Math.max(...runs.map(r => r.r2));
+          const meanR2 = runs.reduce((sum, r) => sum + r.r2, 0) / runs.length;
+          const minR2 = Math.min(...runs.map(r => r.r2));
+
+          modalMeta.innerHTML = `
+            <div class="modal-meta-item">
+              <span class="modal-meta-label">Agent:</span>
+              <span class="modal-meta-value">${agent}</span>
+            </div>
+            <div class="modal-meta-item">
+              <span class="modal-meta-label">Model:</span>
+              <span class="modal-meta-value">${modelDisplayNames[model] || model}</span>
+            </div>
+            <div class="modal-meta-item">
+              <span class="modal-meta-label">Best R²:</span>
+              <span class="r2-badge ${getR2Class(bestR2)}">${formatR2(bestR2)}</span>
+            </div>
+            <div class="modal-meta-item">
+              <span class="modal-meta-label">Mean R²:</span>
+              <span class="modal-meta-value">${formatR2(meanR2)}</span>
+            </div>
+            <div class="modal-meta-item">
+              <span class="modal-meta-label">Min R²:</span>
+              <span class="modal-meta-value">${formatR2(minR2)}</span>
+            </div>
+            <div class="modal-meta-item">
+              <span class="modal-meta-label">Runs:</span>
+              <span class="modal-meta-value">${runs.length}</span>
+            </div>
+          `;
+
+          // Sort runs by R² descending
+          const sortedRuns = [...runs].sort((a, b) => b.r2 - a.r2);
+
+          let runsHTML = '<div class="runs-container">';
+          sortedRuns.forEach((run, idx) => {
+            const isBest = idx === 0;
+            const isExpanded = idx === 0;
+            runsHTML += `
+              <div class="run-card ${isBest ? 'best-run' : ''}">
+                <div class="run-header ${isExpanded ? 'expanded' : ''}" onclick="toggleRunContent(this)">
+                  <div class="run-info">
+                    <span class="run-badge ${isBest ? 'best-badge' : ''}">${isBest ? 'Best' : '#' + (idx + 1)}</span>
+                    <span class="run-label">${run.run_id || 'Run ' + (idx + 1)}</span>
+                    <span class="r2-badge ${getR2Class(run.r2)}">R² = ${formatR2(run.r2)}</span>
+                  </div>
+                  <span class="expand-icon">▼</span>
+                </div>
+                <div class="run-content ${isExpanded ? 'show' : ''}">
+                  <div class="code-container">
+                    <div class="code-header">
+                      <span>Python</span>
+                      <button class="copy-btn" onclick="copyCodeFromModal(event, ${idx})">Copy</button>
+                    </div>
+                    <pre class="code-block" id="modal-code-${idx}">${escapeHtml(run.solution)}</pre>
+                  </div>
+                </div>
+              </div>
+            `;
+          });
+          runsHTML += '</div>';
+          modalBody.innerHTML = runsHTML;
+        }
+
+        modal.classList.add('active');
+        document.body.style.overflow = 'hidden';
+      }
+
+      /** Close solution modal */
+      function closeSolutionModal() {
+        const modal = document.getElementById('solutionModal');
+        modal.classList.remove('active');
+        document.body.style.overflow = '';
+      }
+
+      /** Toggle run content visibility */
+      function toggleRunContent(header) {
+        const content = header.nextElementSibling;
+        const isExpanded = content.classList.contains('show');
+        content.classList.toggle('show', !isExpanded);
+        header.classList.toggle('expanded', !isExpanded);
+      }
+
+      /** Copy code from modal */
+      function copyCodeFromModal(event, idx) {
+        event.stopPropagation();
+        const codeElement = document.getElementById(`modal-code-${idx}`);
+        const code = codeElement.textContent;
+        navigator.clipboard.writeText(code).then(() => {
+          const btn = event.target;
+          btn.textContent = 'Copied!';
+          setTimeout(() => (btn.textContent = 'Copy'), 2000);
+        });
+      }
+
+      /** Escape HTML for safe display */
+      function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+      }
+
+      // Close modal when clicking overlay
+      document.addEventListener('click', (e) => {
+        const modal = document.getElementById('solutionModal');
+        if (e.target === modal) {
+          closeSolutionModal();
+        }
+      });
+
+      // Close modal with Escape key
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          closeSolutionModal();
+        }
+      });
+
+      // Initialize application
+      async function init() {
+        await loadAllData();
+        renderTable();
+      }
+      init();
+
+      /* ==========================================================================
+         LATEX FORMULA RENDERING
+         ========================================================================== */
+      
+      /** Render all LaTeX formulas in law-formula elements */
+      function renderLatexFormulas() {
+        document.querySelectorAll('.law-formula[data-formula]').forEach(el => {
+          const formula = el.getAttribute('data-formula');
+          try {
+            katex.render(formula, el, {
+              throwOnError: false,
+              displayMode: false,
+              trust: true,
+              strict: false
+            });
+          } catch (e) {
+            console.error('KaTeX error:', e);
+            el.textContent = formula;
+          }
+        });
+      }
+
+      // Wait for KaTeX to load, then render formulas
+      document.addEventListener('DOMContentLoaded', function() {
+        // Check if KaTeX is ready
+        const checkKaTeX = setInterval(() => {
+          if (typeof katex !== 'undefined') {
+            clearInterval(checkKaTeX);
+            renderLatexFormulas();
+          }
+        }, 100);
+        
+        // Fallback timeout
+        setTimeout(() => {
+          clearInterval(checkKaTeX);
+          if (typeof katex !== 'undefined') {
+            renderLatexFormulas();
+          }
+        }, 3000);
+      });
     </script>
+
+    <!-- Solution Modal -->
+    <div id="solutionModal" class="modal-overlay" onclick="if(event.target === this) closeSolutionModal()">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 id="modalTitle" class="modal-title">Solution Details</h2>
+          <button class="modal-close" onclick="closeSolutionModal()">&times;</button>
+        </div>
+        <div id="modalMeta" class="modal-meta"></div>
+        <div id="modalBody" class="modal-body"></div>
+      </div>
+    </div>
   </body>
 </html>
