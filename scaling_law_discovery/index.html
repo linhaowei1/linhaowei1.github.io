@@ -27,7 +27,7 @@
     />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
     <!-- KaTeX for LaTeX rendering -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" />
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
 
@@ -69,14 +69,20 @@
       }
 
       body {
-        font-family: "Sora", -apple-system, BlinkMacSystemFont, sans-serif;
+        font-family:
+          "Sora",
+          -apple-system,
+          BlinkMacSystemFont,
+          sans-serif;
         background: var(--bg-primary);
         color: var(--text-primary);
         line-height: 1.6;
         min-height: 100vh;
       }
 
-      .bg-pattern { display: none; }
+      .bg-pattern {
+        display: none;
+      }
 
       .container {
         max-width: 1200px;
@@ -95,7 +101,9 @@
         border-bottom: 1px solid var(--border-subtle);
       }
 
-      .title-container { margin-bottom: 1.5rem; }
+      .title-container {
+        margin-bottom: 1.5rem;
+      }
 
       .main-title {
         font-size: 3.5rem;
@@ -128,7 +136,9 @@
       }
 
       /* Authors */
-      .authors-container { margin-bottom: 2rem; }
+      .authors-container {
+        margin-bottom: 2rem;
+      }
 
       .author-name {
         color: var(--text-secondary);
@@ -138,7 +148,9 @@
         transition: color 0.2s;
       }
 
-      .author-name:hover { color: var(--accent-primary); }
+      .author-name:hover {
+        color: var(--accent-primary);
+      }
 
       /* ==========================================================================
          Buttons
@@ -261,7 +273,9 @@
       /* ==========================================================================
          Leaderboard Section
          ========================================================================== */
-      .leaderboard-section { padding: 4rem 0; }
+      .leaderboard-section {
+        padding: 4rem 0;
+      }
 
       .leaderboard-header {
         display: flex;
@@ -292,7 +306,9 @@
         font-family: inherit;
       }
 
-      .filter-btn:hover { background: rgba(0, 0, 0, 0.05); }
+      .filter-btn:hover {
+        background: rgba(0, 0, 0, 0.05);
+      }
 
       .filter-btn.active {
         background: var(--accent-primary);
@@ -350,7 +366,9 @@
         font-size: 0.9rem;
       }
 
-      thead { background: var(--bg-secondary); }
+      thead {
+        background: var(--bg-secondary);
+      }
 
       th {
         padding: 1rem;
@@ -367,8 +385,12 @@
         color: var(--text-primary);
       }
 
-      tbody tr:hover { background: var(--bg-secondary); }
-      tbody tr:last-child td { border-bottom: none; }
+      tbody tr:hover {
+        background: var(--bg-secondary);
+      }
+      tbody tr:last-child td {
+        border-bottom: none;
+      }
 
       .model-cell {
         display: flex;
@@ -641,12 +663,26 @@
         font-family: "JetBrains Mono", monospace;
       }
 
-      .r2-excellent { background: rgba(16, 185, 129, 0.15); color: #059669; }
-      .r2-good { background: rgba(34, 197, 94, 0.15); color: #16a34a; }
-      .r2-moderate { background: rgba(245, 158, 11, 0.15); color: #d97706; }
-      .r2-poor { background: rgba(239, 68, 68, 0.15); color: #dc2626; }
-      .r2-negative { background: rgba(220, 38, 38, 0.15); color: #b91c1c; }
-
+      .r2-excellent {
+        background: rgba(16, 185, 129, 0.15);
+        color: #059669;
+      }
+      .r2-good {
+        background: rgba(34, 197, 94, 0.15);
+        color: #16a34a;
+      }
+      .r2-moderate {
+        background: rgba(245, 158, 11, 0.15);
+        color: #d97706;
+      }
+      .r2-poor {
+        background: rgba(239, 68, 68, 0.15);
+        color: #dc2626;
+      }
+      .r2-negative {
+        background: rgba(220, 38, 38, 0.15);
+        color: #b91c1c;
+      }
 
       /* ==========================================================================
          Law Comparison Cards
@@ -845,18 +881,29 @@
          Responsive Design
          ========================================================================== */
       @media (max-width: 768px) {
-        .main-title { font-size: 2.5rem; }
-        .subtitle { font-size: 1.2rem; }
-        .container { padding: 0 1rem; }
-        .header-section { padding: 2rem 0; }
-        th, td { padding: 0.75rem 0.5rem; font-size: 0.8rem; }
+        .main-title {
+          font-size: 2.5rem;
+        }
+        .subtitle {
+          font-size: 1.2rem;
+        }
+        .container {
+          padding: 0 1rem;
+        }
+        .header-section {
+          padding: 2rem 0;
+        }
+        th,
+        td {
+          padding: 0.75rem 0.5rem;
+          font-size: 0.8rem;
+        }
       }
     </style>
   </head>
   <body>
     <div class="bg-pattern"></div>
     <div class="container">
-
       <!-- ============================== HEADER ============================== -->
       <header class="header-section">
         <div class="title-container">
@@ -888,19 +935,13 @@
           </span>
         </div>
         <div style="margin-bottom: 1.5rem">
-          <span style="color: var(--text-muted); font-size: 0.8rem">
-            <sup style="color: var(--accent-primary)">*</sup> Equal contribution
-          </span>
+          <span style="color: var(--text-muted); font-size: 0.8rem"> <sup style="color: var(--accent-primary)">*</sup> Equal contribution </span>
         </div>
 
         <!-- Action Buttons -->
         <div class="buttons-container">
-          <a href="https://arxiv.org/abs/2507.21184" class="button button-primary" target="_blank">
-            <i class="fas fa-file-pdf"></i> Paper
-          </a>
-          <a href="https://github.com/linhaowei1/SLD" class="button button-secondary" target="_blank">
-            <i class="fab fa-github"></i> Code
-          </a>
+          <a href="https://arxiv.org/abs/2507.21184" class="button button-primary" target="_blank"> <i class="fas fa-file-pdf"></i> Paper </a>
+          <a href="https://github.com/linhaowei1/SLD" class="button button-secondary" target="_blank"> <i class="fab fa-github"></i> Code </a>
           <a href="https://huggingface.co/collections/pkuHaowei/scaling-law-discovery" class="button button-secondary" target="_blank">
             <i class="fas fa-database"></i> HuggingFace
           </a>
@@ -910,9 +951,7 @@
           <a href="https://github.com/laude-institute/harbor-datasets/tree/main/datasets/sldbench" class="button button-secondary" target="_blank">
             <i class="fas fa-anchor"></i> Harbor
           </a>
-          <a href="#leaderboard" class="button button-secondary">
-            <i class="fas fa-trophy"></i> Leaderboard
-          </a>
+          <a href="#leaderboard" class="button button-secondary"> <i class="fas fa-trophy"></i> Leaderboard </a>
         </div>
       </header>
 
@@ -920,13 +959,56 @@
       <section class="news-section" style="padding: 3rem 0; border-bottom: 1px solid var(--border-subtle)">
         <h2 class="section-title">News</h2>
         <div style="display: flex; flex-direction: column; gap: 0.75rem; max-width: 1200px">
-          <div style="display: flex; align-items: flex-start; gap: 1rem; padding: 0.75rem 1rem; background: var(--glass-bg); border-radius: 8px; border-left: 3px solid var(--accent-primary)">
-            <span style="flex-shrink: 0; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--accent-primary); font-weight: 500">Jan 08, 2026</span>
-            <span style="color: var(--text-secondary); font-size: 0.95rem">🎉 Welcome <a href="#contribute" style="color: var(--accent-primary); text-decoration: none; font-weight: 500">contributions</a>! You can now submit new datasets and upload agent results to the leaderboard.</span>
+          <div
+            style="
+              display: flex;
+              align-items: flex-start;
+              gap: 1rem;
+              padding: 0.75rem 1rem;
+              background: var(--glass-bg);
+              border-radius: 8px;
+              border-left: 3px solid var(--accent-primary);
+            "
+          >
+            <span
+              style="
+                flex-shrink: 0;
+                font-family: &quot;JetBrains Mono&quot;, monospace;
+                font-size: 0.85rem;
+                color: var(--accent-primary);
+                font-weight: 500;
+              "
+              >Jan 08, 2026</span
+            >
+            <span style="color: var(--text-secondary); font-size: 0.95rem"
+              >🎉 Welcome <a href="#contribute" style="color: var(--accent-primary); text-decoration: none; font-weight: 500">contributions</a>! You
+              can now submit new datasets and upload agent results to the leaderboard.</span
+            >
           </div>
-          <div style="display: flex; align-items: flex-start; gap: 1rem; padding: 0.75rem 1rem; background: var(--glass-bg); border-radius: 8px; border-left: 3px solid var(--accent-primary)">
-            <span style="flex-shrink: 0; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--accent-primary); font-weight: 500">Dec 07, 2025</span>
-            <span style="color: var(--text-secondary); font-size: 0.95rem">🚀 SLDBench is now live! First launch of the benchmark and leaderboard.</span>
+          <div
+            style="
+              display: flex;
+              align-items: flex-start;
+              gap: 1rem;
+              padding: 0.75rem 1rem;
+              background: var(--glass-bg);
+              border-radius: 8px;
+              border-left: 3px solid var(--accent-primary);
+            "
+          >
+            <span
+              style="
+                flex-shrink: 0;
+                font-family: &quot;JetBrains Mono&quot;, monospace;
+                font-size: 0.85rem;
+                color: var(--accent-primary);
+                font-weight: 500;
+              "
+              >Dec 07, 2025</span
+            >
+            <span style="color: var(--text-secondary); font-size: 0.95rem"
+              >🚀 SLDBench is now live! First launch of the benchmark and leaderboard.</span
+            >
           </div>
         </div>
       </section>
@@ -935,25 +1017,27 @@
       <section class="overview-section">
         <h2 class="section-title">Overview</h2>
         <p class="overview-text">
-          We frame <strong>scaling law discovery</strong> as a benchmarked "scientific agent" task by curating 
-          thousands of experiments across diverse settings. We introduce <strong>SLDAgent</strong>, an evolution-based 
-          agent that jointly searches scaling-law functional forms and fits parameters. Across tasks, the discovered 
-          laws extrapolate more accurately than established human-derived laws, validating usefulness in both 
+          We frame <strong>scaling law discovery</strong> as a benchmarked "scientific agent" task by curating thousands of experiments across diverse
+          settings. We introduce <strong>SLDAgent</strong>, an evolution-based agent that jointly searches scaling-law functional forms and fits
+          parameters. Across tasks, the discovered laws extrapolate more accurately than established human-derived laws, validating usefulness in both
           pretraining and finetuning scenarios.
         </p>
 
         <!-- Benchmark Tasks: Law Comparison -->
         <h3 class="section-title" style="margin-top: 2rem">SLDAgent Discovered vs. Human Laws</h3>
-        <p style="color: var(--text-secondary); margin-bottom: 1.5rem; font-size: 0.95rem;">
+        <p style="color: var(--text-secondary); margin-bottom: 1.5rem; font-size: 0.95rem">
           Comparison of the best discovered scaling laws vs. human-derived laws across all benchmark tasks.
         </p>
 
         <div class="law-comparison-grid">
-
           <!-- Parallel Scaling Law -->
           <div class="law-comparison-card">
             <div class="law-card-header">
-              <h4><a href="https://arxiv.org/abs/2505.10475" target="_blank">Parallel Scaling Law <i class="fas fa-external-link-alt" style="font-size: 0.65rem; opacity: 0.5"></i></a></h4>
+              <h4>
+                <a href="https://arxiv.org/abs/2505.10475" target="_blank"
+                  >Parallel Scaling Law <i class="fas fa-external-link-alt" style="font-size: 0.65rem; opacity: 0.5"></i
+                ></a>
+              </h4>
               <span class="improvement-badge"><i class="fas fa-arrow-up"></i> +0.01%</span>
             </div>
             <div class="law-card-body">
@@ -983,14 +1067,21 @@
           <!-- Vocabulary Scaling Law -->
           <div class="law-comparison-card">
             <div class="law-card-header">
-              <h4><a href="https://arxiv.org/abs/2407.13623" target="_blank">Vocabulary Scaling Law <i class="fas fa-external-link-alt" style="font-size: 0.65rem; opacity: 0.5"></i></a></h4>
+              <h4>
+                <a href="https://arxiv.org/abs/2407.13623" target="_blank"
+                  >Vocabulary Scaling Law <i class="fas fa-external-link-alt" style="font-size: 0.65rem; opacity: 0.5"></i
+                ></a>
+              </h4>
               <span class="improvement-badge"><i class="fas fa-arrow-up"></i> +2.37%</span>
             </div>
             <div class="law-card-body">
               <div class="law-row discovered">
                 <div class="law-label"><span class="law-label-badge discovered">Discovered</span></div>
                 <div class="law-content">
-                  <div class="law-formula" data-formula="L = \theta_1 + \frac{\theta_2}{1 + e^{\theta_3 \ln N + \theta_4 \ln D - \theta_5(\ln V - \theta_6)^2 + \theta_7}}"></div>
+                  <div
+                    class="law-formula"
+                    data-formula="L = \theta_1 + \frac{\theta_2}{1 + e^{\theta_3 \ln N + \theta_4 \ln D - \theta_5(\ln V - \theta_6)^2 + \theta_7}}"
+                  ></div>
                   <div class="law-meta">
                     <span class="law-meta-item">R² = <span class="r2-value high">0.9893</span></span>
                     <span class="law-meta-item">Params: <span class="param-count">7</span></span>
@@ -1000,7 +1091,10 @@
               <div class="law-row human">
                 <div class="law-label"><span class="law-label-badge human">Human</span></div>
                 <div class="law-content">
-                  <div class="law-formula" data-formula="L = \frac{\theta_1}{N^{\theta_2}} + \frac{\theta_3}{V^{\theta_4}} + \frac{\theta_5}{D^{\theta_6}} + \theta_7"></div>
+                  <div
+                    class="law-formula"
+                    data-formula="L = \frac{\theta_1}{N^{\theta_2}} + \frac{\theta_3}{V^{\theta_4}} + \frac{\theta_5}{D^{\theta_6}} + \theta_7"
+                  ></div>
                   <div class="law-meta">
                     <span class="law-meta-item">R² = <span class="r2-value high">0.9664</span></span>
                     <span class="law-meta-item">Params: <span class="param-count">7</span></span>
@@ -1013,7 +1107,11 @@
           <!-- SFT Scaling Law -->
           <div class="law-comparison-card">
             <div class="law-card-header">
-              <h4><a href="https://arxiv.org/abs/2402.02314" target="_blank">SFT Scaling Law <i class="fas fa-external-link-alt" style="font-size: 0.65rem; opacity: 0.5"></i></a></h4>
+              <h4>
+                <a href="https://arxiv.org/abs/2402.02314" target="_blank"
+                  >SFT Scaling Law <i class="fas fa-external-link-alt" style="font-size: 0.65rem; opacity: 0.5"></i
+                ></a>
+              </h4>
               <span class="improvement-badge"><i class="fas fa-arrow-up"></i> +4.41%</span>
             </div>
             <div class="law-card-body">
@@ -1043,14 +1141,21 @@
           <!-- Domain Mixture Scaling Law -->
           <div class="law-comparison-card">
             <div class="law-card-header">
-              <h4><a href="https://arxiv.org/abs/2403.16952" target="_blank">Domain Mixture Scaling Law <i class="fas fa-external-link-alt" style="font-size: 0.65rem; opacity: 0.5"></i></a></h4>
+              <h4>
+                <a href="https://arxiv.org/abs/2403.16952" target="_blank"
+                  >Domain Mixture Scaling Law <i class="fas fa-external-link-alt" style="font-size: 0.65rem; opacity: 0.5"></i
+                ></a>
+              </h4>
               <span class="improvement-badge"><i class="fas fa-arrow-up"></i> +48.84%</span>
             </div>
             <div class="law-card-body">
               <div class="law-row discovered">
                 <div class="law-label"><span class="law-label-badge discovered">Discovered</span></div>
                 <div class="law-content">
-                  <div class="law-formula" data-formula="L_i = \theta_{0,i} + \theta_{1,i} \cdot r_i^{\theta_{2,i}} + \sum_{j \neq i} \theta_{3,ij} \cdot r_j"></div>
+                  <div
+                    class="law-formula"
+                    data-formula="L_i = \theta_{0,i} + \theta_{1,i} \cdot r_i^{\theta_{2,i}} + \sum_{j \neq i} \theta_{3,ij} \cdot r_j"
+                  ></div>
                   <div class="law-meta">
                     <span class="law-meta-item">R² = <span class="r2-value high">0.9988</span></span>
                     <span class="law-meta-item">Params: <span class="param-count">35</span></span>
@@ -1060,7 +1165,10 @@
               <div class="law-row human">
                 <div class="law-label"><span class="law-label-badge human">Human</span></div>
                 <div class="law-content">
-                  <div class="law-formula" data-formula="L_i = \theta_{1,i} + \theta_{2,i} \cdot \exp\left(\sum_j \theta_{3,ij} \cdot r_j\right)"></div>
+                  <div
+                    class="law-formula"
+                    data-formula="L_i = \theta_{1,i} + \theta_{2,i} \cdot \exp\left(\sum_j \theta_{3,ij} \cdot r_j\right)"
+                  ></div>
                   <div class="law-meta">
                     <span class="law-meta-item">R² = <span class="r2-value medium">0.6711</span></span>
                     <span class="law-meta-item">Params: <span class="param-count">35</span></span>
@@ -1073,14 +1181,21 @@
           <!-- MoE Scaling Law -->
           <div class="law-comparison-card">
             <div class="law-card-header">
-              <h4><a href="https://arxiv.org/abs/2402.07871" target="_blank">MoE Scaling Law <i class="fas fa-external-link-alt" style="font-size: 0.65rem; opacity: 0.5"></i></a></h4>
+              <h4>
+                <a href="https://arxiv.org/abs/2402.07871" target="_blank"
+                  >MoE Scaling Law <i class="fas fa-external-link-alt" style="font-size: 0.65rem; opacity: 0.5"></i
+                ></a>
+              </h4>
               <span class="improvement-badge"><i class="fas fa-arrow-up"></i> +36.98%</span>
             </div>
             <div class="law-card-body">
               <div class="law-row discovered">
                 <div class="law-label"><span class="law-label-badge discovered">Discovered</span></div>
                 <div class="law-content">
-                  <div class="law-formula" data-formula="L = \frac{\theta_1 \cdot N^{-\theta_2}}{1 + \theta_3 (\ln E)^2} + \theta_4 \tanh(\theta_5 E) + \theta_6"></div>
+                  <div
+                    class="law-formula"
+                    data-formula="L = \frac{\theta_1 \cdot N^{-\theta_2}}{1 + \theta_3 (\ln E)^2} + \theta_4 \tanh(\theta_5 E) + \theta_6"
+                  ></div>
                   <div class="law-meta">
                     <span class="law-meta-item">R² = <span class="r2-value high">0.9632</span></span>
                     <span class="law-meta-item">Params: <span class="param-count">6</span></span>
@@ -1103,14 +1218,21 @@
           <!-- Data-Constrained Scaling Law -->
           <div class="law-comparison-card">
             <div class="law-card-header">
-              <h4><a href="https://arxiv.org/abs/2305.16264" target="_blank">Data-Constrained Scaling Law <i class="fas fa-external-link-alt" style="font-size: 0.65rem; opacity: 0.5"></i></a></h4>
+              <h4>
+                <a href="https://arxiv.org/abs/2305.16264" target="_blank"
+                  >Data-Constrained Scaling Law <i class="fas fa-external-link-alt" style="font-size: 0.65rem; opacity: 0.5"></i
+                ></a>
+              </h4>
               <span class="improvement-badge"><i class="fas fa-arrow-up"></i> +9.30%</span>
             </div>
             <div class="law-card-body">
               <div class="law-row discovered">
                 <div class="law-label"><span class="law-label-badge discovered">Discovered</span></div>
                 <div class="law-content">
-                  <div class="law-formula" data-formula="L = \frac{\theta_1}{U^{\theta_2}} + \frac{\theta_3}{N^{\theta_4}} + \frac{\theta_5}{D^{\theta_6}} \cdot \left(\frac{D}{U}\right)^{\theta_7} + E"></div>
+                  <div
+                    class="law-formula"
+                    data-formula="L = \frac{\theta_1}{U^{\theta_2}} + \frac{\theta_3}{N^{\theta_4}} + \frac{\theta_5}{D^{\theta_6}} \cdot \left(\frac{D}{U}\right)^{\theta_7} + E"
+                  ></div>
                   <div class="law-meta">
                     <span class="law-meta-item">R² = <span class="r2-value high">0.9953</span></span>
                     <span class="law-meta-item">Params: <span class="param-count">7</span></span>
@@ -1120,7 +1242,10 @@
               <div class="law-row human">
                 <div class="law-label"><span class="law-label-badge human">Human</span></div>
                 <div class="law-content">
-                  <div class="law-formula" data-formula="L = \frac{\theta_1}{(U_N + \theta_2 U_N(1-e^{-R_N/\theta_2}))^{\theta_3}} + \frac{\theta_4}{(U_D + \theta_5 U_D(1-e^{-R_D/\theta_5}))^{\theta_3}} + \theta_6"></div>
+                  <div
+                    class="law-formula"
+                    data-formula="L = \frac{\theta_1}{(U_N + \theta_2 U_N(1-e^{-R_N/\theta_2}))^{\theta_3}} + \frac{\theta_4}{(U_D + \theta_5 U_D(1-e^{-R_D/\theta_5}))^{\theta_3}} + \theta_6"
+                  ></div>
                   <div class="law-meta">
                     <span class="law-meta-item">R² = <span class="r2-value high">0.9106</span></span>
                     <span class="law-meta-item">Params: <span class="param-count">7</span></span>
@@ -1133,7 +1258,11 @@
           <!-- LR & Batch Size Scaling Law -->
           <div class="law-comparison-card">
             <div class="law-card-header">
-              <h4><a href="https://arxiv.org/abs/2503.04715" target="_blank">LR & Batch Size Scaling Law <i class="fas fa-external-link-alt" style="font-size: 0.65rem; opacity: 0.5"></i></a></h4>
+              <h4>
+                <a href="https://arxiv.org/abs/2503.04715" target="_blank"
+                  >LR & Batch Size Scaling Law <i class="fas fa-external-link-alt" style="font-size: 0.65rem; opacity: 0.5"></i
+                ></a>
+              </h4>
               <span class="improvement-badge"><i class="fas fa-arrow-up"></i> +1406%</span>
             </div>
             <div class="law-card-body">
@@ -1143,14 +1272,20 @@
                   <div class="law-formula" data-formula="L = \sum_{k} \theta_k \cdot \phi_k(\ln l, \ln b, \ln D, \ln N)"></div>
                   <div class="law-meta">
                     <span class="law-meta-item">R² = <span class="r2-value high">0.9834</span></span>
-                    <span class="law-meta-item">Params: <span class="param-count">24</span> <span style="font-size: 0.7rem; color: var(--text-muted)">(polynomial features)</span></span>
+                    <span class="law-meta-item"
+                      >Params: <span class="param-count">24</span>
+                      <span style="font-size: 0.7rem; color: var(--text-muted)">(polynomial features)</span></span
+                    >
                   </div>
                 </div>
               </div>
               <div class="law-row human">
                 <div class="law-label"><span class="law-label-badge human">Human</span></div>
                 <div class="law-content">
-                  <div class="law-formula" data-formula="L = \frac{\theta_1}{D^{\theta_2}} + \frac{\theta_3}{N^{\theta_4}} + \theta_5 + \theta_6(l - l_0)^2 + \theta_7(\ln b + \frac{b_0}{b})"></div>
+                  <div
+                    class="law-formula"
+                    data-formula="L = \frac{\theta_1}{D^{\theta_2}} + \frac{\theta_3}{N^{\theta_4}} + \theta_5 + \theta_6(l - l_0)^2 + \theta_7(\ln b + \frac{b_0}{b})"
+                  ></div>
                   <div class="law-meta">
                     <span class="law-meta-item">R² = <span class="r2-value low">-0.0757</span></span>
                     <span class="law-meta-item">Params: <span class="param-count">12</span></span>
@@ -1163,14 +1298,21 @@
           <!-- U-shaped Scaling Law -->
           <div class="law-comparison-card">
             <div class="law-card-header">
-              <h4><a href="https://arxiv.org/abs/2410.01692" target="_blank">U-shaped Scaling Law <i class="fas fa-external-link-alt" style="font-size: 0.65rem; opacity: 0.5"></i></a></h4>
+              <h4>
+                <a href="https://arxiv.org/abs/2410.01692" target="_blank"
+                  >U-shaped Scaling Law <i class="fas fa-external-link-alt" style="font-size: 0.65rem; opacity: 0.5"></i
+                ></a>
+              </h4>
               <span class="improvement-badge"><i class="fas fa-arrow-up"></i> +193.5%</span>
             </div>
             <div class="law-card-body">
               <div class="law-row discovered">
                 <div class="law-label"><span class="law-label-badge discovered">Discovered</span></div>
                 <div class="law-content">
-                  <div class="law-formula" data-formula="y = \theta_1 - \theta_2 e^{-\theta_3 \log_{10} C} + \frac{\theta_4}{1 + \left(\frac{\log_{10} C - \theta_5}{\theta_6}\right)^2}"></div>
+                  <div
+                    class="law-formula"
+                    data-formula="y = \theta_1 - \theta_2 e^{-\theta_3 \log_{10} C} + \frac{\theta_4}{1 + \left(\frac{\log_{10} C - \theta_5}{\theta_6}\right)^2}"
+                  ></div>
                   <div class="law-meta">
                     <span class="law-meta-item">R² = <span class="r2-value high">0.9353</span></span>
                     <span class="law-meta-item">Params: <span class="param-count">6</span></span>
@@ -1180,7 +1322,10 @@
               <div class="law-row human">
                 <div class="law-label"><span class="law-label-badge human">Human</span></div>
                 <div class="law-content">
-                  <div class="law-formula" data-formula="y = \theta_1 x^5 + \theta_2 x^4 + \theta_3 x^3 + \theta_4 x^2 + \theta_5 x + \theta_6 \quad (x = \log_{10} C)"></div>
+                  <div
+                    class="law-formula"
+                    data-formula="y = \theta_1 x^5 + \theta_2 x^4 + \theta_3 x^3 + \theta_4 x^2 + \theta_5 x + \theta_6 \quad (x = \log_{10} C)"
+                  ></div>
                   <div class="law-meta">
                     <span class="law-meta-item">R² = <span class="r2-value low">-1.0000</span></span>
                     <span class="law-meta-item">Params: <span class="param-count">6</span></span>
@@ -1189,10 +1334,8 @@
               </div>
             </div>
           </div>
-
         </div>
       </section>
-
 
       <!-- ============================== LEADERBOARD ============================== -->
       <section class="leaderboard-section" id="leaderboard">
@@ -1241,26 +1384,55 @@
       <!-- ============================== CITATION ============================== -->
       <section class="citation-section" style="padding: 3rem 0; border-top: 1px solid var(--border-subtle)">
         <h2 style="font-size: 1.5rem; font-weight: 600; margin-bottom: 1.5rem; text-align: center">Citation</h2>
-        <div class="citation-box" style="background: var(--bg-secondary); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 1.5rem; position: relative">
-          <button onclick="copyCitation()" style="position: absolute; top: 1rem; right: 1rem; padding: 0.5rem 1rem; background: var(--accent-primary); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-family: inherit;">
+        <div
+          class="citation-box"
+          style="background: var(--bg-secondary); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 1.5rem; position: relative"
+        >
+          <button
+            onclick="copyCitation()"
+            style="
+              position: absolute;
+              top: 1rem;
+              right: 1rem;
+              padding: 0.5rem 1rem;
+              background: var(--accent-primary);
+              color: white;
+              border: none;
+              border-radius: 6px;
+              cursor: pointer;
+              font-size: 0.85rem;
+              font-family: inherit;
+            "
+          >
             Copy
           </button>
-          <pre style="font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; line-height: 1.6; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word; color: var(--text-secondary); margin: 0;">@article{lin2025sld,
+          <pre
+            style="
+              font-family: &quot;JetBrains Mono&quot;, monospace;
+              font-size: 0.85rem;
+              line-height: 1.6;
+              overflow-x: auto;
+              white-space: pre-wrap;
+              word-wrap: break-word;
+              color: var(--text-secondary);
+              margin: 0;
+            "
+          >
+@article{lin2025sld,
   title={Can Language Models Discover Scaling Laws?},
   author={Lin, Haowei and Ye, Haotian and Feng, Wenzheng and Huang, Quzhe and Li, Yujun and Lim, Hubert and Li, Zhengrui and Wang, Xiangyu and Ma, Jianzhu and Liang, Yitao and Zou, James},
   journal={arXiv preprint arXiv:2507.21184},
   year={2025}
-}</pre>
+}</pre
+          >
         </div>
       </section>
 
       <!-- ============================== CONTRIBUTE ============================== -->
       <section id="contribute" class="contact-section" style="padding: 2rem 0 3rem; text-align: center">
         <h2 style="font-size: 1.5rem; font-weight: 600; margin-bottom: 1rem">Contribute</h2>
-        <p style="color: var(--text-secondary); margin-bottom: 1.5rem">
-          We welcome contributions to SLDBench! Here's how you can get involved:
-        </p>
-        
+        <p style="color: var(--text-secondary); margin-bottom: 1.5rem">We welcome contributions to SLDBench! Here's how you can get involved:</p>
+
         <div style="display: flex; flex-direction: column; gap: 1rem; max-width: 600px; margin: 0 auto 1.5rem; text-align: left">
           <div style="background: var(--glass-bg); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 1rem 1.25rem">
             <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem">
@@ -1270,25 +1442,31 @@
             <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 0.75rem">
               Contribute new scaling law discovery tasks to expand the benchmark.
             </p>
-            <a href="https://huggingface.co/datasets/pkuHaowei/sldbench" target="_blank" style="color: var(--accent-primary); text-decoration: none; font-size: 0.9rem; font-weight: 500">
+            <a
+              href="https://huggingface.co/datasets/pkuHaowei/sldbench"
+              target="_blank"
+              style="color: var(--accent-primary); text-decoration: none; font-size: 0.9rem; font-weight: 500"
+            >
               <i class="fas fa-code-branch"></i> Make a PR to pkuHaowei/sldbench →
             </a>
           </div>
-          
+
           <div style="background: var(--glass-bg); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 1rem 1.25rem">
             <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem">
               <i class="fas fa-trophy" style="color: var(--accent-primary)"></i>
               <strong style="color: var(--text-primary)">Submit Agent Results</strong>
             </div>
-            <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 0.75rem">
-              Upload your SLD agent's results to the leaderboard.
-            </p>
-            <a href="https://huggingface.co/datasets/pkuHaowei/scaling_law_discovery_results" target="_blank" style="color: var(--accent-primary); text-decoration: none; font-size: 0.9rem; font-weight: 500">
+            <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 0.75rem">Upload your SLD agent's results to the leaderboard.</p>
+            <a
+              href="https://huggingface.co/datasets/pkuHaowei/scaling_law_discovery_results"
+              target="_blank"
+              style="color: var(--accent-primary); text-decoration: none; font-size: 0.9rem; font-weight: 500"
+            >
               <i class="fas fa-code-branch"></i> Make a PR to pkuHaowei/scaling_law_discovery_results →
             </a>
           </div>
         </div>
-        
+
         <p style="color: var(--text-primary)">
           Questions? Contact:
           <a href="mailto:linhaowei@pku.edu.cn" style="color: var(--accent-primary); text-decoration: none; font-weight: 500">
@@ -1303,12 +1481,21 @@
         <p style="margin-top: 0.5rem">
           <a href="https://arxiv.org/abs/2507.21184" target="_blank" style="color: var(--accent-primary); text-decoration: none">arXiv</a>
           ·
-          <a href="https://algorithmicsuperintelligence.ai/blog/openevolve-sldagent/index.html" target="_blank" style="color: var(--accent-primary); text-decoration: none">Blog</a>
+          <a
+            href="https://algorithmicsuperintelligence.ai/blog/openevolve-sldagent/index.html"
+            target="_blank"
+            style="color: var(--accent-primary); text-decoration: none"
+            >Blog</a
+          >
           ·
-          <a href="https://github.com/laude-institute/harbor/tree/main/adapters/sldbench" target="_blank" style="color: var(--accent-primary); text-decoration: none">Harbor</a>
+          <a
+            href="https://github.com/laude-institute/harbor/tree/main/adapters/sldbench"
+            target="_blank"
+            style="color: var(--accent-primary); text-decoration: none"
+            >Harbor</a
+          >
         </p>
       </footer>
-
     </div>
 
     <script>
@@ -1337,8 +1524,8 @@
         "gpt-5.2": "assets/openai_logo.png",
         "gpt-4.1": "assets/openai_logo.png",
         "gpt-4o": "assets/openai_logo.png",
-        "o1": "assets/openai_logo.png",
-        "o3": "assets/openai_logo.png",
+        o1: "assets/openai_logo.png",
+        o3: "assets/openai_logo.png",
         "o4-mini": "assets/openai_logo.png",
         "claude-sonnet-4-5-20250929": "assets/claude_logo.png",
         "claude-sonnet-4-5": "assets/claude_logo.png",
@@ -1357,8 +1544,8 @@
         "gpt-5.2": "GPT-5.2",
         "gpt-4.1": "GPT-4.1",
         "gpt-4o": "GPT-4o",
-        "o1": "o1",
-        "o3": "o3",
+        o1: "o1",
+        o3: "o3",
         "o4-mini": "o4-mini",
         "claude-sonnet-4-5-20250929": "Claude Sonnet 4.5",
         "claude-sonnet-4-5": "Claude Sonnet 4.5",
@@ -1372,7 +1559,6 @@
         "DeepSeek-V3.2-reasoning": "DeepSeek V3.2-R",
       };
 
-
       /* ==========================================================================
          STATE MANAGEMENT
          ========================================================================== */
@@ -1382,7 +1568,7 @@
       /* ==========================================================================
          UTILITY FUNCTIONS
          ========================================================================== */
-      
+
       /** Get CSS class for R² score coloring */
       function getR2Class(r2) {
         if (r2 >= 0.95) return "r2-excellent";
@@ -1400,7 +1586,7 @@
       /* ==========================================================================
          DATA AGGREGATION FUNCTIONS
          ========================================================================== */
-      
+
       /** Aggregate leaderboard data by agent+model combination */
       function aggregateByAgentModel(data) {
         const aggregated = {};
@@ -1436,11 +1622,10 @@
         }));
       }
 
-
       /* ==========================================================================
          LEADERBOARD TABLE RENDERING
          ========================================================================== */
-      
+
       /** Render the leaderboard table based on current filters */
       function renderTable() {
         const tbody = document.getElementById("leaderboardBody");
@@ -1499,7 +1684,7 @@
       /* ==========================================================================
          CITATION FUNCTIONALITY
          ========================================================================== */
-      
+
       /** Copy citation to clipboard */
       function copyCitation() {
         const citation = `@article{lin2025sld,
@@ -1523,7 +1708,7 @@
       /* ==========================================================================
          EVENT LISTENERS & INITIALIZATION
          ========================================================================== */
-      
+
       // Task tab click handlers
       document.querySelectorAll(".task-tab").forEach((tab) => {
         tab.addEventListener("click", () => {
@@ -1550,14 +1735,16 @@
         "moe_scaling_law",
         "data_constrained_scaling_law",
         "lr_bsz_scaling_law",
-        "easy_question_scaling_law"
+        "easy_question_scaling_law",
       ];
 
       /** Parse JSONL text into array of objects */
       function parseJSONL(text) {
-        return text.trim().split('\n')
-          .filter(line => line.trim())
-          .map(line => JSON.parse(line));
+        return text
+          .trim()
+          .split("\n")
+          .filter((line) => line.trim())
+          .map((line) => JSON.parse(line));
       }
 
       /** Load all data from JSONL files and compute leaderboard statistics */
@@ -1566,58 +1753,58 @@
         try {
           leaderboardData = [];
           runsData = {};
-          
+
           // Fetch all JSONL files in parallel
           const fetchPromises = dataFiles.map(async (task) => {
             const response = await fetch(`data/${task}.jsonl?v=${Date.now()}`);
             const text = await response.text();
             return { task, entries: parseJSONL(text) };
           });
-          
+
           const allTaskData = await Promise.all(fetchPromises);
-          
+
           // Process each task's entries
           for (const { task, entries } of allTaskData) {
             // Group entries by agent+model
             const agentModelGroups = {};
-            
+
             for (const entry of entries) {
-              const agent = entry.agent_name || '';
-              const model = entry.model_name || '';
+              const agent = entry.agent_name || "";
+              const model = entry.model_name || "";
               const key = `${task}_${agent}_${model}`;
-              
+
               if (!agentModelGroups[key]) {
                 agentModelGroups[key] = {
                   task: task,
                   agent: agent,
                   model: model,
-                  runs: []
+                  runs: [],
                 };
               }
-              
+
               const r2 = entry.reward_r2;
               if (r2 === undefined || r2 === null) continue;
-              
+
               agentModelGroups[key].runs.push({
                 run_id: `Run ${agentModelGroups[key].runs.length + 1}`,
                 r2: r2,
-                solution: entry.solution || 'Solution not available'
+                solution: entry.solution || "Solution not available",
               });
             }
-            
+
             // Calculate stats and add to leaderboardData
             for (const [key, group] of Object.entries(agentModelGroups)) {
               const runs = group.runs;
               if (runs.length === 0) continue;
-              
+
               // Sort runs by R² descending
               runs.sort((a, b) => b.r2 - a.r2);
-              
-              const r2Values = runs.map(r => r.r2);
+
+              const r2Values = runs.map((r) => r.r2);
               const meanR2 = r2Values.reduce((a, b) => a + b, 0) / r2Values.length;
               const maxR2 = Math.max(...r2Values);
               const minR2 = Math.min(...r2Values);
-              
+
               leaderboardData.push({
                 task: group.task,
                 agent: group.agent,
@@ -1625,23 +1812,23 @@
                 mean_r2: meanR2,
                 max_r2: maxR2,
                 min_r2: minR2,
-                count: runs.length
+                count: runs.length,
               });
-              
+
               // Store runs for modal display
               runsData[key] = {
                 task: group.task,
                 agent: group.agent,
                 model: group.model,
-                runs: runs
+                runs: runs,
               };
             }
           }
-          
+
           dataLoaded = true;
-          console.log('Loaded', leaderboardData.length, 'leaderboard items from JSONL files');
+          console.log("Loaded", leaderboardData.length, "leaderboard items from JSONL files");
         } catch (error) {
-          console.error('Failed to load data:', error);
+          console.error("Failed to load data:", error);
         }
       }
 
@@ -1657,23 +1844,23 @@
         const key = `${task}_${agent}_${model}`;
         const detail = loadedRunsData[key];
 
-        const modal = document.getElementById('solutionModal');
-        const modalTitle = document.getElementById('modalTitle');
-        const modalMeta = document.getElementById('modalMeta');
-        const modalBody = document.getElementById('modalBody');
+        const modal = document.getElementById("solutionModal");
+        const modalTitle = document.getElementById("modalTitle");
+        const modalMeta = document.getElementById("modalMeta");
+        const modalBody = document.getElementById("modalBody");
 
         // Set title
         const taskName = taskDisplayNames[task] || task;
         modalTitle.textContent = `${taskName} Scaling Law - ${agent} + ${modelDisplayNames[model] || model}`;
 
         if (!detail || !detail.runs || detail.runs.length === 0) {
-          modalMeta.innerHTML = '';
+          modalMeta.innerHTML = "";
           modalBody.innerHTML = '<div class="no-runs-message"><p>No detailed run data available for this entry.</p></div>';
         } else {
           const runs = detail.runs;
-          const bestR2 = Math.max(...runs.map(r => r.r2));
+          const bestR2 = Math.max(...runs.map((r) => r.r2));
           const meanR2 = runs.reduce((sum, r) => sum + r.r2, 0) / runs.length;
-          const minR2 = Math.min(...runs.map(r => r.r2));
+          const minR2 = Math.min(...runs.map((r) => r.r2));
 
           modalMeta.innerHTML = `
             <div class="modal-meta-item">
@@ -1710,16 +1897,16 @@
             const isBest = idx === 0;
             const isExpanded = idx === 0;
             runsHTML += `
-              <div class="run-card ${isBest ? 'best-run' : ''}">
-                <div class="run-header ${isExpanded ? 'expanded' : ''}" onclick="toggleRunContent(this)">
+              <div class="run-card ${isBest ? "best-run" : ""}">
+                <div class="run-header ${isExpanded ? "expanded" : ""}" onclick="toggleRunContent(this)">
                   <div class="run-info">
-                    <span class="run-badge ${isBest ? 'best-badge' : ''}">${isBest ? 'Best' : '#' + (idx + 1)}</span>
-                    <span class="run-label">${run.run_id || 'Run ' + (idx + 1)}</span>
+                    <span class="run-badge ${isBest ? "best-badge" : ""}">${isBest ? "Best" : "#" + (idx + 1)}</span>
+                    <span class="run-label">${run.run_id || "Run " + (idx + 1)}</span>
                     <span class="r2-badge ${getR2Class(run.r2)}">R² = ${formatR2(run.r2)}</span>
                   </div>
                   <span class="expand-icon">▼</span>
                 </div>
-                <div class="run-content ${isExpanded ? 'show' : ''}">
+                <div class="run-content ${isExpanded ? "show" : ""}">
                   <div class="code-container">
                     <div class="code-header">
                       <span>Python</span>
@@ -1731,27 +1918,27 @@
               </div>
             `;
           });
-          runsHTML += '</div>';
+          runsHTML += "</div>";
           modalBody.innerHTML = runsHTML;
         }
 
-        modal.classList.add('active');
-        document.body.style.overflow = 'hidden';
+        modal.classList.add("active");
+        document.body.style.overflow = "hidden";
       }
 
       /** Close solution modal */
       function closeSolutionModal() {
-        const modal = document.getElementById('solutionModal');
-        modal.classList.remove('active');
-        document.body.style.overflow = '';
+        const modal = document.getElementById("solutionModal");
+        modal.classList.remove("active");
+        document.body.style.overflow = "";
       }
 
       /** Toggle run content visibility */
       function toggleRunContent(header) {
         const content = header.nextElementSibling;
-        const isExpanded = content.classList.contains('show');
-        content.classList.toggle('show', !isExpanded);
-        header.classList.toggle('expanded', !isExpanded);
+        const isExpanded = content.classList.contains("show");
+        content.classList.toggle("show", !isExpanded);
+        header.classList.toggle("expanded", !isExpanded);
       }
 
       /** Copy code from modal */
@@ -1761,29 +1948,29 @@
         const code = codeElement.textContent;
         navigator.clipboard.writeText(code).then(() => {
           const btn = event.target;
-          btn.textContent = 'Copied!';
-          setTimeout(() => (btn.textContent = 'Copy'), 2000);
+          btn.textContent = "Copied!";
+          setTimeout(() => (btn.textContent = "Copy"), 2000);
         });
       }
 
       /** Escape HTML for safe display */
       function escapeHtml(text) {
-        const div = document.createElement('div');
+        const div = document.createElement("div");
         div.textContent = text;
         return div.innerHTML;
       }
 
       // Close modal when clicking overlay
-      document.addEventListener('click', (e) => {
-        const modal = document.getElementById('solutionModal');
+      document.addEventListener("click", (e) => {
+        const modal = document.getElementById("solutionModal");
         if (e.target === modal) {
           closeSolutionModal();
         }
       });
 
       // Close modal with Escape key
-      document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
           closeSolutionModal();
         }
       });
@@ -1798,39 +1985,39 @@
       /* ==========================================================================
          LATEX FORMULA RENDERING
          ========================================================================== */
-      
+
       /** Render all LaTeX formulas in law-formula elements */
       function renderLatexFormulas() {
-        document.querySelectorAll('.law-formula[data-formula]').forEach(el => {
-          const formula = el.getAttribute('data-formula');
+        document.querySelectorAll(".law-formula[data-formula]").forEach((el) => {
+          const formula = el.getAttribute("data-formula");
           try {
             katex.render(formula, el, {
               throwOnError: false,
               displayMode: false,
               trust: true,
-              strict: false
+              strict: false,
             });
           } catch (e) {
-            console.error('KaTeX error:', e);
+            console.error("KaTeX error:", e);
             el.textContent = formula;
           }
         });
       }
 
       // Wait for KaTeX to load, then render formulas
-      document.addEventListener('DOMContentLoaded', function() {
+      document.addEventListener("DOMContentLoaded", function () {
         // Check if KaTeX is ready
         const checkKaTeX = setInterval(() => {
-          if (typeof katex !== 'undefined') {
+          if (typeof katex !== "undefined") {
             clearInterval(checkKaTeX);
             renderLatexFormulas();
           }
         }, 100);
-        
+
         // Fallback timeout
         setTimeout(() => {
           clearInterval(checkKaTeX);
-          if (typeof katex !== 'undefined') {
+          if (typeof katex !== "undefined") {
             renderLatexFormulas();
           }
         }, 3000);
@@ -1838,7 +2025,7 @@
     </script>
 
     <!-- Solution Modal -->
-    <div id="solutionModal" class="modal-overlay" onclick="if(event.target === this) closeSolutionModal()">
+    <div id="solutionModal" class="modal-overlay" onclick="if (event.target === this) closeSolutionModal();">
       <div class="modal-content">
         <div class="modal-header">
           <h2 id="modalTitle" class="modal-title">Solution Details</h2>
