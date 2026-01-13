@@ -1802,16 +1802,33 @@
 
             // Calculate stats and add to leaderboardData
             for (const [key, group] of Object.entries(agentModelGroups)) {
-              const runs = group.runs;
+              let runs = group.runs;
               if (runs.length === 0) continue;
 
-              // Sort runs by R² descending
-              runs.sort((a, b) => b.r2 - a.r2);
+              // Pad to 5 runs if needed
+              const targetRuns = 5;
+              while (runs.length < targetRuns) {
+                runs.push({
+                  run_id: `Run ${runs.length + 1}`,
+                  r2: -1.0,
+                  solution: "INVALID",
+                });
+              }
 
-              const r2Values = runs.map((r) => r.r2);
+              // Sort runs by R² descending (valid runs first, then invalid ones)
+              runs.sort((a, b) => {
+                // Invalid runs (r2 === -1.0) go to the end
+                if (a.r2 === -1.0 && b.r2 !== -1.0) return 1;
+                if (a.r2 !== -1.0 && b.r2 === -1.0) return -1;
+                return b.r2 - a.r2;
+              });
+
+              // Filter out invalid runs for statistics calculation
+              const validRuns = runs.filter((r) => r.r2 !== -1.0);
+              const r2Values = validRuns.length > 0 ? validRuns.map((r) => r.r2) : [-1.0];
               const meanR2 = r2Values.reduce((a, b) => a + b, 0) / r2Values.length;
-              const maxR2 = Math.max(...r2Values);
-              const minR2 = Math.min(...r2Values);
+              const maxR2 = validRuns.length > 0 ? Math.max(...r2Values) : -1.0;
+              const minR2 = validRuns.length > 0 ? Math.min(...r2Values) : -1.0;
 
               leaderboardData.push({
                 task: group.task,
@@ -1866,9 +1883,10 @@
           modalBody.innerHTML = '<div class="no-runs-message"><p>No detailed run data available for this entry.</p></div>';
         } else {
           const runs = detail.runs;
-          const bestR2 = Math.max(...runs.map((r) => r.r2));
-          const meanR2 = runs.reduce((sum, r) => sum + r.r2, 0) / runs.length;
-          const minR2 = Math.min(...runs.map((r) => r.r2));
+          const validRuns = runs.filter((r) => r.r2 !== -1.0);
+          const bestR2 = validRuns.length > 0 ? Math.max(...validRuns.map((r) => r.r2)) : -1.0;
+          const meanR2 = validRuns.length > 0 ? validRuns.reduce((sum, r) => sum + r.r2, 0) / validRuns.length : -1.0;
+          const minR2 = validRuns.length > 0 ? Math.min(...validRuns.map((r) => r.r2)) : -1.0;
 
           modalMeta.innerHTML = `
             <div class="modal-meta-item">
@@ -1897,12 +1915,18 @@
             </div>
           `;
 
-          // Sort runs by R² descending
-          const sortedRuns = [...runs].sort((a, b) => b.r2 - a.r2);
+          // Sort runs by R² descending (valid runs first, then invalid ones)
+          const sortedRuns = [...runs].sort((a, b) => {
+            // Invalid runs (r2 === -1.0) go to the end
+            if (a.r2 === -1.0 && b.r2 !== -1.0) return 1;
+            if (a.r2 !== -1.0 && b.r2 === -1.0) return -1;
+            return b.r2 - a.r2;
+          });
 
           let runsHTML = '<div class="runs-container">';
           sortedRuns.forEach((run, idx) => {
-            const isBest = idx === 0;
+            const isValid = run.r2 !== -1.0;
+            const isBest = idx === 0 && isValid;
             const isExpanded = idx === 0;
             runsHTML += `
               <div class="run-card ${isBest ? "best-run" : ""}">
