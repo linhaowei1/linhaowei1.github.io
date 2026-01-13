@@ -1805,9 +1805,9 @@
               let runs = group.runs;
               if (runs.length === 0) continue;
 
-              // Pad to 5 runs if needed
-              const targetRuns = 5;
-              while (runs.length < targetRuns) {
+              // Pad runs to exactly 5 with -1.0 reward_r2 and "INVALID" solution
+              const TARGET_RUNS = 5;
+              while (runs.length < TARGET_RUNS) {
                 runs.push({
                   run_id: `Run ${runs.length + 1}`,
                   r2: -1.0,
@@ -1815,20 +1815,23 @@
                 });
               }
 
-              // Sort runs by R² descending (valid runs first, then invalid ones)
+              // Sort runs by R² descending (real runs first, then padded ones)
               runs.sort((a, b) => {
-                // Invalid runs (r2 === -1.0) go to the end
-                if (a.r2 === -1.0 && b.r2 !== -1.0) return 1;
-                if (a.r2 !== -1.0 && b.r2 === -1.0) return -1;
+                // Sort by R² descending, but put INVALID runs at the end
+                if (a.solution === "INVALID" && b.solution !== "INVALID") return 1;
+                if (a.solution !== "INVALID" && b.solution === "INVALID") return -1;
                 return b.r2 - a.r2;
               });
 
-              // Filter out invalid runs for statistics calculation
-              const validRuns = runs.filter((r) => r.r2 !== -1.0);
-              const r2Values = validRuns.length > 0 ? validRuns.map((r) => r.r2) : [-1.0];
+              // Update run_id for all runs
+              runs.forEach((run, idx) => {
+                run.run_id = `Run ${idx + 1}`;
+              });
+
+              const r2Values = runs.map((r) => r.r2);
               const meanR2 = r2Values.reduce((a, b) => a + b, 0) / r2Values.length;
-              const maxR2 = validRuns.length > 0 ? Math.max(...r2Values) : -1.0;
-              const minR2 = validRuns.length > 0 ? Math.min(...r2Values) : -1.0;
+              const maxR2 = Math.max(...r2Values);
+              const minR2 = Math.min(...r2Values);
 
               leaderboardData.push({
                 task: group.task,
@@ -1883,10 +1886,11 @@
           modalBody.innerHTML = '<div class="no-runs-message"><p>No detailed run data available for this entry.</p></div>';
         } else {
           const runs = detail.runs;
-          const validRuns = runs.filter((r) => r.r2 !== -1.0);
-          const bestR2 = validRuns.length > 0 ? Math.max(...validRuns.map((r) => r.r2)) : -1.0;
-          const meanR2 = validRuns.length > 0 ? validRuns.reduce((sum, r) => sum + r.r2, 0) / validRuns.length : -1.0;
-          const minR2 = validRuns.length > 0 ? Math.min(...validRuns.map((r) => r.r2)) : -1.0;
+          // Filter out INVALID runs for best R² calculation (but include them in mean/min)
+          const validRuns = runs.filter((r) => r.solution !== "INVALID");
+          const bestR2 = validRuns.length > 0 ? Math.max(...validRuns.map((r) => r.r2)) : Math.max(...runs.map((r) => r.r2));
+          const meanR2 = runs.reduce((sum, r) => sum + r.r2, 0) / runs.length;
+          const minR2 = Math.min(...runs.map((r) => r.r2));
 
           modalMeta.innerHTML = `
             <div class="modal-meta-item">
@@ -1915,18 +1919,21 @@
             </div>
           `;
 
-          // Sort runs by R² descending (valid runs first, then invalid ones)
+          // Sort runs: real runs first (by R² descending), then INVALID runs
           const sortedRuns = [...runs].sort((a, b) => {
-            // Invalid runs (r2 === -1.0) go to the end
-            if (a.r2 === -1.0 && b.r2 !== -1.0) return 1;
-            if (a.r2 !== -1.0 && b.r2 === -1.0) return -1;
+            if (a.solution === "INVALID" && b.solution !== "INVALID") return 1;
+            if (a.solution !== "INVALID" && b.solution === "INVALID") return -1;
             return b.r2 - a.r2;
           });
 
+          // Find the best real run (non-INVALID)
+          const bestRealRun = sortedRuns.find(r => r.solution !== "INVALID");
+          const bestR2Value = bestRealRun ? bestRealRun.r2 : sortedRuns[0].r2;
+
           let runsHTML = '<div class="runs-container">';
           sortedRuns.forEach((run, idx) => {
-            const isValid = run.r2 !== -1.0;
-            const isBest = idx === 0 && isValid;
+            const isInvalid = run.solution === "INVALID";
+            const isBest = !isInvalid && run.r2 === bestR2Value && idx === sortedRuns.findIndex(r => r === bestRealRun);
             const isExpanded = idx === 0;
             runsHTML += `
               <div class="run-card ${isBest ? "best-run" : ""}">
@@ -1935,14 +1942,15 @@
                     <span class="run-badge ${isBest ? "best-badge" : ""}">${isBest ? "Best" : "#" + (idx + 1)}</span>
                     <span class="run-label">${run.run_id || "Run " + (idx + 1)}</span>
                     <span class="r2-badge ${getR2Class(run.r2)}">R² = ${formatR2(run.r2)}</span>
+                    ${isInvalid ? '<span style="color: var(--text-muted); font-size: 0.75rem; margin-left: 0.5rem;">(Padded)</span>' : ''}
                   </div>
                   <span class="expand-icon">▼</span>
                 </div>
                 <div class="run-content ${isExpanded ? "show" : ""}">
                   <div class="code-container">
                     <div class="code-header">
-                      <span>Python</span>
-                      <button class="copy-btn" onclick="copyCodeFromModal(event, ${idx})">Copy</button>
+                      <span>${isInvalid ? "INVALID" : "Python"}</span>
+                      ${!isInvalid ? `<button class="copy-btn" onclick="copyCodeFromModal(event, ${idx})">Copy</button>` : ''}
                     </div>
                     <pre class="code-block" id="modal-code-${idx}">${escapeHtml(run.solution)}</pre>
                   </div>
