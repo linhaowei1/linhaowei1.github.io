@@ -1234,10 +1234,7 @@
               <div class="law-row discovered">
                 <div class="law-label"><span class="law-label-badge discovered">Discovered</span></div>
                 <div class="law-content">
-                  <div
-                    class="law-formula"
-                    data-formula="L = \theta_1 + \theta_2 U^{\theta_5} + \theta_3 N^{\theta_6} + \theta_4 D^{\theta_7}"
-                  ></div>
+                  <div class="law-formula" data-formula="L = \theta_1 + \theta_2 U^{\theta_5} + \theta_3 N^{\theta_6} + \theta_4 D^{\theta_7}"></div>
                   <div class="law-meta">
                     <span class="law-meta-item">R² = <span class="r2-value high">0.9872</span></span>
                     <span class="law-meta-item">Params: <span class="param-count">7</span></span>
@@ -1275,12 +1272,14 @@
               <div class="law-row discovered">
                 <div class="law-label"><span class="law-label-badge discovered">Discovered</span></div>
                 <div class="law-content">
-                  <div class="law-formula" data-formula="L = L_\infty + \theta_N N^{-\alpha_N} + \theta_D D^{-\alpha_D} + \theta_b b^{-\alpha_b} + Q(\ln l - l^*, \ln b - b^*)"></div>
+                  <div
+                    class="law-formula"
+                    data-formula="L = L_\infty + \theta_N N^{-\alpha_N} + \theta_D D^{-\alpha_D} + \theta_b b^{-\alpha_b} + Q(\ln l - l^*, \ln b - b^*)"
+                  ></div>
                   <div class="law-meta">
                     <span class="law-meta-item">R² = <span class="r2-value good">0.8479</span></span>
                     <span class="law-meta-item"
-                      >Params: <span class="param-count">26</span>
-                      <span style="font-size: 0.7rem; color: var(--text-muted)">(multi-term)</span></span
+                      >Params: <span class="param-count">26</span> <span style="font-size: 0.7rem; color: var(--text-muted)">(multi-term)</span></span
                     >
                     <span class="law-meta-item">Model: <span style="color: var(--accent-primary)">GPT-5</span></span>
                   </div>
@@ -1927,13 +1926,13 @@
           });
 
           // Find the best real run (non-INVALID)
-          const bestRealRun = sortedRuns.find(r => r.solution !== "INVALID");
+          const bestRealRun = sortedRuns.find((r) => r.solution !== "INVALID");
           const bestR2Value = bestRealRun ? bestRealRun.r2 : sortedRuns[0].r2;
 
           let runsHTML = '<div class="runs-container">';
           sortedRuns.forEach((run, idx) => {
             const isInvalid = run.solution === "INVALID";
-            const isBest = !isInvalid && run.r2 === bestR2Value && idx === sortedRuns.findIndex(r => r === bestRealRun);
+            const isBest = !isInvalid && run.r2 === bestR2Value && idx === sortedRuns.findIndex((r) => r === bestRealRun);
             const isExpanded = idx === 0;
             runsHTML += `
               <div class="run-card ${isBest ? "best-run" : ""}">
@@ -1942,7 +1941,7 @@
                     <span class="run-badge ${isBest ? "best-badge" : ""}">${isBest ? "Best" : "#" + (idx + 1)}</span>
                     <span class="run-label">${run.run_id || "Run " + (idx + 1)}</span>
                     <span class="r2-badge ${getR2Class(run.r2)}">R² = ${formatR2(run.r2)}</span>
-                    ${isInvalid ? '<span style="color: var(--text-muted); font-size: 0.75rem; margin-left: 0.5rem;">(Padded)</span>' : ''}
+                    ${isInvalid ? '<span style="color: var(--text-muted); font-size: 0.75rem; margin-left: 0.5rem;">(Padded)</span>' : ""}
                   </div>
                   <span class="expand-icon">▼</span>
                 </div>
@@ -1950,7 +1949,7 @@
                   <div class="code-container">
                     <div class="code-header">
                       <span>${isInvalid ? "INVALID" : "Python"}</span>
-                      ${!isInvalid ? `<button class="copy-btn" onclick="copyCodeFromModal(event, ${idx})">Copy</button>` : ''}
+                      ${!isInvalid ? `<button class="copy-btn" onclick="copyCodeFromModal(event, ${idx})">Copy</button>` : ""}
                     </div>
                     <pre class="code-block" id="modal-code-${idx}">${escapeHtml(run.solution)}</pre>
                   </div>
