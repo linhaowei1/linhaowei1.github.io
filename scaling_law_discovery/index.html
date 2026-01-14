@@ -1618,15 +1618,24 @@
           aggregated[key].entries.push(entry);
         });
 
-        return Object.values(aggregated).map((agg) => ({
-          agent: agg.agent,
-          model: agg.model,
-          mean_r2: agg.totalMeanR2 / agg.tasks.length,
-          max_r2: agg.totalMaxR2 / agg.tasks.length,
-          count: agg.totalCount,
-          task: "all",
-          entries: agg.entries,
-        }));
+        return Object.values(aggregated).map((agg) => {
+          // For All Tasks view, count should be:
+          // - human: 8 (8 tasks × 1 run)
+          // - others: 40 (8 tasks × 5 runs)
+          const isHuman = agg.agent === "human";
+          const expectedRunsPerTask = isHuman ? 1 : 5;
+          const expectedTotalRuns = dataFiles.length * expectedRunsPerTask;
+
+          return {
+            agent: agg.agent,
+            model: agg.model,
+            mean_r2: agg.totalMeanR2 / agg.tasks.length,
+            max_r2: agg.totalMaxR2 / agg.tasks.length,
+            count: expectedTotalRuns,
+            task: "all",
+            entries: agg.entries,
+          };
+        });
       }
 
       /* ==========================================================================
@@ -1770,6 +1779,18 @@
 
           const allTaskData = await Promise.all(fetchPromises);
 
+          // First pass: collect all unique agent-model combinations across all tasks
+          const allAgentModelCombos = new Set();
+          for (const { task, entries } of allTaskData) {
+            for (const entry of entries) {
+              const agent = entry.agent_name || "";
+              const model = entry.model_name || "";
+              if (agent && model) {
+                allAgentModelCombos.add(`${agent}__${model}`);
+              }
+            }
+          }
+
           // Process each task's entries
           for (const { task, entries } of allTaskData) {
             // Group entries by agent+model
@@ -1799,19 +1820,57 @@
               });
             }
 
+            // For each agent-model combo, ensure we have an entry (create INVALID if missing)
+            for (const combo of allAgentModelCombos) {
+              const [agent, model] = combo.split("__");
+              const key = `${task}_${agent}_${model}`;
+
+              if (!agentModelGroups[key]) {
+                // Create entry with INVALID runs
+                const isHuman = agent === "human";
+                const targetRuns = isHuman ? 1 : 5;
+                agentModelGroups[key] = {
+                  task: task,
+                  agent: agent,
+                  model: model,
+                  runs: [],
+                };
+                for (let i = 0; i < targetRuns; i++) {
+                  agentModelGroups[key].runs.push({
+                    run_id: `Run ${i + 1}`,
+                    r2: -1.0,
+                    solution: "INVALID",
+                  });
+                }
+              }
+            }
+
             // Calculate stats and add to leaderboardData
             for (const [key, group] of Object.entries(agentModelGroups)) {
               let runs = group.runs;
               if (runs.length === 0) continue;
 
-              // Pad runs to exactly 5 with -1.0 reward_r2 and "INVALID" solution
-              const TARGET_RUNS = 5;
-              while (runs.length < TARGET_RUNS) {
-                runs.push({
-                  run_id: `Run ${runs.length + 1}`,
-                  r2: -1.0,
-                  solution: "INVALID",
-                });
+              // Pad runs: human stays at 1, others pad to 5
+              const isHuman = group.agent === "human";
+              const TARGET_RUNS = isHuman ? 1 : 5;
+
+              // For human, ensure exactly 1 run (take first if more than 1)
+              if (isHuman) {
+                if (runs.length > 1) {
+                  runs = [runs[0]]; // Keep only the first run
+                  group.runs = runs; // Update group.runs
+                }
+              } else {
+                // For non-human, pad to 5 if less than 5
+                if (runs.length < TARGET_RUNS) {
+                  while (runs.length < TARGET_RUNS) {
+                    runs.push({
+                      run_id: `Run ${runs.length + 1}`,
+                      r2: -1.0,
+                      solution: "INVALID",
+                    });
+                  }
+                }
               }
 
               // Sort runs by R² descending (real runs first, then padded ones)
