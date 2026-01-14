@@ -1038,7 +1038,7 @@
                   >Parallel Scaling Law <i class="fas fa-external-link-alt" style="font-size: 0.65rem; opacity: 0.5"></i
                 ></a>
               </h4>
-              <span class="improvement-badge"><i class="fas fa-arrow-up"></i> +0.01%</span>
+              <span class="improvement-badge"><i class="fas fa-arrow-up"></i> +0.00%</span>
             </div>
             <div class="law-card-body">
               <div class="law-row discovered">
@@ -1073,7 +1073,7 @@
                   >Vocabulary Scaling Law <i class="fas fa-external-link-alt" style="font-size: 0.65rem; opacity: 0.5"></i
                 ></a>
               </h4>
-              <span class="improvement-badge"><i class="fas fa-arrow-up"></i> +2.16%</span>
+              <span class="improvement-badge"><i class="fas fa-arrow-up"></i> +2.18%</span>
             </div>
             <div class="law-card-body">
               <div class="law-row discovered">
@@ -1081,10 +1081,10 @@
                 <div class="law-content">
                   <div
                     class="law-formula"
-                    data-formula="L = \theta_1 + \left( (\theta_2 e^{-\theta_3 \ln N})^{\theta_7} + (\theta_4 e^{-\theta_5 (\ln D + \theta_6 \ln V)})^{\theta_7} \right)^{1/\theta_7}"
+                    data-formula="L = \theta_1 + \theta_2 M_{\theta_7}(P^{-\theta_3}, D^{-\theta_4}) \cdot (1 + \theta_5(\ln V - \theta_6)^2)"
                   ></div>
                   <div class="law-meta">
-                    <span class="law-meta-item">R² = <span class="r2-value high">0.9880</span></span>
+                    <span class="law-meta-item">R² = <span class="r2-value high">0.9882</span></span>
                     <span class="law-meta-item">Params: <span class="param-count">7</span></span>
                     <span class="law-meta-item">Model: <span style="color: var(--accent-primary)">GPT-5</span></span>
                   </div>
@@ -1114,7 +1114,7 @@
                   >SFT Scaling Law <i class="fas fa-external-link-alt" style="font-size: 0.65rem; opacity: 0.5"></i
                 ></a>
               </h4>
-              <span class="improvement-badge"><i class="fas fa-arrow-up"></i> +3.74%</span>
+              <span class="improvement-badge"><i class="fas fa-arrow-up"></i> +3.77%</span>
             </div>
             <div class="law-card-body">
               <div class="law-row discovered">
@@ -1157,7 +1157,7 @@
                 <div class="law-content">
                   <div
                     class="law-formula"
-                    data-formula="L_i = \theta_{0,i} (r_i + \theta_{1,i})^{-\theta_{2,i}} \cdot \exp\left(\sum_{j \neq i} \theta_{3,ij} \cdot r_j\right)"
+                    data-formula="L_i = \theta_{0,i} (r_i + \varepsilon_i)^{-\theta_{1,i}} \cdot \exp\left(\sum_{j} \theta_{2,ij} \cdot r_j\right)"
                   ></div>
                   <div class="law-meta">
                     <span class="law-meta-item">R² = <span class="r2-value high">0.9935</span></span>
@@ -1190,7 +1190,7 @@
                   >MoE Scaling Law <i class="fas fa-external-link-alt" style="font-size: 0.65rem; opacity: 0.5"></i
                 ></a>
               </h4>
-              <span class="improvement-badge"><i class="fas fa-arrow-up"></i> +18.79%</span>
+              <span class="improvement-badge"><i class="fas fa-arrow-up"></i> +18.81%</span>
             </div>
             <div class="law-card-body">
               <div class="law-row discovered">
@@ -1269,13 +1269,13 @@
                   >LR & Batch Size Scaling Law <i class="fas fa-external-link-alt" style="font-size: 0.65rem; opacity: 0.5"></i
                 ></a>
               </h4>
-              <span class="improvement-badge"><i class="fas fa-arrow-up"></i> +92.36%</span>
+              <span class="improvement-badge"><i class="fas fa-arrow-up"></i> +92.35%</span>
             </div>
             <div class="law-card-body">
               <div class="law-row discovered">
                 <div class="law-label"><span class="law-label-badge discovered">Discovered</span></div>
                 <div class="law-content">
-                  <div class="law-formula" data-formula="L = L_\infty + \sum_k \theta_k e^{-\alpha_k p} + f(u - u^*, v - v^*)"></div>
+                  <div class="law-formula" data-formula="L = L_\infty + \theta_N N^{-\alpha_N} + \theta_D D^{-\alpha_D} + \theta_b b^{-\alpha_b} + Q(\ln l - l^*, \ln b - b^*)"></div>
                   <div class="law-meta">
                     <span class="law-meta-item">R² = <span class="r2-value good">0.8479</span></span>
                     <span class="law-meta-item"
@@ -1310,7 +1310,7 @@
                   >U-shaped Scaling Law <i class="fas fa-external-link-alt" style="font-size: 0.65rem; opacity: 0.5"></i
                 ></a>
               </h4>
-              <span class="improvement-badge"><i class="fas fa-arrow-up"></i> +128.0%</span>
+              <span class="improvement-badge"><i class="fas fa-arrow-up"></i> +128.04%</span>
             </div>
             <div class="law-card-body">
               <div class="law-row discovered">
@@ -1318,7 +1318,7 @@
                 <div class="law-content">
                   <div
                     class="law-formula"
-                    data-formula="y = \theta_1 + \theta_2 \cdot \sigma\!\left(\frac{x - \theta_4 + \theta_5}{\theta_6}\right) + \theta_3 \cdot \sigma\!\left(\frac{\theta_4 + \theta_5 - x}{\theta_6}\right)"
+                    data-formula="y = \theta_1 + \theta_2 \cdot \sigma\!\left(\frac{x - (\theta_4 - \theta_5)}{\theta_6}\right) + \theta_3 \cdot \sigma\!\left(\frac{(\theta_4 + \theta_5) - x}{\theta_6}\right)"
                   ></div>
                   <div class="law-meta">
                     <span class="law-meta-item">R² = <span class="r2-value poor">0.2804</span></span>
