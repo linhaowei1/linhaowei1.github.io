@@ -908,7 +908,7 @@
       <header class="header-section">
         <div class="title-container">
           <h1 class="main-title">Can Language Models Discover Scaling Laws?</h1>
-          <p class="subtitle">SLDBench & SLDAgent: Automated Scaling Law Discovery</p>
+          <p class="subtitle">Automated Scaling Law Discovery: A First Step Towards AI for AI Research</p>
         </div>
 
         <div class="conference-badge">arXiv 2025</div>
@@ -1027,6 +1027,9 @@
         <h3 class="section-title" style="margin-top: 2rem">SLDAgent Discovered vs. Human Laws</h3>
         <p style="color: var(--text-secondary); margin-bottom: 1.5rem; font-size: 0.95rem">
           Comparison of the best discovered scaling laws vs. human-derived laws across all benchmark tasks.
+        </p>
+        <p style="color: var(--text-muted); margin-bottom: 1.5rem; font-size: 0.9rem; font-style: italic">
+          Note: The 4 laws shown above are examples. To view all discovered laws, please click "View" in the leaderboard below.
         </p>
 
         <div class="law-comparison-grid">
@@ -1195,6 +1198,9 @@
         <div class="leaderboard-header">
           <h2 class="section-title" style="margin-bottom: 0">Leaderboard</h2>
         </div>
+        <p id="leaderboardLoadingMessage" style="color: var(--text-muted); margin-bottom: 1.5rem; font-size: 0.9rem; font-style: italic">
+          Loading leaderboard data... Please wait a moment if you don't see data yet.
+        </p>
 
         <!-- Task Tabs -->
         <div class="task-tabs" id="taskTabs">
@@ -1904,6 +1910,11 @@
       async function init() {
         await loadAllData();
         renderTable();
+        // Hide loading message after data is loaded
+        const loadingMessage = document.getElementById("leaderboardLoadingMessage");
+        if (loadingMessage) {
+          loadingMessage.style.display = "none";
+        }
       }
       init();
 
