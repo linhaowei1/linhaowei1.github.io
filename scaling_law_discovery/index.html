@@ -1030,82 +1030,6 @@
         </p>
 
         <div class="law-comparison-grid">
-          <!-- Parallel Scaling Law -->
-          <div class="law-comparison-card">
-            <div class="law-card-header">
-              <h4>
-                <a href="https://arxiv.org/abs/2505.10475" target="_blank"
-                  >Parallel Scaling Law <i class="fas fa-external-link-alt" style="font-size: 0.65rem; opacity: 0.5"></i
-                ></a>
-              </h4>
-              <span class="improvement-badge"><i class="fas fa-arrow-up"></i> +0.00%</span>
-            </div>
-            <div class="law-card-body">
-              <div class="law-row discovered">
-                <div class="law-label"><span class="law-label-badge discovered">Discovered</span></div>
-                <div class="law-content">
-                  <div class="law-formula" data-formula="L = \theta_1 \cdot N^{\theta_2} + \frac{\theta_3}{1 + P} + \theta_4"></div>
-                  <div class="law-meta">
-                    <span class="law-meta-item">R² = <span class="r2-value high">0.9999</span></span>
-                    <span class="law-meta-item">Params: <span class="param-count">4</span></span>
-                    <span class="law-meta-item">Model: <span style="color: var(--accent-primary)">Claude Sonnet 4.5</span></span>
-                  </div>
-                </div>
-              </div>
-              <div class="law-row human">
-                <div class="law-label"><span class="law-label-badge human">Human</span></div>
-                <div class="law-content">
-                  <div class="law-formula" data-formula="L = \left(\frac{\theta_1}{N \cdot (\theta_2 \ln P + 1)}\right)^{\theta_3} + \theta_4"></div>
-                  <div class="law-meta">
-                    <span class="law-meta-item">R² = <span class="r2-value high">0.9999</span></span>
-                    <span class="law-meta-item">Params: <span class="param-count">4</span></span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Vocabulary Scaling Law -->
-          <div class="law-comparison-card">
-            <div class="law-card-header">
-              <h4>
-                <a href="https://arxiv.org/abs/2407.13623" target="_blank"
-                  >Vocabulary Scaling Law <i class="fas fa-external-link-alt" style="font-size: 0.65rem; opacity: 0.5"></i
-                ></a>
-              </h4>
-              <span class="improvement-badge"><i class="fas fa-arrow-up"></i> +2.18%</span>
-            </div>
-            <div class="law-card-body">
-              <div class="law-row discovered">
-                <div class="law-label"><span class="law-label-badge discovered">Discovered</span></div>
-                <div class="law-content">
-                  <div
-                    class="law-formula"
-                    data-formula="L = \theta_1 + \theta_2 M_{\theta_7}(P^{-\theta_3}, D^{-\theta_4}) \cdot (1 + \theta_5(\ln V - \theta_6)^2)"
-                  ></div>
-                  <div class="law-meta">
-                    <span class="law-meta-item">R² = <span class="r2-value high">0.9882</span></span>
-                    <span class="law-meta-item">Params: <span class="param-count">7</span></span>
-                    <span class="law-meta-item">Model: <span style="color: var(--accent-primary)">GPT-5</span></span>
-                  </div>
-                </div>
-              </div>
-              <div class="law-row human">
-                <div class="law-label"><span class="law-label-badge human">Human</span></div>
-                <div class="law-content">
-                  <div
-                    class="law-formula"
-                    data-formula="L = \frac{\theta_1}{N^{\theta_2}} + \frac{\theta_3}{V^{\theta_4}} + \frac{\theta_5}{D^{\theta_6}} + \theta_7"
-                  ></div>
-                  <div class="law-meta">
-                    <span class="law-meta-item">R² = <span class="r2-value high">0.9664</span></span>
-                    <span class="law-meta-item">Params: <span class="param-count">7</span></span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
           <!-- SFT Scaling Law -->
           <div class="law-comparison-card">
             <div class="law-card-header">
@@ -1220,44 +1144,6 @@
             </div>
           </div>
 
-          <!-- Data-Constrained Scaling Law -->
-          <div class="law-comparison-card">
-            <div class="law-card-header">
-              <h4>
-                <a href="https://arxiv.org/abs/2305.16264" target="_blank"
-                  >Data-Constrained Scaling Law <i class="fas fa-external-link-alt" style="font-size: 0.65rem; opacity: 0.5"></i
-                ></a>
-              </h4>
-              <span class="improvement-badge"><i class="fas fa-arrow-up"></i> +7.66%</span>
-            </div>
-            <div class="law-card-body">
-              <div class="law-row discovered">
-                <div class="law-label"><span class="law-label-badge discovered">Discovered</span></div>
-                <div class="law-content">
-                  <div class="law-formula" data-formula="L = \theta_1 + \theta_2 U^{\theta_5} + \theta_3 N^{\theta_6} + \theta_4 D^{\theta_7}"></div>
-                  <div class="law-meta">
-                    <span class="law-meta-item">R² = <span class="r2-value high">0.9872</span></span>
-                    <span class="law-meta-item">Params: <span class="param-count">7</span></span>
-                    <span class="law-meta-item">Model: <span style="color: var(--accent-primary)">Claude Haiku 4.5</span></span>
-                  </div>
-                </div>
-              </div>
-              <div class="law-row human">
-                <div class="law-label"><span class="law-label-badge human">Human</span></div>
-                <div class="law-content">
-                  <div
-                    class="law-formula"
-                    data-formula="L = \frac{\theta_1}{(U_N + \theta_2 U_N(1-e^{-R_N/\theta_2}))^{\theta_3}} + \frac{\theta_4}{(U_D + \theta_5 U_D(1-e^{-R_D/\theta_5}))^{\theta_3}} + \theta_6"
-                  ></div>
-                  <div class="law-meta">
-                    <span class="law-meta-item">R² = <span class="r2-value high">0.9106</span></span>
-                    <span class="law-meta-item">Params: <span class="param-count">7</span></span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
           <!-- LR & Batch Size Scaling Law -->
           <div class="law-comparison-card">
             <div class="law-card-header">
@@ -1301,46 +1187,6 @@
             </div>
           </div>
 
-          <!-- U-shaped Scaling Law -->
-          <div class="law-comparison-card">
-            <div class="law-card-header">
-              <h4>
-                <a href="https://arxiv.org/abs/2410.01692" target="_blank"
-                  >U-shaped Scaling Law <i class="fas fa-external-link-alt" style="font-size: 0.65rem; opacity: 0.5"></i
-                ></a>
-              </h4>
-              <span class="improvement-badge"><i class="fas fa-arrow-up"></i> +128.04%</span>
-            </div>
-            <div class="law-card-body">
-              <div class="law-row discovered">
-                <div class="law-label"><span class="law-label-badge discovered">Discovered</span></div>
-                <div class="law-content">
-                  <div
-                    class="law-formula"
-                    data-formula="y = \theta_1 + \theta_2 \cdot \sigma\!\left(\frac{x - (\theta_4 - \theta_5)}{\theta_6}\right) + \theta_3 \cdot \sigma\!\left(\frac{(\theta_4 + \theta_5) - x}{\theta_6}\right)"
-                  ></div>
-                  <div class="law-meta">
-                    <span class="law-meta-item">R² = <span class="r2-value poor">0.2804</span></span>
-                    <span class="law-meta-item">Params: <span class="param-count">6</span></span>
-                    <span class="law-meta-item">Model: <span style="color: var(--accent-primary)">GPT-5</span></span>
-                  </div>
-                </div>
-              </div>
-              <div class="law-row human">
-                <div class="law-label"><span class="law-label-badge human">Human</span></div>
-                <div class="law-content">
-                  <div
-                    class="law-formula"
-                    data-formula="y = \theta_1 x^5 + \theta_2 x^4 + \theta_3 x^3 + \theta_4 x^2 + \theta_5 x + \theta_6 \quad (x = \log_{10} C)"
-                  ></div>
-                  <div class="law-meta">
-                    <span class="law-meta-item">R² = <span class="r2-value low">-1.0000</span></span>
-                    <span class="law-meta-item">Params: <span class="param-count">6</span></span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
       </section>
 
@@ -1348,10 +1194,6 @@
       <section class="leaderboard-section" id="leaderboard">
         <div class="leaderboard-header">
           <h2 class="section-title" style="margin-bottom: 0">Leaderboard</h2>
-          <div class="filter-controls">
-            <button class="filter-btn active" onclick="showTable('general')">General Agents</button>
-            <button class="filter-btn" onclick="showTable('sldagent')">SLDAgent Only</button>
-          </div>
         </div>
 
         <!-- Task Tabs -->
@@ -1570,7 +1412,6 @@
          STATE MANAGEMENT
          ========================================================================== */
       let currentTask = "all";
-      let currentFilter = "general";
 
       /* ==========================================================================
          UTILITY FUNCTIONS
@@ -1647,13 +1488,6 @@
         const tbody = document.getElementById("leaderboardBody");
         let filteredData = [...leaderboardData];
 
-        // Apply agent filter
-        if (currentFilter === "sldagent") {
-          filteredData = filteredData.filter((d) => d.agent === "SLDAgent");
-        } else if (currentFilter === "general") {
-          filteredData = filteredData.filter((d) => d.agent !== "SLDAgent");
-        }
-
         // Apply task filter
         if (currentTask === "all") {
           filteredData = aggregateByAgentModel(filteredData);
@@ -1689,13 +1523,6 @@
           .join("");
       }
 
-      /** Handle filter button clicks */
-      function showTable(filter) {
-        currentFilter = filter;
-        document.querySelectorAll(".filter-btn").forEach((btn) => btn.classList.remove("active"));
-        event.target.classList.add("active");
-        renderTable();
-      }
 
       /* ==========================================================================
          CITATION FUNCTIONALITY
