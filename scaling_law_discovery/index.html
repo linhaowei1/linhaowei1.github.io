@@ -1189,7 +1189,6 @@
               </div>
             </div>
           </div>
-
         </div>
       </section>
 
@@ -1225,7 +1224,6 @@
                 <th>Model</th>
                 <th>Mean R²</th>
                 <th>Max R²</th>
-                <th>Runs</th>
                 <th>Solution</th>
               </tr>
             </thead>
@@ -1521,14 +1519,12 @@
                 </td>
                 <td><span class="r2-badge ${getR2Class(entry.mean_r2)}">${formatR2(entry.mean_r2)}</span></td>
                 <td><span class="r2-badge ${getR2Class(entry.max_r2)}">${formatR2(entry.max_r2)}</span></td>
-                <td>${entry.count}</td>
                 <td>${currentTask !== "all" ? `<a href="javascript:void(0)" class="solution-link" onclick="openSolutionModal('${entry.task}', '${entry.agent}', '${entry.model}')">View</a>` : "—"}</td>
               </tr>
             `;
           })
           .join("");
       }
-
 
       /* ==========================================================================
          CITATION FUNCTIONALITY
