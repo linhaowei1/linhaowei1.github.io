@@ -1,0 +1,925 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Scaling Law Discovery (SLD): A New Testbed for Scientific Discovery in AI</title>
+    <link rel="icon" type="image/png" href="../assets/sld_logo.png" />
+
+    <!-- Social Preview Tags -->
+    <meta property="og:title" content="Scaling Law Discovery (SLD): A New Testbed for Scientific Discovery in AI" />
+    <meta
+      property="og:description"
+      content="Can AI agents discover the scaling laws that govern AI systems more efficiently and more accurately than humans?"
+    />
+    <meta property="og:type" content="article" />
+    <meta property="og:image" content="../assets/sld_logo.png" />
+    <meta
+      name="description"
+      content="Introducing Scaling Law Discovery (SLD): a benchmark + agentic framework for automating the process of discovering scaling laws from experimental data."
+    />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
+
+    <!-- KaTeX for LaTeX rendering -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" />
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+
+    <style>
+      /* ==========================================================================
+       CSS Variables & Theme
+       ========================================================================== */
+      :root {
+        --bg-primary: #ffffff;
+        --bg-secondary: #f8f9fa;
+        --bg-tertiary: #f1f3f4;
+        --glass-bg: rgba(0, 0, 0, 0.02);
+        --accent-primary: #2563eb;
+        --accent-secondary: #3b82f6;
+        --accent-gradient: linear-gradient(135deg, #2563eb 0%, #3b82f6 50%, #60a5fa 100%);
+        --text-primary: #1f2937;
+        --text-secondary: #4b5563;
+        --text-muted: #6b7280;
+        --border-subtle: rgba(0, 0, 0, 0.1);
+        --success: #10b981;
+        --warning: #f59e0b;
+        --danger: #ef4444;
+      }
+
+      /* ==========================================================================
+       Base & Reset
+       ========================================================================== */
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family:
+          "Sora",
+          -apple-system,
+          BlinkMacSystemFont,
+          sans-serif;
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        line-height: 1.8;
+        min-height: 100vh;
+      }
+
+      .container {
+        max-width: 860px;
+        margin: 0 auto;
+        padding: 0 2rem;
+        position: relative;
+        z-index: 1;
+      }
+
+      /* ==========================================================================
+       Header Section
+       ========================================================================== */
+      .header-section {
+        padding: 3rem 0 0.5rem;
+        text-align: center;
+        border-bottom: 1px solid var(--border-subtle);
+      }
+
+      .back-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: var(--accent-primary);
+        text-decoration: none;
+        font-size: 0.9rem;
+        font-weight: 500;
+        margin-bottom: 2rem;
+        transition: color 0.2s;
+      }
+
+      .back-link:hover {
+        color: var(--accent-secondary);
+      }
+
+      .main-title {
+        font-size: 2.75rem;
+        font-weight: 700;
+        background: var(--accent-gradient);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        letter-spacing: -0.02em;
+        margin-bottom: 1rem;
+        line-height: 1.2;
+      }
+
+      .subtitle {
+        font-size: 1.25rem;
+        color: var(--text-secondary);
+        font-weight: 400;
+        margin-bottom: 1.5rem;
+      }
+
+      .meta-info {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 1.5rem;
+        flex-wrap: wrap;
+        margin-bottom: 2rem;
+        font-size: 0.9rem;
+        color: var(--text-muted);
+      }
+
+      .meta-item {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+      }
+
+      .meta-item a {
+        color: var(--accent-primary);
+        text-decoration: none;
+      }
+
+      .meta-item a:hover {
+        text-decoration: underline;
+      }
+
+      /* ==========================================================================
+       Buttons
+       ========================================================================== */
+      .buttons-container {
+        display: flex;
+        justify-content: center;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+      }
+
+      .button {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.6rem 1.25rem;
+        border-radius: 8px;
+        font-size: 0.9rem;
+        font-weight: 500;
+        text-decoration: none;
+        transition: all 0.2s;
+      }
+
+      .button-primary {
+        background: var(--accent-gradient);
+        color: white;
+        border: none;
+      }
+
+      .button-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(99, 102, 241, 0.3);
+      }
+
+      .button-secondary {
+        background: var(--glass-bg);
+        color: var(--text-primary);
+        border: 1px solid var(--border-subtle);
+      }
+
+      .button-secondary:hover {
+        background: rgba(0, 0, 0, 0.05);
+        border-color: var(--accent-primary);
+      }
+
+      /* ==========================================================================
+       Article Content
+       ========================================================================== */
+      .article-content {
+        padding: 3rem 0;
+      }
+
+      .article-content h2 {
+        font-size: 1.75rem;
+        font-weight: 600;
+        margin: 2.5rem 0 1rem;
+        color: var(--text-primary);
+        padding-bottom: 0.5rem;
+        border-bottom: 2px solid var(--border-subtle);
+      }
+
+      .article-content h3 {
+        font-size: 1.35rem;
+        font-weight: 600;
+        margin: 2rem 0 0.75rem;
+        color: var(--text-primary);
+      }
+
+      .article-content p {
+        font-size: 1.05rem;
+        color: var(--text-secondary);
+        margin-bottom: 1.25rem;
+        line-height: 1.9;
+      }
+
+      .article-content ul,
+      .article-content ol {
+        margin: 1rem 0 1.5rem 1.5rem;
+        color: var(--text-secondary);
+      }
+
+      .article-content li {
+        margin-bottom: 0.5rem;
+        line-height: 1.7;
+      }
+
+      .article-content strong {
+        color: var(--text-primary);
+        font-weight: 600;
+      }
+
+      .article-content a {
+        color: var(--accent-primary);
+        text-decoration: none;
+      }
+
+      .article-content a:hover {
+        text-decoration: underline;
+      }
+
+      /* ==========================================================================
+       Highlight Box
+       ========================================================================== */
+      .highlight-box {
+        background: linear-gradient(135deg, rgba(37, 99, 235, 0.08) 0%, rgba(59, 130, 246, 0.05) 100%);
+        border: 1px solid rgba(37, 99, 235, 0.2);
+        border-left: 4px solid var(--accent-primary);
+        border-radius: 0 12px 12px 0;
+        padding: 1.5rem 2rem;
+        margin: 2rem 0;
+        font-size: 1.1rem;
+        font-style: italic;
+        color: var(--text-primary);
+        line-height: 1.7;
+      }
+
+      .highlight-box.question {
+        background: linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(245, 158, 11, 0.05) 100%);
+        border-left-color: var(--warning);
+      }
+
+      /* ==========================================================================
+       Code Block
+       ========================================================================== */
+      .code-block {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-subtle);
+        border-radius: 10px;
+        padding: 1.25rem 1.5rem;
+        margin: 1.5rem 0;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 0.9rem;
+        overflow-x: auto;
+        line-height: 1.6;
+      }
+
+      /* ==========================================================================
+       Math/Formula Display
+       ========================================================================== */
+      .formula-display {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-subtle);
+        border-radius: 12px;
+        padding: 1.5rem 2rem;
+        margin: 1.5rem 0;
+        text-align: center;
+        overflow-x: auto;
+      }
+
+      .formula-caption {
+        font-size: 0.85rem;
+        color: var(--text-muted);
+        margin-top: 0.75rem;
+        font-style: italic;
+      }
+
+      /* ==========================================================================
+       Image Figure
+       ========================================================================== */
+      .figure {
+        margin: 2rem 0;
+        text-align: center;
+      }
+
+      .figure img {
+        max-width: 100%;
+        height: auto;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+      }
+
+      .figure-caption {
+        font-size: 0.9rem;
+        color: var(--text-muted);
+        margin-top: 0.75rem;
+        font-style: italic;
+      }
+
+      /* ==========================================================================
+       Task List
+       ========================================================================== */
+      .task-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 0.75rem;
+        margin: 1.5rem 0;
+        list-style: none;
+        padding: 0;
+      }
+
+      .task-list li {
+        background: var(--glass-bg);
+        border: 1px solid var(--border-subtle);
+        border-radius: 8px;
+        padding: 0.75rem 1rem;
+        font-size: 0.9rem;
+        color: var(--text-secondary);
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .task-list li i {
+        color: var(--accent-primary);
+      }
+
+      /* ==========================================================================
+       Key Points Box
+       ========================================================================== */
+      .key-points {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-subtle);
+        border-radius: 12px;
+        padding: 1.5rem 2rem;
+        margin: 2rem 0;
+      }
+
+      .key-points h4 {
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--accent-primary);
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .key-points ul {
+        margin: 0;
+        padding-left: 1.25rem;
+      }
+
+      .key-points li {
+        margin-bottom: 0.5rem;
+        color: var(--text-secondary);
+      }
+
+      /* ==========================================================================
+       References
+       ========================================================================== */
+      .references {
+        background: var(--bg-secondary);
+        border-radius: 12px;
+        padding: 2rem;
+        margin-top: 3rem;
+      }
+
+      .references h2 {
+        margin-top: 0;
+        border-bottom: none;
+        padding-bottom: 0;
+      }
+
+      .references ol {
+        margin: 0;
+        padding-left: 1.5rem;
+      }
+
+      .references li {
+        font-size: 0.9rem;
+        color: var(--text-muted);
+        margin-bottom: 1rem;
+        line-height: 1.6;
+      }
+
+      .references li a {
+        color: var(--accent-primary);
+      }
+
+      /* ==========================================================================
+       Citation Links
+       ========================================================================== */
+      .cite {
+        color: var(--accent-primary);
+        text-decoration: none;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+
+      .cite:hover {
+        text-decoration: underline;
+        color: var(--accent-secondary);
+      }
+
+      /* ==========================================================================
+       Footer
+       ========================================================================== */
+      .footer {
+        padding: 3rem 0;
+        text-align: center;
+        border-top: 1px solid var(--border-subtle);
+        color: var(--text-muted);
+        font-size: 0.9rem;
+      }
+
+      .footer a {
+        color: var(--accent-primary);
+        text-decoration: none;
+      }
+
+      .footer a:hover {
+        text-decoration: underline;
+      }
+
+      /* ==========================================================================
+       Responsive Design
+       ========================================================================== */
+      @media (max-width: 768px) {
+        .main-title {
+          font-size: 2rem;
+        }
+        .subtitle {
+          font-size: 1.1rem;
+        }
+        .container {
+          padding: 0 1rem;
+        }
+        .header-section {
+          padding: 2rem 0;
+        }
+        .article-content h2 {
+          font-size: 1.5rem;
+        }
+        .task-list {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <!-- ============================== HEADER ============================== -->
+      <header class="header-section">
+        <a href="../index.html" class="back-link"> <i class="fas fa-arrow-left"></i> Back to Project Page </a>
+
+        <h1 class="main-title">Scaling Law Discovery (SLD)</h1>
+        <p class="subtitle">A New Testbed for Scientific Discovery in AI</p>
+
+        <div class="author-info" style="margin-bottom: 1.5rem">
+          <span style="color: var(--text-secondary); font-size: 0.95rem">
+            <i class="fas fa-user" style="color: var(--accent-primary); margin-right: 0.4rem"></i>
+            <a href="https://linhaowei1.github.io/" target="_blank" style="color: var(--text-primary); text-decoration: none; font-weight: 500"
+              >Haowei Lin</a
+            >
+            <span style="color: var(--text-muted)"> · Peking University</span>
+          </span>
+        </div>
+
+        <div class="meta-info">
+          <span class="meta-item">
+            <i class="fas fa-globe"></i>
+            <a href="https://linhaowei1.github.io/scaling_law_discovery/" target="_blank">Website</a>
+          </span>
+          <span class="meta-item">
+            <i class="fas fa-file-pdf"></i>
+            <a href="https://arxiv.org/abs/2507.21184" target="_blank">Paper</a>
+          </span>
+          <span class="meta-item">
+            <i class="fas fa-database"></i>
+            <a href="https://huggingface.co/collections/pkuHaowei/scaling-law-discovery" target="_blank">HuggingFace</a>
+          </span>
+        </div>
+
+        <div
+          class="reading-info"
+          style="margin-bottom: 1.5rem; display: flex; justify-content: center; gap: 1.5rem; font-size: 0.9rem; color: var(--text-muted)"
+        >
+          <span>
+            <i class="fas fa-file-alt" style="margin-right: 0.4rem"></i>
+            ~1,600 words
+          </span>
+          <span>
+            <i class="fas fa-clock" style="margin-right: 0.4rem"></i>
+            8 min read
+          </span>
+        </div>
+      </header>
+
+      <!-- ============================== ARTICLE CONTENT ============================== -->
+      <article class="article-content">
+        <p>
+          Scaling laws have quietly become one of the most "scientific" tools in modern AI: we run a small number of experiments at small scale, fit a
+          simple mathematical relationship, and use it to make decisions at large scale, where experiments are expensive and slow.
+        </p>
+
+        <p>
+          In this post, we introduce our new work on <strong>Scaling Law Discovery (SLD)</strong>: a benchmark + agentic framework for automating the
+          process of discovering scaling laws from experimental data. The high-level goal is simple:
+        </p>
+
+        <div class="highlight-box question">
+          Can AI agents discover the scaling laws that govern AI systems more efficiently and more accurately than humans?
+        </div>
+
+        <h2>What is a Scaling Law?</h2>
+
+        <p>
+          A scaling law is an empirical relationship that predicts a model's performance (loss, perplexity, accuracy, etc.) as a function of "scale
+          variables" like:
+        </p>
+
+        <ul>
+          <li><strong>Model size (N)</strong></li>
+          <li><strong>Dataset size (D)</strong></li>
+          <li><strong>Compute / FLOPs (C)</strong></li>
+          <li><strong>Hyperparameters</strong> like learning rate and batch size</li>
+          <li><strong>Architecture knobs</strong> (e.g., number of experts in MoE)</li>
+        </ul>
+
+        <p>
+          The canonical example is the "Chinchilla-style" pretraining form
+          <a href="https://arxiv.org/abs/2203.15556" target="_blank" class="cite">[1]</a>, where loss is modeled as a power-law function of model size
+          and data size:
+        </p>
+
+        <div class="formula-display">
+          <span class="formula" data-formula="L(N, D) = \frac{\theta_1}{N^{\theta_2}} + \frac{\theta_3}{D^{\theta_4}} + \theta_5"></span>
+          <p class="formula-caption">The canonical Chinchilla-style scaling law for pretraining</p>
+        </div>
+
+        <p>
+          <strong>Why do scaling laws matter?</strong> Because their predictive capability helps with real decisions: compute-optimal planning
+          <a href="https://arxiv.org/abs/2203.15556" target="_blank" class="cite">[1]</a>, choosing which model to fine-tune
+          <a href="https://arxiv.org/abs/2402.02314" target="_blank" class="cite">[2]</a>, and picking hyperparameters that would otherwise require
+          huge sweeps <a href="https://arxiv.org/abs/2001.08361" target="_blank" class="cite">[3]</a>.
+        </p>
+
+        <h2>A Real Example: When the "Standard" Scaling Law Fails</h2>
+
+        <p>
+          Two years ago (Year 2023), we ran into scaling laws the way many people do: not as a theory exercise, but because we needed an answer under
+          real resource constraints. We were working on <strong>LLM selection for SFT</strong>
+          <a href="https://arxiv.org/abs/2402.02314" target="_blank" class="cite">[2]</a>: given a set of pretrained LLMs and only a small subset of
+          downstream data, how do we pick which model will perform best after full fine-tuning?
+        </p>
+
+        <h3>The Problem: Fine-tuning Has Two Phases</h3>
+
+        <p>
+          In low-data fine-tuning, we observed a consistent phase transition pattern—what we called a <strong>pre-power phase</strong> followed by a
+          <strong>power phase</strong>—and existing "Chinchilla-style" power-law forms simply couldn't capture it well.
+        </p>
+
+        <div class="figure">
+          <img src="images/image1.png" alt="Two-phase pattern in fine-tuning" />
+          <p class="figure-caption">The two-phase behavior observed in fine-tuning: pre-power phase followed by power phase</p>
+        </div>
+
+        <p>
+          In fact, the paper gives a clean reason: under the classic law, the log-log slope has a monotonicity property that contradicts the observed
+          two-phase behavior.
+        </p>
+
+        <h3>The Fix: "Rectified Scaling Law" with a Pre-learned Data Size</h3>
+
+        <p>
+          The key idea was to explicitly represent how much downstream-relevant knowledge the model already has before fine-tuning. We introduced a
+          <strong>pre-learned data size (D₀)</strong> and proposed the rectified law:
+        </p>
+
+        <div class="formula-display">
+          <span class="formula" data-formula="L(D) = \frac{\theta_1}{D_0 + D^{\theta_2}} + \theta_3"></span>
+          <p class="formula-caption">The Rectified Scaling Law with pre-learned data size D₀</p>
+        </div>
+
+        <p>
+          This single extra concept ("pre-learned data size") makes the law both more interpretable and mathematically able to express the two-phase
+          pattern in one formula.
+        </p>
+
+        <p>
+          Empirically, it fit much better: the paper <a href="https://arxiv.org/abs/2402.02314" target="_blank" class="cite">[2]</a> reports an
+          average RMSD of <strong>0.007</strong> for the rectified law vs <strong>0.036</strong> for the vanilla law (same number of fitted
+          parameters), indicating the rectified form captures the intrinsic behavior more accurately.
+        </p>
+
+        <h3>Turning the Law into a Practical Algorithm</h3>
+
+        <p>
+          Once we had a usable law, we built an efficient selection algorithm that fine-tunes on a sequence of size-decreasing subsets, detects the
+          transition pattern, and extrapolates full-data performance. Crucially, it achieves near-optimal selection while using
+          <strong>hundreds of times less compute</strong> than full fine-tuning across candidates.
+        </p>
+
+        <div class="highlight-box">
+          This project taught us something important: <strong>the scaling law itself was the bottleneck</strong>. We spent a lot of human effort on
+          hypothesis → fit → failure → redesign loops.
+        </div>
+
+        <p>Which leads to the question that motivated our new work:</p>
+
+        <h2>Scaling Laws Are Everywhere Now—So Why Is Discovery Still Manual?</h2>
+
+        <p>In 2026 and beyond, scaling laws have expanded well beyond classical pretraining:</p>
+
+        <ul class="task-list">
+          <li><i class="fas fa-check-circle"></i> Supervised fine-tuning laws</li>
+          <li><i class="fas fa-check-circle"></i> Vocabulary-size laws</li>
+          <li><i class="fas fa-check-circle"></i> MoE laws</li>
+          <li><i class="fas fa-check-circle"></i> Domain-mixture laws</li>
+          <li><i class="fas fa-check-circle"></i> Parallelism laws</li>
+          <li><i class="fas fa-check-circle"></i> Learning-rate & batch-size laws</li>
+          <li><i class="fas fa-check-circle"></i> U-shaped/double-descent patterns</li>
+        </ul>
+
+        <p>
+          The SLD paper <a href="https://arxiv.org/abs/2507.21184" target="_blank" class="cite">[4]</a> summarizes this clearly: the scope has
+          expanded rapidly, but discoveries are still manual and case-specific, requiring repeated cycles of
+          <strong>hypothesis generation</strong> (design the symbolic law expression) and <strong>experimentation</strong> (fit the law to observed
+          datapoints).
+        </p>
+
+        <div class="highlight-box question">So we asked: can we formalize scaling law discovery as a task that coding agents can solve?</div>
+
+        <h2>Introducing Scaling Law Discovery (SLD)</h2>
+
+        <p>Our work frames scaling law discovery as: given observed experimental trials, output</p>
+
+        <ol>
+          <li>A <strong>symbolic formula</strong> (the law form), and</li>
+          <li>An <strong>optimizer</strong> that robustly fits coefficients on seen data, so the resulting parameterized law extrapolates well.</li>
+        </ol>
+
+        <p>More precisely, the input is a dataset of trials where:</p>
+
+        <ul>
+          <li><strong>x</strong> are feature variables (e.g., model size N, dataset size D, lr, bsz)</li>
+          <li><strong>y</strong> is the target metric (e.g., loss)</li>
+          <li>
+            <strong>c</strong> is a control index (a setting like "which model" or "which corpus"), where all settings share the same law form but
+            have different fitted coefficients.
+          </li>
+        </ul>
+
+        <p>
+          That "shared form, different coefficients" detail sounds small, but it's exactly what makes real scaling-law work different from many
+          synthetic symbolic regression tasks.
+        </p>
+
+        <h2>SLDBench: A Benchmark Built from 5,000+ Real Experiments</h2>
+
+        <p>
+          To evaluate this problem rigorously, we curated <strong>SLDBench</strong>, a scaling law discovery testbed built from over 5,000 LLM
+          training experiments collected from existing scaling-law literature.
+        </p>
+
+        <p>SLDBench includes tasks spanning a wide range of scaling scenarios:</p>
+
+        <div class="figure">
+          <img src="images/image2.png" alt="SLDBench tasks overview" />
+          <p class="figure-caption">Table 1: Overview of SLDBench tasks spanning diverse scaling scenarios</p>
+        </div>
+
+        <div class="key-points">
+          <h4><i class="fas fa-lightbulb"></i> Why SLDBench is a good "Scientific Discovery" Benchmark</h4>
+          <ul>
+            <li>The agent gets the experimental results; it does not need to run heavy training.</li>
+            <li>The score is continuous and objective: extrapolation on held-out "large-scale" settings.</li>
+            <li>There is no learned reward model, and the "true best law" is unknown even to human experts.</li>
+            <li>
+              The evaluation environment is a sandbox terminal: agents output a law.py, and we compute metrics (NMSE, NMAE, R²) on an extrapolation
+              test split.
+            </li>
+          </ul>
+        </div>
+
+        <p>This makes SLDBench a natural yardstick for "can agents do long-horizon, research-like iteration?"</p>
+
+        <h2>SLDAgent: Co-evolving a Law and Its Optimizer</h2>
+
+        <p>A key lesson from our own experience (and from watching others do this) is:</p>
+
+        <div class="highlight-box">
+          Discovering a scaling law is not just "find a formula." It's "find a formula <em>and</em> a fitting procedure that actually works."
+        </div>
+
+        <p>So our agent, <strong>SLDAgent</strong>, evolves two coupled components:</p>
+
+        <ol>
+          <li><strong>Expression:</strong> the law form f(x; θ)</li>
+          <li><strong>Optimization:</strong> a robust routine that fits θ</li>
+        </ol>
+
+        <p>
+          It starts from a baseline (often power-law + BFGS), then iteratively proposes code modifications, executes them, and keeps the best variants
+          while maintaining diversity via a multi-island + MAP-Elites style evolutionary database. (Implementation note: the system is built on the
+          <a href="https://github.com/asankhaya/OpenEvolve" target="_blank">OpenEvolve framework</a>
+          <a href="https://github.com/asankhaya/OpenEvolve" target="_blank" class="cite">[5]</a>.)
+        </p>
+
+        <div class="figure">
+          <img src="images/image3.png" alt="SLDAgent pipeline and scaffolding" />
+          <p class="figure-caption">SLDAgent scaffolding: an evolutionary pipeline that co-evolves law expressions and fitting procedures</p>
+        </div>
+
+        <p>This "co-optimization" framing matches the real research loop: hypothesize → fit → evaluate → refine.</p>
+
+        <h2>What We Found: Agents Can Beat Our Past Human Discoveries</h2>
+
+        <p>
+          Across SLDBench, SLDAgent achieves <strong>state-of-the-art performance</strong> and "superhuman" results relative to human baselines and
+          existing agent systems.
+        </p>
+
+        <div class="figure">
+          <img src="images/image4.png" alt="SLDAgent results" />
+          <p class="figure-caption">SLDAgent outperforms human-derived laws across benchmark tasks</p>
+        </div>
+
+        <p>But the more interesting part is <strong>how</strong> it wins:</p>
+
+        <h3>1) Better Laws Are Often More "Principled," Not Just More Complex</h3>
+
+        <p>
+          For example, in the SFT task, SLDAgent discovers a saturated power-law parameterization where the "pre-learned data size" appears as a
+          dimensionless ratio (D/θ₃), making θ₃ retain the natural unit of dataset size and improving interpretability and downstream usability.
+        </p>
+
+        <div class="figure">
+          <img src="images/image5.png" alt="Human law vs SLDAgent discovered law on SFT" />
+          <p class="figure-caption">Comparison of human-derived law vs. SLDAgent discovered law on the SFT scaling task</p>
+        </div>
+
+        <h3>2) The Optimizer Matters as Much as the Formula</h3>
+
+        <p>
+          Many "pretty" formulas become useless if they're numerically brittle, hard to fit, or fail under extrapolation. SLDAgent explicitly searches
+          over fitting strategy changes (multi-start, stability tricks, etc.) as part of the same evolutionary loop. Check our
+          <a href="https://linhaowei1.github.io/scaling_law_discovery/" target="_blank">website</a> for comprehensive cases.
+        </p>
+
+        <h2>Application: Hyperparameter Optimization for Pretraining (lr & batch size)</h2>
+
+        <p>One of the most practical use cases is: <em>"I'm pretraining a model, and I need good lr + batch size choices for my scale."</em></p>
+
+        <p>
+          The paper points out a limitation of a common approach: prior work may run thousands of experiments but only keep a tiny set of "best
+          points" to fit a scaling law for optimal hyperparameters. For instance, the original StepLaw
+          <a href="https://arxiv.org/abs/2503.04715" target="_blank" class="cite">[6]</a> ran ~3,000 experiments but used only 17 optimal points to
+          fit lr* and bsz*.
+        </p>
+
+        <p>
+          In contrast, SLDAgent discovers a law for the <strong>full loss surface</strong> L(N, D, lr, bsz), then derives optimal hyperparameters by
+          setting partial derivatives (∂L/∂lr and ∂L/∂bsz) to zero, yielding a closed-form solution as a function of N and D.
+        </p>
+
+        <div class="figure">
+          <img src="images/image6.png" alt="Learning rate and batch size experiments" />
+          <p class="figure-caption">Finding the optimal learning rate and batch size: SLDAgent discovers laws for the full loss surface</p>
+        </div>
+
+        <p>That's exactly the kind of "turn experiments into a usable law" pipeline that scaling laws were meant for.</p>
+
+        <h2>Why We Think SLD Is a Strong "AI-for-Science" Benchmark (for AI Science)</h2>
+
+        <p>
+          Most "AI4Science" benchmarks focus on physics, chemistry, or biology. SLD is slightly different: it's a benchmark where the
+          <strong>"science" is AI itself</strong>. SLDBench was built to demand symbolic reasoning, multi-context generalization, robust
+          extrapolation, and long-horizon execution in a constrained environment…and to do so with a clear, unbiased objective function.
+        </p>
+
+        <p>
+          We also find it useful as a diagnostic for general-purpose coding agents: as those agents get better at scientific-style iteration, the gap
+          to task-specific systems like SLDAgent should shrink.
+        </p>
+
+        <div class="highlight-box">
+          SLDBench is our first attempt to make "AI for AI research" programmable, benchmarkable, and eventually automatable.
+        </div>
+
+        <!-- ============================== REFERENCES ============================== -->
+        <div class="references">
+          <h2>References</h2>
+          <ol>
+            <li>
+              Jordan Hoffmann, Sebastian Borgeaud, Arthur Mensch, et al. <strong>"Training Compute-Optimal Large Language Models."</strong> arXiv
+              preprint arXiv:2203.15556.
+              <a href="https://arxiv.org/abs/2203.15556" target="_blank">[arXiv]</a>
+            </li>
+            <li>
+              Haowei Lin, Baizhou Huang, Haotian Ye, et al.
+              <strong>"Selecting Large Language Model to Fine-tune via Rectified Scaling Law."</strong> arXiv preprint arXiv:2402.02314.
+              <a href="https://arxiv.org/abs/2402.02314" target="_blank">[arXiv]</a>
+            </li>
+            <li>
+              Jared Kaplan, Sam McCandlish, Tom Henighan, et al. <strong>"Scaling Laws for Neural Language Models."</strong> arXiv preprint
+              arXiv:2001.08361.
+              <a href="https://arxiv.org/abs/2001.08361" target="_blank">[arXiv]</a>
+            </li>
+            <li>
+              Haowei Lin, Haotian Ye, Wenzheng Feng, et al. <strong>"Can Language Models Discover Scaling Laws?"</strong> arXiv preprint
+              arXiv:2507.21184.
+              <a href="https://arxiv.org/abs/2507.21184" target="_blank">[arXiv]</a>
+            </li>
+            <li>
+              Asankhaya Sharma. <strong>"OpenEvolve: an open-source evolutionary coding agent."</strong> Software, 2025.
+              <a href="https://github.com/asankhaya/OpenEvolve" target="_blank">[GitHub]</a>
+            </li>
+            <li>
+              Houyi Li, Wenzhen Zheng, Qiufeng Wang, et al.
+              <strong>"Predictable Scale: Part I, Step Law – Optimal Hyperparameter Scaling Law in Large Language Model Pre-training."</strong> arXiv
+              preprint arXiv:2503.04715.
+              <a href="https://arxiv.org/abs/2503.04715" target="_blank">[arXiv]</a>
+            </li>
+          </ol>
+        </div>
+      </article>
+
+      <!-- ============================== FOOTER ============================== -->
+      <footer class="footer">
+        <p>
+          <a href="../index.html">← Back to Project Page</a>
+        </p>
+        <p style="margin-top: 1rem">SLDBench © 2025 | Peking University · Stanford University · Wizard Quant · Tsinghua University</p>
+        <p style="margin-top: 0.5rem">
+          <a href="https://arxiv.org/abs/2507.21184" target="_blank">arXiv</a> ·
+          <a href="https://github.com/linhaowei1/SLD" target="_blank">GitHub</a> ·
+          <a href="https://huggingface.co/collections/pkuHaowei/scaling-law-discovery" target="_blank">HuggingFace</a>
+        </p>
+      </footer>
+    </div>
+
+    <script>
+      // Render KaTeX formulas
+      document.addEventListener("DOMContentLoaded", function () {
+        // Wait for KaTeX to load
+        const checkKaTeX = setInterval(() => {
+          if (typeof katex !== "undefined") {
+            clearInterval(checkKaTeX);
+
+            // Render all formula elements
+            document.querySelectorAll(".formula[data-formula]").forEach((el) => {
+              const formula = el.getAttribute("data-formula");
+              try {
+                katex.render(formula, el, {
+                  throwOnError: false,
+                  displayMode: true,
+                  trust: true,
+                  strict: false,
+                });
+              } catch (e) {
+                console.error("KaTeX error:", e);
+                el.textContent = formula;
+              }
+            });
+
+            // Also render inline math with auto-render
+            if (typeof renderMathInElement !== "undefined") {
+              renderMathInElement(document.body, {
+                delimiters: [
+                  { left: "$$", right: "$$", display: true },
+                  { left: "$", right: "$", display: false },
+                  { left: "\\(", right: "\\)", display: false },
+                  { left: "\\[", right: "\\]", display: true },
+                ],
+                throwOnError: false,
+              });
+            }
+          }
+        }, 100);
+
+        // Fallback timeout
+        setTimeout(() => {
+          clearInterval(checkKaTeX);
+        }, 5000);
+      });
+    </script>
+  </body>
+</html>
