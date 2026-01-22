@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Scaling Law Discovery (SLD): A New Testbed for Scientific Discovery in AI</title>
+    <title>Scaling Law Discovery (SLD): Toward AI Scientist for AI Research</title>
     <link rel="icon" type="image/png" href="../assets/sld_logo.png" />
 
     <!-- Social Preview Tags -->
@@ -489,15 +489,15 @@
         <a href="../index.html" class="back-link"> <i class="fas fa-arrow-left"></i> Back to Project Page </a>
 
         <h1 class="main-title">Scaling Law Discovery (SLD)</h1>
-        <p class="subtitle">A New Testbed for Scientific Discovery in AI</p>
+        <p class="subtitle">Toward AI Scientist for AI Research</p>
 
         <div class="author-info" style="margin-bottom: 1.5rem">
           <span style="color: var(--text-secondary); font-size: 0.95rem">
             <i class="fas fa-user" style="color: var(--accent-primary); margin-right: 0.4rem"></i>
-            <a href="https://linhaowei1.github.io/" target="_blank" style="color: var(--text-primary); text-decoration: none; font-weight: 500"
-              >Haowei Lin</a
-            >
-            <span style="color: var(--text-muted)"> · Peking University</span>
+            <a href="https://linhaowei1.github.io/" target="_blank" style="color: var(--text-primary); text-decoration: none; font-weight: 500">Haowei Lin</a>
+            <span style="color: var(--text-muted)"> · Peking University    </span>&nbsp &nbsp
+            <a href="https://cs.stanford.edu/~haotiany/" target="_blank" style="color: var(--text-primary); text-decoration: none; font-weight: 500">Haotian Ye</a>
+            <span style="color: var(--text-muted)"> · Stanford University</span>
           </span>
         </div>
 
@@ -534,24 +534,28 @@
       <!-- ============================== ARTICLE CONTENT ============================== -->
       <article class="article-content">
         <p>
-          Scaling laws have quietly become one of the most "scientific" tools in modern AI: we run a small number of experiments at small scale, fit a
-          simple mathematical relationship, and use it to make decisions at large scale, where experiments are expensive and slow.
+          AI scientists for AI research could eventually automate AI self-improvement effectively. But as an early-stage concept, how it can be reliably approached remains underexplored. This blog introduces our recent research toward this goal from an interesting yet important question:
+          <div class="highlight-box question">
+            Can AI discover its own "Newton's laws" that govern AI systems more accurately and efficiently than humans?
+          </div>
         </p>
-
-        <p>
-          In this post, we introduce our new work on <strong>Scaling Law Discovery (SLD)</strong>: a benchmark + agentic framework for automating the
-          process of discovering scaling laws from experimental data. The high-level goal is simple:
-        </p>
-
-        <div class="highlight-box question">
-          Can AI agents discover the scaling laws that govern AI systems more efficiently and more accurately than humans?
+        
+        <div class="highlight-box">
+          <strong>Scaling laws</strong> are arguably the most "scientific" instrument in modern AI. They model the relationship between performance and hyperparameters, allowing researchers to predict the optimal configuration for gigantic models via small-scale experiments.
+           <!-- can  fit a simple mathematical relationship, and use it to make decisions at large scale, where experiments are expensive and slow. -->
         </div>
 
-        <h2>What is a Scaling Law?</h2>
+        <p>
+          Our new work on <strong>Scaling Law Discovery (SLD)</strong> is a benchmark on a variety of scaling laws studies and an evolution-based agentic framework for automating the process of discovering scaling laws from experimental data. As we will show below, and perhaps surprisingly, our SLD agent can already predict the scaling behaviors better than humans.
+        </p>
+
+
+
+        <h2>Scaling Law Discovery: What, Why, and Challenge</h2>
 
         <p>
           A scaling law is an empirical relationship that predicts a model's performance (loss, perplexity, accuracy, etc.) as a function of "scale
-          variables" like:
+          variables", such as:
         </p>
 
         <ul>
@@ -570,30 +574,24 @@
 
         <div class="formula-display">
           <span class="formula" data-formula="L(N, D) = \frac{\theta_1}{N^{\theta_2}} + \frac{\theta_3}{D^{\theta_4}} + \theta_5"></span>
-          <p class="formula-caption">The canonical Chinchilla-style scaling law for pretraining</p>
+          <p class="formula-caption">The Chinchilla-style scaling law</p>
         </div>
 
         <p>
-          <strong>Why do scaling laws matter?</strong> Because their predictive capability helps with real decisions: compute-optimal planning
+          The predictive capability has helped with plenty of real decisions, including compute-optimal planning
           <a href="https://arxiv.org/abs/2203.15556" target="_blank" class="cite">[1]</a>, choosing which model to fine-tune
           <a href="https://arxiv.org/abs/2402.02314" target="_blank" class="cite">[2]</a>, and picking hyperparameters that would otherwise require
-          huge sweeps <a href="https://arxiv.org/abs/2001.08361" target="_blank" class="cite">[3]</a>.
+          huge sweeps <a href="https://arxiv.org/abs/2001.08361" target="_blank" class="cite">[3]</a>. 
         </p>
+        
+        <h3>Challenge: A real example.</h3> 
+        <!-- <h3>The Problem: Fine-tuning Has Two Phases</h3> -->
 
-        <h2>A Real Example: When the "Standard" Scaling Law Fails</h2>
+        <p>          
+          In 2023, we ran into the problem of selecting the most appropriate LLM for downstream fine-tuning tasks. Specifically, given a set of pretrained LLMs and only a limited subset of downstream data, how can we predict which model will perform best after full fine-tuning?</p>
 
-        <p>
-          Two years ago (Year 2023), we ran into scaling laws the way many people do: not as a theory exercise, but because we needed an answer under
-          real resource constraints. We were working on <strong>LLM selection for SFT</strong>
-          <a href="https://arxiv.org/abs/2402.02314" target="_blank" class="cite">[2]</a>: given a set of pretrained LLMs and only a small subset of
-          downstream data, how do we pick which model will perform best after full fine-tuning?
-        </p>
-
-        <h3>The Problem: Fine-tuning Has Two Phases</h3>
-
-        <p>
-          In low-data fine-tuning, we observed a consistent phase transition pattern—what we called a <strong>pre-power phase</strong> followed by a
-          <strong>power phase</strong>—and existing "Chinchilla-style" power-law forms simply couldn't capture it well.
+          <p>          
+            Inspired by established scaling laws, we initially attempted to fit a "Chinchilla-style" power law to predict fine-tuning performance. Unfortunately, we observed a consistent phase transition pattern—what we termed a <strong>pre-power phase</strong> followed by a <strong>power phase</strong>. Existing power-law formulations simply couldn't capture this behavior accurately.
         </p>
 
         <div class="figure">
@@ -602,51 +600,14 @@
         </div>
 
         <p>
-          In fact, the paper gives a clean reason: under the classic law, the log-log slope has a monotonicity property that contradicts the observed
-          two-phase behavior.
-        </p>
-
-        <h3>The Fix: "Rectified Scaling Law" with a Pre-learned Data Size</h3>
-
-        <p>
-          The key idea was to explicitly represent how much downstream-relevant knowledge the model already has before fine-tuning. We introduced a
-          <strong>pre-learned data size (D₀)</strong> and proposed the rectified law:
-        </p>
-
-        <div class="formula-display">
-          <span class="formula" data-formula="L(D) = \frac{\theta_1}{D_0 + D^{\theta_2}} + \theta_3"></span>
-          <p class="formula-caption">The Rectified Scaling Law with pre-learned data size D₀</p>
-        </div>
-
-        <p>
-          This single extra concept ("pre-learned data size") makes the law both more interpretable and mathematically able to express the two-phase
-          pattern in one formula.
-        </p>
-
-        <p>
-          Empirically, it fit much better: the paper <a href="https://arxiv.org/abs/2402.02314" target="_blank" class="cite">[2]</a> reports an
-          average RMSD of <strong>0.007</strong> for the rectified law vs <strong>0.036</strong> for the vanilla law (same number of fitted
-          parameters), indicating the rectified form captures the intrinsic behavior more accurately.
-        </p>
-
-        <h3>Turning the Law into a Practical Algorithm</h3>
-
-        <p>
-          Once we had a usable law, we built an efficient selection algorithm that fine-tunes on a sequence of size-decreasing subsets, detects the
-          transition pattern, and extrapolates full-data performance. Crucially, it achieves near-optimal selection while using
-          <strong>hundreds of times less compute</strong> than full fine-tuning across candidates.
+          We ended up dedicating a full paper to investigating scaling laws in this scenario and proposed a "rectified" law. This new formulation incorporates an additional property—the effective size of pre-learned data—that was absent in previous laws. Empirically, the fit was significantly better: our paper <a href="https://arxiv.org/abs/2402.02314" target="_blank" class="cite">[2]</a> reports an average RMSD of <strong>0.007</strong> for the rectified law versus <strong>0.036</strong> for the vanilla law (using the same number of fitted parameters).
         </p>
 
         <div class="highlight-box">
-          This project taught us something important: <strong>the scaling law itself was the bottleneck</strong>. We spent a lot of human effort on
-          hypothesis → fit → failure → redesign loops.
+          <strong>A bitter lesson</strong>: Despite its empirical success, deriving this new law consumed a tremendous amount of research time. For every new use case, discovering the correct scaling law becomes the bottleneck. The cycle of hypothesis → fit → failure → redesign is painfully labor-intensive.
         </div>
 
-        <p>Which leads to the question that motivated our new work:</p>
-
-        <h2>Scaling Laws Are Everywhere Now—So Why Is Discovery Still Manual?</h2>
-
-        <p>In 2026 and beyond, scaling laws have expanded well beyond classical pretraining:</p>
+        <p>With two years of progress in AI, scaling laws are everywhere:
 
         <ul class="task-list">
           <li><i class="fas fa-check-circle"></i> Supervised fine-tuning laws</li>
@@ -663,9 +624,14 @@
           expanded rapidly, but discoveries are still manual and case-specific, requiring repeated cycles of
           <strong>hypothesis generation</strong> (design the symbolic law expression) and <strong>experimentation</strong> (fit the law to observed
           datapoints).
+          we want to go back to this problem, but in a fundamentally different way: <strong>we want AI to discover scaling laws automateically</strong>.
         </p>
 
-        <div class="highlight-box question">So we asked: can we formalize scaling law discovery as a task that coding agents can solve?</div>
+        <!-- <h2>Scaling Laws Are Everywhere Now—So Why Is Discovery Still Manual?</h2>
+
+        <p>In 2026 and beyond, scaling laws have expanded well beyond classical pretraining:</p> -->
+
+        <!-- <div class="highlight-box question">can we formalize scaling law discovery as a task that coding agents can solve?</div> -->
 
         <h2>Introducing Scaling Law Discovery (SLD)</h2>
 
@@ -692,7 +658,7 @@
           synthetic symbolic regression tasks.
         </p>
 
-        <h2>SLDBench: A Benchmark Built from 5,000+ Real Experiments</h2>
+        <h2>SLDBench: A Benchmark with 5,000+ Real Experiments</h2>
 
         <p>
           To evaluate this problem rigorously, we curated <strong>SLDBench</strong>, a scaling law discovery testbed built from over 5,000 LLM
@@ -750,7 +716,7 @@
 
         <p>This "co-optimization" framing matches the real research loop: hypothesize → fit → evaluate → refine.</p>
 
-        <h2>What We Found: Agents Can Beat Our Past Human Discoveries</h2>
+        <h2>Our Agent Can Beat Human Discoveries</h2>
 
         <p>
           Across SLDBench, SLDAgent achieves <strong>state-of-the-art performance</strong> and "superhuman" results relative to human baselines and
@@ -807,17 +773,17 @@
 
         <p>That's exactly the kind of "turn experiments into a usable law" pipeline that scaling laws were meant for.</p>
 
-        <h2>Why We Think SLD Is a Strong "AI-for-Science" Benchmark (for AI Science)</h2>
+        <h2>Toward AI scientist</h2>
 
         <p>
-          Most "AI4Science" benchmarks focus on physics, chemistry, or biology. SLD is slightly different: it's a benchmark where the
-          <strong>"science" is AI itself</strong>. SLDBench was built to demand symbolic reasoning, multi-context generalization, robust
+          Most benchmarks focus on math and coding, which are important but cannot evaluate AI's capability to develop itself. SLD is slightly different: it's a benchmark where the
+          <strong>science of AI</strong> can be rigorously analyzed. SLDBench was built to demand symbolic reasoning, multi-context generalization, robust
           extrapolation, and long-horizon execution in a constrained environment…and to do so with a clear, unbiased objective function.
         </p>
 
         <p>
-          We also find it useful as a diagnostic for general-purpose coding agents: as those agents get better at scientific-style iteration, the gap
-          to task-specific systems like SLDAgent should shrink.
+          Our work could also serve as a diagnostic for general-purpose coding agents. Eventually, we hope the gap
+          between task-specific systems and general agents should shrink, as those agents get better at scientific-style iteration.
         </p>
 
         <div class="highlight-box">
