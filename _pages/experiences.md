@@ -13,12 +13,12 @@ horizontal: false
 
 I serve as reviewer in the following conferences:
 
-- ICML 2022 (outstanding reviewer award), 2023, 2024, 2025
-- NeurIPS 2022, 2023, 2024, 2025
-- ICLR 2024, 2025
+- ICML 2022 (outstanding reviewer award), 2023, 2024, 2025, 2026
+- NeurIPS 2022, 2023, 2024, 2025, 2026
+- ICLR 2024, 2025, 2026 (Top 200 Reviewer)
 - CVPR 2024, 2025
 - ACL 2024 (ARR), 2025
-- COLM 2024, 2025
+- COLM 2024, 2025, 2026
 - AAAI 2025
 - AISTATS 2025
 - ICCV 2025
