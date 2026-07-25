@@ -21,7 +21,7 @@ social: true # includes social icons at the bottom of the page
 
 E-mail: linhaowei (at) pku (dot) edu (dot) cn
 
-I am Haowei Lin, a third year Ph.D. student at the Institute for Artificial Intelligence, Peking University, co-advised by [Prof. Yitao Liang](http://web.cs.ucla.edu/~yliang/), [Prof. Di He](https://dihe-pku.github.io/), and [Prof. Jianzhu Ma](https://majianzhu.com/).
+I am Haowei Lin, a third year Ph.D. student at the Institute for Artificial Intelligence, Peking University, co-advised by [Prof. Yitao Liang](http://web.cs.ucla.edu/~yliang/), [Prof. Di He](https://dihe-pku.github.io/), and [Prof. Jianzhu Ma](https://majianzhu.com/). I am currently interning with the Agent team at Tencent Hunyuan.
 
 I received my Bachelor's degree in Artificial Intelligence from [Yuanpei College](https://yuanpei.pku.edu.cn/en/aboutyuanpei/collegeprofile/index.htm), Peking University. During my undergraduate studies, I was fortunate to work with [Prof. Bing Liu](https://www.cs.uic.edu/~liub/) and [Dr. Zixuan Ke](https://vincent950129.github.io/) on OOD detection, continual learning, and language models. We are the first to propose the task of **continual pre-training** for LLMs ([EMNLP22](https://arxiv.org/abs/2210.05549), [ICLR23](https://openreview.net/pdf?id=m_GDIItaI3o)), and the first to apply OOD detection methods to continual learning ([EMNLP23](https://arxiv.org/abs/2310.05083), [ICLR24](https://arxiv.org/abs/2309.15048)).
 
