@@ -61,6 +61,12 @@ ninja.data = [{
           section: "News",},{id: "news-glad-to-launch-a-new-blog-on-scaling-law-discovery-sld-paper-we-hope-our-work-on-sld-helps-advance-foundation-model-development-and-push-the-boundaries-of-ai-scientist-code-dataset-benchmarks-and-leaderboard-are-all-publicly-available",
           title: 'Glad to launch a new blog on Scaling Law Discovery (SLD) (paper). We...',
           description: "",
+          section: "News",},{id: "news-two-new-benchmarks-in-the-terminal-bench-series-are-out-harbor-index-a-challenging-diverse-and-high-quality-benchmark-for-evaluating-frontier-agents-which-i-co-lead-and-frontier-bench-formerly-terminal-bench-3-0-for-which-i-served-as-a-task-contributor-and-reviewer",
+          title: 'Two new benchmarks in the Terminal-Bench series are out: Harbor-Index, a challenging, diverse,...',
+          description: "",
+          section: "News",},{id: "news-excited-to-share-hyra-hunyuan-research-agent-an-autonomous-research-agent-i-lead-at-tencent-hunyuan-hyra-sets-new-state-of-the-art-results-on-ai4ai-ai4science-mathematics-engineering-and-creative-design-see-results",
+          title: 'Excited to share Hyra (Hunyuan Research Agent), an autonomous research agent I lead...',
+          description: "",
           section: "News",},{
         id: 'social-email',
         title: 'email',
